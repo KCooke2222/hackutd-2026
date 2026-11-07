@@ -86,7 +86,7 @@ export default function Home() {
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tickFormatter={(v) => usd(v)} width={70} tick={{ fontSize: 11 }} domain={[0, 'auto']} />
                   <Tooltip formatter={(v) => usd(Number(v), 2)} />
-                  <Line type="monotone" dataKey="balance" stroke="#dc2626" strokeWidth={2} dot={false} />
+                  <Line isAnimationActive={false} type="monotone" dataKey="balance" stroke="#dc2626" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </section>
@@ -206,8 +206,8 @@ function ProposalCard({ p, onChange }: { p: Proposal; onChange: (p: Proposal) =>
             <YAxis tickFormatter={(v) => usd(v)} width={70} tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v) => usd(Number(v), 2)} />
             <ReferenceLine y={0} stroke="#16a34a" />
-            <Line dataKey="before" name="now" stroke="#dc2626" dot={false} strokeWidth={2} />
-            <Line dataKey="after" name="with plan" stroke="#16a34a" dot={false} strokeWidth={2} />
+            <Line isAnimationActive={false} dataKey="before" name="now" stroke="#dc2626" dot={false} strokeWidth={2} />
+            <Line isAnimationActive={false} dataKey="after" name="with plan" stroke="#16a34a" dot={false} strokeWidth={2} />
           </LineChart>
         </ResponsiveContainer>
       </div>

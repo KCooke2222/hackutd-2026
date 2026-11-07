@@ -301,7 +301,7 @@ function CustomerTab({ cid, onPick }: { cid: string; onPick: (c: string) => void
                 <Tooltip formatter={(v) => usd(Number(v), 2)} />
                 <Legend />
                 {d.accounts.filter((a) => !hidden.has(a.account_id)).map((a) => (
-                  <Line key={a.account_id} type="monotone" dataKey={a.account_id} name={a.account_type} stroke={ACCOUNT_COLORS[a.account_type]} dot={false} strokeWidth={2} />
+                  <Line isAnimationActive={false} key={a.account_id} type="monotone" dataKey={a.account_id} name={a.account_type} stroke={ACCOUNT_COLORS[a.account_type]} dot={false} strokeWidth={2} />
                 ))}
               </LineChart>
             </ResponsiveContainer>
