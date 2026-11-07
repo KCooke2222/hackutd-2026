@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, usd } from '../lib/api'
+import BalanceSheet from '../components/BalanceSheet'
 import type { Account, Proposal, Refill, Totals } from '../lib/api'
 
 type Summary = { customer_id: string; accounts: Account[]; totals: Totals; card_history: { month: string; balance: number }[]; refill: Refill }
@@ -99,6 +100,13 @@ export default function Home() {
         </>
       )}
 
+      {s && (
+        <>
+          <h2 className="section-head">Balance sheet</h2>
+          <BalanceSheet cid={cid} />
+        </>
+      )}
+
       {proposal && <ProposalCard p={proposal} onChange={setProposal} />}
 
       {run && (
@@ -168,6 +176,8 @@ function ProposalCard({ p, onChange }: { p: Proposal; onChange: (p: Proposal) =>
   const chart = after.schedule.map((pt, i) => ({ month: pt.month, after: pt.balance, before: before.schedule[i]?.balance }))
   const fields: [keyof Proposal['plan'], string][] = [
     ['lump_sum_from_savings', 'Lump sum from savings'],
+    ['lump_sum_from_cd', 'Lump sum from CDs'],
+    ['lump_sum_from_brokerage', 'Lump sum from brokerage'],
     ['monthly_payment', 'Monthly payment'],
     ['monthly_card_spending_cap', 'Card spending cap / mo'],
     ['keep_emergency_months', 'Keep in savings (months)'],
@@ -187,11 +197,14 @@ function ProposalCard({ p, onChange }: { p: Proposal; onChange: (p: Proposal) =>
                 <tr key={k}>
                   <td>{label}</td>
                   <td className="num">
-                    {edit ? <input type="number" value={plan[k]} onChange={(e) => setPlan({ ...plan, [k]: Number(e.target.value) })} /> : k === 'keep_emergency_months' ? plan[k] : usd(plan[k], 2)}
+                    {edit ? <input type="number" value={plan[k] ?? 0} onChange={(e) => setPlan({ ...plan, [k]: Number(e.target.value) })} /> : k === 'keep_emergency_months' ? plan[k] : usd(plan[k] ?? 0, 2)}
                   </td>
                 </tr>
               ))}
-              <tr><td>Savings after</td><td className="num">{usd(p.simulation.savings_after)} (floor {usd(p.simulation.emergency_floor)})</td></tr>
+              <tr><td>Savings after</td><td className="num">{usd(p.simulation.savings_after)} (cash floor {usd(p.simulation.emergency_floor)})</td></tr>
+              {p.simulation.tap_cost_total != null && p.simulation.tap_cost_total > 0 && (
+                <tr><td>One-time cost of draws</td><td className="num bad">{usd(p.simulation.tap_cost_total, 2)}</td></tr>
+              )}
             </tbody>
           </table>
           <div className="compare">
@@ -219,7 +232,7 @@ function ProposalCard({ p, onChange }: { p: Proposal; onChange: (p: Proposal) =>
           <button className="danger" onClick={() => act('reject')}>Reject</button>
         </div>
       ) : (
-        p.execution && <pre className="small">{JSON.stringify({ mode: p.execution.mode, note: p.execution.note, error: p.execution.error }, null, 1)}</pre>
+        p.execution && <pre className="small">{JSON.stringify({ mode: p.execution.mode, note: p.execution.note, manual_steps: p.execution.manual_steps, error: p.execution.error }, null, 1)}</pre>
       )}
     </section>
   )

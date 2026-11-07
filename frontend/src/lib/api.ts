@@ -75,8 +75,17 @@ export type Proposal = {
   customer_id: string
   status: string
   created_at: string
-  plan: { lump_sum_from_savings: number; monthly_payment: number; monthly_card_spending_cap: number; keep_emergency_months: number }
+  plan: {
+    lump_sum_from_savings: number
+    lump_sum_from_cd?: number
+    lump_sum_from_brokerage?: number
+    monthly_payment: number
+    monthly_card_spending_cap: number
+    keep_emergency_months: number
+  }
   simulation: {
+    draws?: Draw[]
+    tap_cost_total?: number
     savings_balance: number
     savings_after: number
     emergency_floor: number
@@ -88,6 +97,89 @@ export type Proposal = {
   execution?: Record<string, unknown>
 }
 
+export type Source = 'pnc' | 'nessie' | 'linked'
+
+export type SheetAccount = {
+  account_id: string
+  name: string
+  account_type: string
+  kind: string | null
+  institution: string | null
+  source: Source
+  side: 'asset' | 'debt'
+  balance: number
+  apr_pct: number
+  annual_yield_pct: number
+  min_payment: number
+  cost_basis: number | null
+  secured: boolean
+  consequence_tier: number | null
+  secures_account_id: string | null
+}
+
+export type LinkedAccount = Omit<SheetAccount, 'side'> & { customer_id: string; as_of_date: string }
+
+export type Draw = { tier: number; key: string; amount: number; cost: number }
+
+export type Tier = {
+  tier: number
+  key: string
+  label: string
+  proposable: boolean
+  balance: number
+  available: number
+  cost_pct: number | null
+  note: string | null
+  accounts: { account_id: string; name: string; balance: number; source: Source }[]
+}
+
+export type Ladder = {
+  keep_months: number
+  monthly_expenses: number
+  emergency_buffer: number
+  tiers: Tier[]
+  proposable_available: number
+  tap?: { amount: number; draws: Draw[]; total_cost: number; shortfall: number } | null
+}
+
+export type RankedDebt = {
+  account_id: string
+  name: string
+  account_type: string
+  kind: string | null
+  source: Source
+  balance: number
+  apr_pct: number
+  min_payment: number
+  secured: boolean
+  consequence_tier: number
+  consequence: string
+  minimum_order: number
+  extra_rank: number | null
+  action: string
+  yearly_interest: number
+}
+
+export type Priority = {
+  debts: RankedDebt[]
+  monthly_minimums: number
+  monthly_income: number
+  monthly_expenses: number
+  monthly_surplus: number
+  prepay_hurdle_pct: number
+  rule: string
+}
+
+export type BalanceSheet = {
+  customer_id: string
+  accounts: SheetAccount[]
+  totals: { assets: number; debts: number; net_worth: number; liquid: number; by_source: Record<string, number> }
+  ladder: Ladder
+  priority: Priority
+}
+
+export const SOURCE_LABEL: Record<Source, string> = { pnc: 'PNC data', nessie: 'Nessie (live)', linked: 'Linked' }
+
 export const ACCOUNT_COLORS: Record<string, string> = {
   checking: '#2563eb',
   savings: '#16a34a',
@@ -97,4 +189,7 @@ export const ACCOUNT_COLORS: Record<string, string> = {
   mortgage: '#7c3aed',
   brokerage: '#0891b2',
   ira: '#0d9488',
+  cd: '#65a30d',
+  student_loan: '#be185d',
+  property: '#78716c',
 }

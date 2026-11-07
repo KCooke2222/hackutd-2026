@@ -4,6 +4,8 @@
     uv run python -m zeroday.seed C005
     uv run python -m zeroday.seed reseed     # DELETE all Nessie data for this key, then seed
 
+Both also (re)load the linked external accounts into SQLite.
+
 No-op without NESSIE_KEY. Nessie ids are saved to backend/data/nessie_ids.json (gitignored),
 because Nessie data is per API key: the whole team should share one key and one seed.
 """
@@ -30,7 +32,15 @@ def nessie_ids(customer_id: str) -> dict:
     return _load().get(customer_id, {})
 
 
+def load_linked() -> None:
+    """Linked external accounts (student loans, brokerage, property, other cards) go into SQLite."""
+    from . import linked
+
+    print(f"loaded {linked.load()} linked accounts into SQLite")
+
+
 def seed(customer_ids: list[str]) -> dict:
+    load_linked()
     if not NESSIE_KEY:
         print("NESSIE_KEY not set; nothing to seed (app runs on local PNC CSVs).")
         return {}
@@ -78,7 +88,8 @@ def reseed(customer_ids: list[str]) -> dict:
     Nessie assigns new ids on every seed, so the map is always rebuilt from scratch.
     """
     if not NESSIE_KEY:
-        print("NESSIE_KEY not set; nothing to reseed (app runs on local PNC CSVs).")
+        print("NESSIE_KEY not set; nothing to reseed in Nessie (app runs on local PNC CSVs).")
+        load_linked()
         return {}
     from .nessie import read
     from .nessie._http import NessieError, request

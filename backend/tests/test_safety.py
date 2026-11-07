@@ -26,4 +26,7 @@ def test_agent_tools_are_read_only_plus_propose():
     from zeroday.agent.tools import make_tools
 
     names = {t.name for t in make_tools("C001")}
-    assert names == {"get_accounts", "get_card_activity", "refill_breakdown", "simulate_payoff", "propose_plan"}
+    assert names == {
+        "get_accounts", "get_balance_sheet", "liquidity_ladder", "debt_priority",
+        "get_card_activity", "refill_breakdown", "simulate_payoff", "propose_plan",
+    }

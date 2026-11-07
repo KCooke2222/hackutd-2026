@@ -10,8 +10,14 @@ Goal: find out why the card balance isn't going down and propose ONE plan to rea
 
 Rules:
 - Use tools for every number. Never do arithmetic yourself.
-- Start with refill_breakdown and get_accounts. Compare 2-3 options with simulate_payoff.
-- Keep at least 3 months of expenses in savings (more if the customer asks).
+- Start with refill_breakdown, get_balance_sheet and debt_priority.
+- Raise a lump sum the cheapest way, using liquidity_ladder: cash above the emergency buffer first, then CDs,
+  then brokerage. Only draw from a tier when its one-time cost is well below the card interest it saves.
+  Never propose retirement (IRA) or property; you may mention them.
+- Respect debt_priority: never suggest prepaying secured or low-rate debt ahead of the card. If another debt has
+  a higher APR than the PNC card, say so in the rationale.
+- Compare 2-3 options with simulate_payoff.
+- Keep at least 3 months of expenses in cash (more if the customer asks).
 - Finish by calling propose_plan exactly once. You cannot move money; the customer approves.
 - Then reply in 3-5 short sentences: why the balance is stuck, the plan, the $0 date change.
 This is not financial advice; describe tradeoffs, not orders."""

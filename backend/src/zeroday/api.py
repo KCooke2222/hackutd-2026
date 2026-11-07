@@ -8,7 +8,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
-from . import finance, pnc_data, store
+from . import balance_sheet, finance, linked, pnc_data, store
 from .config import NESSIE_KEY, NVIDIA_API_KEY, NEMOTRON_MODEL
 
 app = FastAPI(title="Zeroday")
@@ -43,14 +43,58 @@ def customers() -> list[dict]:
     out = []
     for cid in pnc_data.customer_ids():
         s = pnc_data.customer_summary(cid)
-        out.append({"customer_id": cid, **s["profile"], **{k: s["totals"][k] for k in ("net_worth", "card_balance", "liquid")}})
+        full = balance_sheet.totals(balance_sheet.accounts(cid, live=False))
+        out.append({
+            "customer_id": cid, **s["profile"], **{k: s["totals"][k] for k in ("net_worth", "card_balance", "liquid")},
+            "net_worth_all": full["net_worth"], "linked_count": len(linked.for_customer(cid)),
+        })
     return out
 
 
 @app.get("/api/customers/{cid}")
 def customer(cid: str) -> dict:
     _need_customer(cid)
-    return {**pnc_data.customer_summary(cid), "statements": pnc_data.customer_statements(cid)}
+    return {**pnc_data.customer_summary(cid), "statements": pnc_data.customer_statements(cid), "linked_accounts": linked.for_customer(cid)}
+
+
+# ---------- linked external accounts + balance sheet ----------
+
+@app.get("/api/linked")
+def linked_accounts(customer_id: str | None = None) -> dict:
+    """Accounts Nessie/PNC can't hold, from SQLite: student loans, brokerage, property, other banks' cards."""
+    rows = linked.for_customer(customer_id or None)
+    by_type: dict[str, dict] = {}
+    for r in rows:
+        k = f"{r['account_type']}:{r['kind']}"
+        b = by_type.setdefault(k, {"account_type": r["account_type"], "kind": r["kind"], "count": 0, "total_balance": 0.0, "aprs": []})
+        b["count"] += 1
+        b["total_balance"] = round(b["total_balance"] + r["balance"], 2)
+        if r["apr_pct"]:
+            b["aprs"].append(r["apr_pct"])
+    types = [
+        {**{k: v for k, v in b.items() if k != "aprs"}, "apr_min": min(b["aprs"], default=None), "apr_max": max(b["aprs"], default=None)}
+        for b in sorted(by_type.values(), key=lambda b: -b["count"])
+    ]
+    return {"count": len(rows), "types": types, "rows": rows}
+
+
+@app.get("/api/customers/{cid}/balance-sheet")
+def customer_balance_sheet(cid: str, keep_months: float = Query(3, ge=3, le=24)) -> dict:
+    _need_customer(cid)
+    return balance_sheet.balance_sheet(cid, keep_months=keep_months)
+
+
+@app.get("/api/customers/{cid}/ladder")
+def customer_ladder(cid: str, amount: float = Query(0, ge=0), keep_months: float = Query(3, ge=3, le=24)) -> dict:
+    _need_customer(cid)
+    lad = balance_sheet.balance_sheet(cid, keep_months=keep_months)["ladder"]
+    return {**lad, "tap": balance_sheet.tap(lad, amount) if amount else None}
+
+
+@app.get("/api/customers/{cid}/debts")
+def customer_debts(cid: str) -> dict:
+    _need_customer(cid)
+    return balance_sheet.balance_sheet(cid)["priority"]
 
 
 @app.get("/api/customers/{cid}/transactions")
@@ -154,6 +198,8 @@ def proposals(customer_id: str | None = None) -> list[dict]:
 
 class EditIn(BaseModel):
     lump_sum_from_savings: float | None = None
+    lump_sum_from_cd: float | None = None
+    lump_sum_from_brokerage: float | None = None
     monthly_payment: float | None = None
     monthly_card_spending_cap: float | None = None
     keep_emergency_months: float | None = None
@@ -192,16 +238,22 @@ def approve_proposal(pid: str, edits: EditIn | None = None) -> dict:
         store.set_status(pid, "stale", {"error": "balances changed since the proposal; re-run the check", "diffs": diffs})
         raise HTTPException(409, "stale, re-run: balances changed since the proposal (" + "; ".join(diffs) + ")")
 
+    # CD and brokerage draws live outside Nessie: the customer does those steps; we record them.
+    manual = [
+        {"step": f"{'Break CD' if d['key'] == 'cd' else 'Sell from brokerage'} and pay {d['amount']:,.2f} to the card",
+         "tier": d["key"], "amount": d["amount"], "one_time_cost": d["cost"]}
+        for d in sim["draws"] if d["key"] in ("cd", "brokerage")
+    ]
     lump = sim["inputs"]["lump_sum_from_savings"]
     if not NESSIE_KEY or lump <= 0:
-        why = "NESSIE_KEY not set" if not NESSIE_KEY else "no lump-sum transfer in plan"
-        return store.set_status(pid, "approved", {"mode": "local_only", "note": why, "plan": plan, "simulation": sim})
+        why = "NESSIE_KEY not set" if not NESSIE_KEY else "no transfer from savings in plan"
+        return store.set_status(pid, "approved", {"mode": "local_only", "note": why, "manual_steps": manual, "plan": plan, "simulation": sim})
 
     from .seed import nessie_ids
 
     ids = nessie_ids(p["customer_id"])
     if not ids.get("savings") or not ids.get("credit_card"):
-        return store.set_status(pid, "approved", {"mode": "local_only", "note": "customer not seeded into Nessie (run reseed)", "plan": plan})
+        return store.set_status(pid, "approved", {"mode": "local_only", "note": "customer not seeded into Nessie (run reseed)", "manual_steps": manual, "plan": plan})
 
     # Lazy import: the only place in the app that can move money.
     from .nessie import write
@@ -210,7 +262,9 @@ def approve_proposal(pid: str, edits: EditIn | None = None) -> dict:
         res = write.create_transfer(ids["savings"], ids["credit_card"], lump, finance.today(), "Zeroday approved payoff")
     except Exception as e:  # noqa: BLE001
         return store.set_status(pid, "failed", {"error": str(e), "plan": plan})
-    return store.set_status(pid, "executed", {"mode": "nessie", "transfer": res, "plan": plan, "simulation": sim})
+    finally:
+        balance_sheet.clear_cache()
+    return store.set_status(pid, "executed", {"mode": "nessie", "transfer": res, "manual_steps": manual, "plan": plan, "simulation": sim})
 
 
 @app.post("/api/proposals/{pid}/reject")
