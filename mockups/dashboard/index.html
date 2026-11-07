@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zeroday dashboard mock</title>
+<style>
+/* ---- Zeroday app stylesheet: frontend/src/index.css, verbatim ---- */
+:root {
+  --bg: #f6f7f9; --panel: #fff; --text: #111827; --muted: #6b7280; --line: #e5e7eb;
+  --accent: #ea580c; --good: #16a34a; --bad: #dc2626;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: var(--text); background: var(--bg); font-size: 14px; line-height: 1.45;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+.topbar { display: flex; align-items: center; gap: 24px; padding: 10px 24px; background: #111827; color: #fff; position: sticky; top: 0; z-index: 10; }
+.brand { font-weight: 700; letter-spacing: .02em; color: #fb923c; }
+.topbar nav a { color: #d1d5db; text-decoration: none; margin-right: 16px; padding: 4px 0; }
+.topbar nav a.active { color: #fff; border-bottom: 2px solid #fb923c; }
+.page { max-width: 1280px; margin: 0 auto; padding: 20px 24px 60px; }
+.page-head h1 { margin: 0 0 4px; font-size: 22px; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.muted { color: var(--muted); } .small { font-size: 12px; } .mono { font-family: ui-monospace, monospace; font-size: 12px; } .nowrap { white-space: nowrap; }
+.tabs { display: flex; gap: 4px; margin: 16px 0; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: none; padding: 8px 14px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; font: inherit; }
+.tabs button.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 16px 0; }
+.card h2 { font-size: 15px; margin: 0 0 10px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid2 > .card { margin: 0; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin: 16px 0; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.stat-value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+.stat-sub { font-size: 12px; color: var(--muted); }
+.stat.bad .stat-value, .bad { color: var(--bad); } .stat.good .stat-value, .good { color: var(--good); }
+.callout { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 16px; margin: 8px 0 0; }
+.notice { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 10px 14px; margin: 12px 0; }
+.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 10px; padding: 10px 14px; margin: 12px 0; }
+.table-wrap { overflow-x: auto; } .table-wrap.scroll { max-height: 360px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; background: #fafafa; position: sticky; top: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.neg { color: var(--bad); } td.pos { color: var(--good); }
+table.clickable tbody tr { cursor: pointer; } table.clickable tbody tr:hover { background: #fff7ed; }
+table.compact td { padding: 4px 6px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #f3f4f6; color: #374151; }
+.tag.good, .status-approved, .status-executed { background: #dcfce7; color: #166534; }
+.status-pending { background: #fef3c7; color: #92400e; } .status-rejected, .status-failed { background: #fee2e2; color: #991b1b; }
+.picker { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+select, input { font: inherit; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
+input[type=number] { width: 120px; text-align: right; }
+button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.danger { color: var(--bad); border-color: #fecaca; }
+button.link { border: 0; background: none; color: #2563eb; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.pager { display: flex; gap: 12px; align-items: center; justify-content: flex-end; margin-top: 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chip { border-radius: 999px; padding: 2px 10px; font-size: 12px; border-width: 1px; }
+.chip.off { opacity: .4; }
+.stackbar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; margin: 8px 0 12px; background: #f3f4f6; }
+.compare { display: flex; gap: 24px; margin-top: 12px; padding: 10px; background: #f9fafb; border-radius: 8px; }
+.actions { display: flex; gap: 8px; margin-top: 12px; }
+.trace { border-top: 1px solid var(--line); padding: 6px 0; } .trace pre { white-space: pre-wrap; font-size: 12px; margin: 4px 0; }
+.markdown h2 { font-size: 18px; } .markdown h3 { font-size: 15px; margin-top: 20px; }
+.markdown code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+.markdown pre { background: #f3f4f6; padding: 10px; border-radius: 6px; overflow-x: auto; }
+.src { display: inline-block; font-size: 10px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.src-nessie { border-color: #93c5fd; color: #1d4ed8; background: #eff6ff; }
+.src-linked { border-color: #d8b4fe; color: #7e22ce; background: #faf5ff; }
+.src-pnc { border-color: #fdba74; color: #c2410c; background: #fff7ed; }
+tr.dim td { color: var(--muted); }
+.ladder-bar { display: flex; height: 10px; border-radius: 4px; overflow: hidden; background: #f3f4f6; min-width: 80px; }
+.tap { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; padding: 10px; background: #f9fafb; border-radius: 8px; }
+.section-head { font-size: 17px; margin: 28px 0 0; }
+
+/* ---- mockup-only additions (candidates for index.css) ---- */
+.page { max-width: 1100px; }
+.ideas { flex-wrap: wrap; }
+.ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; position: relative; }
+.ledger > .card { margin: 0; }
+@media (max-width: 760px) { .ledger { grid-template-columns: 1fr; } .page { padding: 16px 16px 48px; } }
+.lrow { display: grid; grid-template-columns: 22px 1fr auto; gap: 4px 8px; align-items: baseline; padding: 7px 6px; border-bottom: 1px solid var(--line); border-radius: 6px; transition: background .12s; }
+.lrow:last-child { border-bottom: 0; }
+.lrow .rank { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.lrow .amt { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.lrow .sub { grid-column: 2 / 4; font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.lrow.dim .name, .lrow.dim .amt { color: var(--muted); font-weight: 400; }
+.lrow.hl { background: #fff7ed; box-shadow: inset 3px 0 0 var(--accent); }
+.group-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 12px 6px 2px; }
+.col-head { display: flex; justify-content: space-between; align-items: baseline; }
+.col-head .total { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tag.warn { background: #fef3c7; color: #92400e; } .tag.red { background: #fee2e2; color: #991b1b; }
+.diag { font-size: 17px; line-height: 1.45; margin: 0 0 4px; }
+.acts { display: grid; gap: 10px; margin-top: 12px; }
+.act { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; cursor: default; transition: border-color .12s, background .12s; }
+.act:hover, .act.on { border-color: #fdba74; background: #fffbf5; }
+.act .save { text-align: right; font-weight: 700; color: var(--good); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.act .save small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
+.act .flow { font-size: 12px; color: var(--muted); }
+.act .actions { margin-top: 6px; grid-column: 1 / 3; }
+.act .actions button { padding: 4px 10px; font-size: 13px; }
+.whatif-controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin: 4px 0 8px; }
+.whatif-controls input[type=range] { width: 220px; accent-color: var(--accent); }
+.wi-out { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 8px; }
+.wi-out .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+svg text { font-family: inherit; }
+.ledger > svg.arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.view { display: none; } .view.on { display: block; }
+.mock-note { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="topbar"><span class="brand">Zeroday</span><nav><a class="active" href="#">Agent</a><a href="#">PNC data</a></nav></header>
+<div class="page">
+  <div class="page-head row">
+    <div>
+      <h1>Dashboard layout mock</h1>
+      <p class="muted">Customer C001, real balances from the API (Nov 7). AI actions are illustrative estimates.</p>
+    </div>
+  </div>
+  <div class="tabs ideas" id="tabs">
+    <button class="on" data-v="rec">Recommended</button>
+    <button data-v="ledger">1 Ledger</button>
+    <button data-v="diag">2 Diagnosis first</button>
+    <button data-v="whatif">3 What-if</button>
+    <button data-v="flow">4 Money flow</button>
+  </div>
+
+  <!-- Recommended: header strip -> Have | Owe -> AI panel -->
+  <div class="view on" id="v-rec">
+    <div data-slot="stats"></div>
+    <div data-slot="ledger" data-arrows="1"></div>
+    <section class="card">
+      <div class="row"><h2>Zeroday's read</h2><span class="tag status-pending">3 actions · nothing moves until you approve</span></div>
+      <div data-slot="diag"></div>
+      <div data-slot="acts"></div>
+    </section>
+    <section class="card"><h2>What if you paid more?</h2><div data-slot="whatif"></div></section>
+  </div>
+
+  <div class="view" id="v-ledger">
+    <div data-slot="stats"></div>
+    <div data-slot="ledger"></div>
+  </div>
+
+  <div class="view" id="v-diag">
+    <section class="card">
+      <div data-slot="diag"></div>
+      <div data-slot="refill"></div>
+      <div data-slot="acts"></div>
+      <details style="margin-top:14px"><summary class="muted">All 9 accounts</summary><div data-slot="ledger"></div></details>
+    </section>
+  </div>
+
+  <div class="view" id="v-whatif">
+    <section class="card"><h2>PNC card: what if you paid more?</h2><div data-slot="whatif"></div></section>
+  </div>
+
+  <div class="view" id="v-flow">
+    <section class="card">
+      <h2>Where the $1,541 card payment goes each month</h2>
+      <p class="muted small">Average of the last 12 months. Every dollar paid is refilled by new spending, interest and fees: the balance grows about $5 a month.</p>
+      <div data-slot="sankey"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+// ---- C001 data, baked from localhost:8710/api/customers/C001/{balance-sheet,ladder,debts,summary} on 2026-11-07 ----
+const D = {
+  totals: { net_worth: 20053.73, assets: 47315.56, debts: 27261.83, liquid: 19021.0 },
+  buffer: 19079.61, keepMonths: 3,
+  have: [
+    { id: 'chk', tier: 1, name: 'PNC Checking', type: 'checking', src: 'nessie', bal: 1604.00, note: 'part of 3-month buffer' },
+    { id: 'sav', tier: 1, name: 'PNC Savings', type: 'savings', src: 'nessie', bal: 17417.00, note: '2.5% yield · part of buffer' },
+    { id: 'brk', tier: 3, name: 'Brokerage (index funds)', type: 'brokerage', src: 'linked', bal: 9800.00, note: 'basis $7,056 · ~4.2% tax to sell' },
+    { id: 'ira', tier: 4, name: 'PNC IRA', type: 'ira', src: 'pnc', bal: 6994.56, note: '10% penalty + income tax', dim: true },
+    { id: 'car', tier: 5, name: '2019 Honda Civic', type: 'property', src: 'linked', bal: 11500.00, note: 'illiquid', dim: true },
+  ],
+  // extra-money (avalanche) order; minimum-only debts last
+  owe: [
+    { id: 'store', name: 'Store card', type: 'credit_card', src: 'linked', bal: 1240.55, apr: 27.24, min: 40.57, intYr: 337.93, tags: ['unsecured'] },
+    { id: 'card', name: 'PNC Credit card', type: 'credit_card', src: 'nessie', bal: 6571.00, apr: 22.5, min: 197.14, intYr: 1478.47, tags: ['unsecured'] },
+    { id: 'pl', name: 'PNC Personal loan', type: 'personal_loan', src: 'pnc', bal: 1050.28, apr: 11.0, min: 29.17, intYr: 115.53, tags: ['unsecured'] },
+    { id: 'stu', name: 'Federal Direct Loan', type: 'student_loan', src: 'linked', bal: 18400.00, apr: 4.99, min: 195.07, intYr: 918.16, tags: ['garnishment risk'], minOnly: true },
+  ],
+  refill: { payment: 1541.12, spending: 1422.79, interest: 122.55, fees: 1.25, cats: { shopping: 355.71, groceries: 355.69, transport: 355.69, dining: 355.69 }, paid12: 18493.38, int12: 1470.57, change12: 65.72 },
+};
+const COLORS = { checking: '#2563eb', savings: '#16a34a', credit_card: '#dc2626', personal_loan: '#d97706', brokerage: '#0891b2', ira: '#0d9488', student_loan: '#be185d', property: '#78716c' };
+const SRC = { pnc: 'PNC data', nessie: 'Nessie (live)', linked: 'Linked' };
+const usd = (n, d = 0) => (n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const interestYr = D.owe.reduce((a, d) => a + d.intYr, 0);
+
+// AI actions, ranked by $/yr saved (rough estimates from balances and APRs)
+const ACTS = [
+  { title: 'Sell $7,812 of index funds, clear both cards', from: ['brk'], to: ['store', 'card'],
+    flow: 'Brokerage → Store card ($1,241) + PNC card ($6,571)', save: 1816, sub: '~$328 one-time tax',
+    why: 'Funds return ~7%; the cards cost 22–27%. Cash buffer stays untouched.' },
+  { title: 'Payday autopay: +$500/mo to the PNC card', from: ['chk'], to: ['card'],
+    flow: 'Checking → PNC card, every payday', save: 659, sub: '$0 in 12 months',
+    why: 'Uses part of the $2,889/mo left after minimums.' },
+  { title: 'Cap card spending at $1,100/mo', from: [], to: ['card'],
+    flow: 'Dining + shopping −$323/mo', save: 426, sub: '$0 in 18 months',
+    why: 'New spending refills 100% of each payment today.' },
+];
+
+// ---------- renderers ----------
+function stats() {
+  return `<div class="stats">
+    <div class="stat"><div class="stat-label">Net worth</div><div class="stat-value">${usd(D.totals.net_worth)}</div><div class="stat-sub">${usd(D.totals.assets)} have − ${usd(D.totals.debts)} owe</div></div>
+    <div class="stat good"><div class="stat-label">Liquid cash</div><div class="stat-value">${usd(D.totals.liquid)}</div><div class="stat-sub">all held as ${D.keepMonths}-mo buffer</div></div>
+    <div class="stat bad"><div class="stat-label">Total owed</div><div class="stat-value">${usd(D.totals.debts)}</div><div class="stat-sub">4 debts</div></div>
+    <div class="stat bad"><div class="stat-label">Interest / yr</div><div class="stat-value">${usd(interestYr)}</div><div class="stat-sub">${usd(interestYr / 12)}/mo</div></div>
+  </div>`;
+}
+const srcTag = (s) => `<span class="src src-${s}">${SRC[s]}</span>`;
+const dot = (t) => `<span class="dot" style="background:${COLORS[t]}"></span>`;
+
+function ledger() {
+  const tapRows = D.have.filter((a) => !a.dim);
+  const noRows = D.have.filter((a) => a.dim);
+  const haveRow = (a, i) => `<div class="lrow ${a.dim ? 'dim' : ''}" data-id="${a.id}">
+      <span class="rank">${a.dim ? '–' : i + 1}</span><span class="name">${dot(a.type)}${a.name}</span><span class="amt">${usd(a.bal)}</span>
+      <span class="sub">${srcTag(a.src)} ${a.note}</span></div>`;
+  const pay = D.owe.filter((d) => !d.minOnly), mins = D.owe.filter((d) => d.minOnly);
+  const oweRow = (d, i) => `<div class="lrow ${d.minOnly ? 'dim' : ''}" data-id="${d.id}">
+      <span class="rank">${d.minOnly ? '–' : i + 1}</span><span class="name">${dot(d.type)}${d.name}</span><span class="amt ${d.minOnly ? '' : 'bad'}">${usd(d.bal)}</span>
+      <span class="sub"><strong style="color:var(--text)">${d.apr}%</strong> · min ${usd(d.min)}/mo ${d.tags.map((t) => `<span class="tag ${t.includes('risk') ? 'warn' : ''}">${t}</span>`).join(' ')} ${srcTag(d.src)}</span></div>`;
+  return `<div class="ledger">
+    <section class="card"><div class="col-head"><h2>What you have</h2><span class="total good">${usd(D.totals.assets)}</span></div>
+      <p class="muted small" style="margin:0 0 4px">In the order Zeroday would tap it.</p>
+      ${tapRows.map(haveRow).join('')}
+      <div class="group-label">Not tapped</div>${noRows.map(haveRow).join('')}
+    </section>
+    <section class="card"><div class="col-head"><h2>What you owe</h2><span class="total bad">${usd(D.totals.debts)}</span></div>
+      <p class="muted small" style="margin:0 0 4px">Every minimum is paid. Extra money goes top-down, highest APR first.</p>
+      ${pay.map(oweRow).join('')}
+      <div class="group-label">Minimum only (below 8% APR)</div>${mins.map(oweRow).join('')}
+    </section>
+    <svg class="arrows"></svg>
+  </div>`;
+}
+
+function diag() {
+  const r = D.refill;
+  return `<p class="diag">You paid <strong>${usd(r.paid12)}</strong> to the PNC card in 12 months, but new spending and <strong class="bad">${usd(r.int12)}</strong> of interest refilled all of it: the balance went <strong class="bad">up ${usd(r.change12, 2)}</strong>.</p>
+    <p class="muted small" style="margin:0">Your cash is all emergency buffer, but ${usd(9800)} of index funds earning ~7% sits next to ${usd(7812)} of cards at 22–27%.</p>`;
+}
+
+function acts() {
+  return `<div class="acts">${ACTS.map((a, i) => `<div class="act" data-act="${i}">
+      <div><strong>${i + 1}. ${a.title}</strong><div class="flow">${a.flow}</div><div class="small muted">${a.why}</div></div>
+      <div class="save">+${usd(a.save)}/yr<small>${a.sub}</small></div>
+      <div class="actions"><button class="primary">Approve</button><button>Edit</button></div>
+    </div>`).join('')}</div>`;
+}
+
+function refillBar() {
+  const r = D.refill, segs = [...Object.entries(r.cats).map(([k, v]) => [k, v, '#f59e0b']), ['interest', r.interest, '#dc2626'], ['fees', r.fees, '#7f1d1d']];
+  const tot = segs.reduce((a, s) => a + s[1], 0);
+  return `<div class="stackbar" style="margin-top:14px">${segs.map(([k, v, c]) => `<div title="${k}: ${usd(v, 2)}" style="width:${v / tot * 100}%;background:${c}"></div>`).join('')}</div>
+    <p class="small muted" style="margin-top:-6px">Each ${usd(r.payment)} payment: ${usd(r.spending)} refilled by new spending, ${usd(r.interest)} interest, ${usd(r.fees, 2)} fees.</p>`;
+}
+
+// what-if: PNC card only. Today: net paydown before interest = payment − spending − fees.
+const NET = D.refill.payment - D.refill.spending - D.refill.fees, R = 0.225 / 12, B0 = 6571.0;
+function run(extra, months = 36) {
+  let b = B0, interest = 0, payoff = null; const pts = [b];
+  for (let m = 1; m <= months; m++) { if (b > 0) { const i = b * R; interest += i; b = Math.max(b + i - NET - extra, 0); if (b === 0 && payoff == null) payoff = m; } pts.push(b); }
+  return { pts, interest, payoff };
+}
+const monthName = (m) => { const d = new Date(2026, 10 + m, 1); return d.toLocaleString('en-US', { month: 'short', year: 'numeric' }); };
+function whatif() {
+  return `<div class="whatif-controls">
+      <label>Extra per month <input type="range" min="0" max="1500" step="25" value="500" class="wi-x"> <strong class="wi-xv"></strong></label>
+      <label class="small"><input type="checkbox" class="wi-cap"> also cap spending at $1,100 (−$323/mo)</label>
+    </div>
+    <svg class="wi-svg" width="100%" height="220" role="img" aria-label="Card balance, now vs plan"></svg>
+    <div class="wi-out">
+      <div><div class="stat-label">Now</div><div class="v bad">never $0</div><div class="small muted">grows ~$5/mo</div></div>
+      <div><div class="stat-label">With plan</div><div class="v good wi-pay"></div><div class="small muted wi-pay2"></div></div>
+      <div><div class="stat-label">Interest, next 3 yrs</div><div class="v wi-int"></div><div class="small muted wi-int2"></div></div>
+    </div>`;
+}
+function drawWhatif(root) {
+  const x = root.querySelector('.wi-x'), cap = root.querySelector('.wi-cap'), svg = root.querySelector('.wi-svg');
+  const upd = () => {
+    const extra = +x.value + (cap.checked ? 323 : 0), base = run(0), plan = run(extra);
+    root.querySelector('.wi-xv').textContent = usd(+x.value);
+    const W = Math.max(svg.clientWidth || 640, 280), H = 220, L = 52, Bm = 24, T = 14, max = 8000, n = 36;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const ticks = W < 500 ? [0, 12, 24, 36] : [0, 6, 12, 18, 24, 30, 36];
+    const px = (i) => L + (i / n) * (W - L - 8), py = (v) => T + (1 - v / max) * (H - T - Bm);
+    const line = (p) => p.map((v, i) => `${i ? 'L' : 'M'}${px(i).toFixed(1)},${py(v).toFixed(1)}`).join('');
+    let g = '';
+    for (const v of [0, 2000, 4000, 6000, 8000]) g += `<line x1="${L}" x2="${W - 8}" y1="${py(v)}" y2="${py(v)}" stroke="#e5e7eb" stroke-dasharray="3 3"/><text x="${L - 6}" y="${py(v) + 4}" font-size="11" fill="#6b7280" text-anchor="end">${usd(v)}</text>`;
+    for (const m of ticks) g += `<text x="${px(m)}" y="${H - 6}" font-size="11" fill="#6b7280" text-anchor="${m === n ? 'end' : 'middle'}">${monthName(m).replace(' 20', " '")}</text>`;
+    g += `<path d="${line(base.pts)}" fill="none" stroke="#dc2626" stroke-width="2"/><path d="${line(plan.pts)}" fill="none" stroke="#16a34a" stroke-width="2"/>`;
+    g += `<text x="${W - 10}" y="${py(base.pts[n]) - 6}" font-size="11" fill="#dc2626" text-anchor="end">now</text>`;
+    if (plan.payoff) g += `<circle cx="${px(plan.payoff)}" cy="${py(0)}" r="4" fill="#16a34a"/><text x="${px(plan.payoff) + 6}" y="${py(0) - 8}" font-size="11" fill="#16a34a">$0 · ${monthName(plan.payoff)}</text>`;
+    svg.innerHTML = g;
+    root.querySelector('.wi-pay').textContent = plan.payoff ? `$0 in ${plan.payoff} mo` : extra ? 'not in 3 yrs' : 'never $0';
+    root.querySelector('.wi-pay2').textContent = plan.payoff ? monthName(plan.payoff) : '';
+    root.querySelector('.wi-int').textContent = usd(plan.interest);
+    root.querySelector('.wi-int2').textContent = `vs ${usd(base.interest)} now · saves ${usd(base.interest - plan.interest)}`;
+  };
+  x.oninput = upd; cap.onchange = upd; upd(); addEventListener('resize', upd);
+}
+
+function sankey() {
+  const r = D.refill, W = 680, H = 300, nodeW = 14, x0 = 120, x1 = 470, gap = 10;
+  const items = [['Shopping', r.cats.shopping, '#f59e0b'], ['Groceries', r.cats.groceries, '#f59e0b'], ['Transport', r.cats.transport, '#f59e0b'], ['Dining', r.cats.dining, '#f59e0b'], ['Interest', r.interest, '#dc2626'], ['Fees', r.fees, '#7f1d1d']];
+  const tot = items.reduce((a, s) => a + s[1], 0), avail = H - 20 - gap * (items.length - 1), k = avail / tot;
+  let g = `<rect x="${x0 - nodeW}" y="10" width="${nodeW}" height="${tot * k}" fill="#111827" rx="2"/>
+    <text x="${x0 - nodeW - 8}" y="${10 + tot * k / 2 - 6}" font-size="13" text-anchor="end" font-weight="600">Card payment</text>
+    <text x="${x0 - nodeW - 8}" y="${10 + tot * k / 2 + 12}" font-size="12" text-anchor="end" fill="#6b7280">${usd(r.payment)}/mo</text>`;
+  let ys = 10, yt = 10;
+  for (const [name, v, c] of items) {
+    const h = Math.max(v * k, 1.5);
+    g += `<path d="M${x0},${ys} C${(x0 + x1) / 2},${ys} ${(x0 + x1) / 2},${yt} ${x1},${yt} L${x1},${yt + h} C${(x0 + x1) / 2},${yt + h} ${(x0 + x1) / 2},${ys + h} ${x0},${ys + h} Z" fill="${c}" opacity=".35"/>
+      <rect x="${x1}" y="${yt}" width="${nodeW}" height="${h}" fill="${c}" rx="2"/>
+      <text x="${x1 + nodeW + 8}" y="${yt + h / 2 + 4}" font-size="12">${name} <tspan fill="#6b7280">${usd(v)}</tspan></text>`;
+    ys += h; yt += h + gap;
+  }
+  g += `<text x="${x1 + nodeW + 8}" y="${yt + 14}" font-size="12" fill="#16a34a" font-weight="600">Actually paid down: $0</text>`;
+  return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H + 30}" width="100%" style="min-width:560px;max-width:760px" role="img" aria-label="Card payment split">${g}</svg></div>
+    <div class="row small muted" style="justify-content:flex-start;gap:16px"><span><span class="dot" style="background:#f59e0b"></span>refilled by new card spending</span><span><span class="dot" style="background:#dc2626"></span>interest and fees</span></div>`;
+}
+
+// ---------- mount ----------
+const R_ = { stats, ledger, diag, acts, whatif, refill: refillBar, sankey };
+document.querySelectorAll('[data-slot]').forEach((el) => {
+  el.innerHTML = R_[el.dataset.slot]();
+  if (el.dataset.slot === 'whatif') drawWhatif(el);
+});
+
+// hover an action -> highlight its Have and Owe rows and draw an arrow between them (Recommended view)
+const rec = document.getElementById('v-rec');
+const led = rec.querySelector('.ledger'), arrows = led.querySelector('svg.arrows');
+function show(i) {
+  rec.querySelectorAll('.lrow.hl, .act.on').forEach((e) => e.classList.remove('hl', 'on'));
+  arrows.innerHTML = '';
+  if (i == null) return;
+  const a = ACTS[i]; rec.querySelector(`[data-act="${i}"]`).classList.add('on');
+  const box = led.getBoundingClientRect();
+  const rowsOf = (ids) => ids.map((id) => led.querySelector(`.lrow[data-id="${id}"]`)).filter(Boolean);
+  const froms = rowsOf(a.from), tos = rowsOf(a.to);
+  [...froms, ...tos].forEach((e) => e.classList.add('hl'));
+  const stacked = getComputedStyle(led).gridTemplateColumns.split(' ').length < 2;
+  let g = `<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/></marker></defs>`;
+  for (const f of froms) for (const t of tos) {
+    const fb = f.getBoundingClientRect(), tb = t.getBoundingClientRect();
+    let d;
+    if (stacked) { const sx = fb.left - box.left + 6, sy = fb.top + fb.height / 2 - box.top, ty = tb.top + tb.height / 2 - box.top; d = `M${sx},${sy} C${sx - 30},${sy} ${sx - 30},${ty} ${sx},${ty}`; }
+    else { const sx = fb.right - box.left - 4, sy = fb.top + fb.height / 2 - box.top, tx = tb.left - box.left + 4, ty = tb.top + tb.height / 2 - box.top; d = `M${sx},${sy} C${sx + 40},${sy} ${tx - 40},${ty} ${tx},${ty}`; }
+    g += `<path d="${d}" fill="none" stroke="#ea580c" stroke-width="2" marker-end="url(#ah)"/>`;
+  }
+  if (!froms.length) for (const t of tos) { const tb = t.getBoundingClientRect(); const y = tb.top + tb.height / 2 - box.top, x = tb.left - box.left + 4; g += `<path d="M${x - 46},${y} L${x},${y}" stroke="#ea580c" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#ah)"/>`; }
+  arrows.innerHTML = g;
+}
+rec.querySelectorAll('.act').forEach((el) => { el.onmouseenter = () => show(+el.dataset.act); el.onmouseleave = () => show(null); el.onclick = () => show(+el.dataset.act); });
+
+// tabs
+document.querySelectorAll('#tabs button').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.id === 'v-' + b.dataset.v));
+  show(null); dispatchEvent(new Event('resize'));
+});
+if (location.hash === '#arrow') show(0);
+const hv = location.hash.slice(1); const hb = document.querySelector(`#tabs button[data-v="${hv}"]`); if (hb) hb.click();
+</script>
+</body>
+</html>
