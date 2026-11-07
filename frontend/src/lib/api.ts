@@ -82,6 +82,7 @@ export type Proposal = {
     monthly_payment: number
     monthly_card_spending_cap: number
     keep_emergency_months: number
+    autopay_full?: boolean
   }
   simulation: {
     draws?: Draw[]

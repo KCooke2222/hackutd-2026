@@ -7,6 +7,8 @@ from collections import defaultdict
 from . import pnc_data
 
 MAX_MONTHS = 600
+# Card spending categories a plan never cuts; everything else is discretionary.
+ESSENTIAL_CATEGORIES = {"groceries", "transport", "gas", "utilities", "healthcare", "health", "insurance", "rent", "housing", "childcare"}
 
 
 def simulate_payoff(
@@ -57,6 +59,54 @@ def simulate_payoff(
     }
 
 
+def project(
+    balance: float,
+    apr_pct: float,
+    monthly_payment: float,
+    monthly_new_spending: float = 0.0,
+    lump_sum: float = 0.0,
+    months: int = 24,
+    autopay_full: bool = False,
+) -> dict:
+    """Fixed-horizon card path with refill: unlike simulate_payoff it keeps going after $0.
+
+    Each month: interest on the carried balance, new spending is charged, then the payment is made,
+    capped at what is owed. If spending exceeds the payment the paid-off card refills (relapse).
+    autopay_full: once the card is at $0, the whole statement is paid each month, so it stays at $0.
+    balances[0] is the balance right after the lump sum; start_balance is before it.
+    """
+    if min(balance, monthly_payment, monthly_new_spending, lump_sum) < 0:
+        raise ValueError("amounts must be non-negative")
+    rate = apr_pct / 100 / 12
+    b = max(balance - lump_sum, 0.0)
+    out = [round(b, 2)]
+    interest = interest_12m = 0.0
+    payoff_month = 0 if b <= 0.005 else None
+    relapse_month = None
+    for m in range(1, months + 1):
+        i = b * rate
+        interest += i
+        if m <= 12:
+            interest_12m += i
+        owed = b + i + monthly_new_spending
+        paid = owed if autopay_full and b <= 0.005 else min(monthly_payment, owed)
+        b = owed - paid
+        out.append(round(b, 2))
+        if b <= 0.005 and payoff_month is None:
+            payoff_month = m
+        elif b > 0.005 and payoff_month is not None and relapse_month is None:
+            relapse_month = m
+    return {
+        "start_balance": round(balance, 2),
+        "balances": out,
+        "interest": round(interest, 2),
+        "interest_first_12m": round(interest_12m, 2),
+        "payoff_month": payoff_month,
+        "relapse_month": relapse_month,
+        "end_balance": out[-1],
+    }
+
+
 def refill_breakdown(customer_id: str, months: int = 12) -> dict:
     """Why the card balance isn't going down: payments vs new spending vs interest, per month."""
     card = pnc_data.card_account(customer_id)
@@ -77,6 +127,7 @@ def refill_breakdown(customer_id: str, months: int = 12) -> dict:
         if t["transaction_type"] == "purchase":
             by_cat[t["category"]] += t["amount"]
     purchases = sum(by_cat.values())
+    essentials = sum(v for k, v in by_cat.items() if k in ESSENTIAL_CATEGORIES)
 
     stmts = [s for s in pnc_data.customer_statements(customer_id) if s["account_id"] == card["account_id"] and s["month"] in month_keys]
     stmts.sort(key=lambda s: s["month"])
@@ -97,11 +148,13 @@ def refill_breakdown(customer_id: str, months: int = 12) -> dict:
         "monthly_avg": {
             "payment": round(avg_pay, 2),
             "new_spending": round(purchases / n, 2),
+            "essentials": round(essentials / n, 2),
+            "discretionary": round((purchases - essentials) / n, 2),
             "interest": round(interest / n, 2),
             "fees": round(fees / n, 2),
         },
         "new_spending_by_category": {
-            k: {"monthly_avg": round(v / n, 2), "share_of_payment": round(v / payments, 3) if payments else None}
+            k: {"monthly_avg": round(v / n, 2), "essential": k in ESSENTIAL_CATEGORIES, "share_of_payment": round(v / payments, 3) if payments else None}
             for k, v in sorted(by_cat.items(), key=lambda kv: -kv[1])
         },
         "share_of_payment_refilled": round((purchases + interest + fees) / payments, 3) if payments else None,

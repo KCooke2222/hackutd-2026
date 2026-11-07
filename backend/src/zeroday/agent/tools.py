@@ -98,10 +98,15 @@ def make_tools(customer_id: str) -> list:
         rationale: str,
         lump_sum_from_cd: float = 0.0,
         lump_sum_from_brokerage: float = 0.0,
+        autopay_full: bool = True,
     ) -> dict:
         """Save ONE proposed plan for the customer to approve, edit or reject. This does NOT move money.
+        monthly_payment: what goes to the card until it hits $0 (at least the card minimum; usually the current
+        payment). autopay_full: after $0, pay the full statement every payday so the card stays at $0.
+        monthly_card_spending_cap: at least essentials (refill_breakdown monthly_avg.essentials); trim the
+        discretionary categories, never cut to $0.
         The server recomputes all numbers and rejects unsafe plans (cash below the emergency buffer, draws
-        larger than a ladder tier, retirement or property draws)."""
+        larger than a ladder tier, retirement or property draws, cap below essentials, payment below minimum)."""
         plan = {
             "lump_sum_from_savings": lump_sum_from_savings,
             "lump_sum_from_cd": lump_sum_from_cd,
@@ -109,6 +114,7 @@ def make_tools(customer_id: str) -> list:
             "monthly_payment": monthly_payment,
             "monthly_card_spending_cap": monthly_card_spending_cap,
             "keep_emergency_months": keep_emergency_months,
+            "autopay_full": autopay_full,
         }
         try:
             sim = validate_plan(customer_id, plan)

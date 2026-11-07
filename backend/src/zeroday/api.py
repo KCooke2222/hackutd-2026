@@ -6,6 +6,7 @@ Safety: the Nessie write client is imported lazily, only inside approve_proposal
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from . import balance_sheet, finance, linked, pnc_data, store
@@ -191,6 +192,51 @@ def agent_run(body: RunIn) -> dict:
     return {**result, "proposal": next((p for p in proposals if p["status"] == "pending"), None)}
 
 
+@app.get("/api/agent/stream")
+def agent_stream(customer_id: str, instruction: str | None = None) -> StreamingResponse:
+    """Server-sent events for one agent run: `step` per tool call/result, then `done` with the proposal."""
+    _need_customer(customer_id)
+    from .agent.graph import stream_run
+
+    def events():
+        import json
+
+        for ev in stream_run(customer_id, instruction):
+            msgs = ev.pop("messages", None)
+            if msgs:
+                store.log_run(customer_id, msgs)
+            if ev["type"] == "done":
+                ps = store.list_proposals(customer_id)
+                ev["proposal"] = next((p for p in ps if p["status"] == "pending"), None)
+            yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+class PlanIn(BaseModel):
+    lump_sum_from_savings: float = 0.0
+    lump_sum_from_cd: float = 0.0
+    lump_sum_from_brokerage: float = 0.0
+    monthly_payment: float | None = None
+    monthly_card_spending_cap: float | None = None
+    keep_emergency_months: float = 3.0
+    autopay_full: bool = True
+    months: int = 24
+
+
+@app.post("/api/customers/{cid}/plan/simulate")
+def plan_simulate(cid: str, body: PlanIn) -> dict:
+    """Live preview for the plan sliders: validator verdict + today / pay-down-only / plan paths."""
+    _need_customer(cid)
+    from .agent.validator import PlanRejected, outlook
+
+    plan = body.model_dump(exclude={"months"})
+    try:
+        return outlook(cid, plan, max(6, min(body.months, 60)))
+    except (PlanRejected, ValueError) as e:
+        raise HTTPException(422, str(e))
+
+
 @app.get("/api/proposals")
 def proposals(customer_id: str | None = None) -> list[dict]:
     return store.list_proposals(customer_id)
@@ -203,6 +249,7 @@ class EditIn(BaseModel):
     monthly_payment: float | None = None
     monthly_card_spending_cap: float | None = None
     keep_emergency_months: float | None = None
+    autopay_full: bool | None = None
 
 
 @app.post("/api/proposals/{pid}/approve")
