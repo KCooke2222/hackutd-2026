@@ -30,7 +30,9 @@ export default function Home() {
   const [runKey, setRunKey] = useState(0)
   const [thinkingDone, setThinkingDone] = useState(false)
   const [ai, setAi] = useState<Proposal | null>(null)
-  const [lastPending, setLastPending] = useState<Proposal | null>(null)
+  const [past, setPast] = useState<Proposal[]>([])
+  const lastPending = past.find((p) => p.status === 'pending') ?? null
+  const urlPlan = useRef(new URLSearchParams(location.search).get('plan'))
   const [final, setFinal] = useState('')
   const [knobs, setKnobs] = useState<Knobs | null>(null)
   const [outlook, setOutlook] = useState<Preview | null>(null)
@@ -49,7 +51,17 @@ export default function Home() {
     setScreen(0); setReached(0); setRunKey(0)
     api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch((e) => setErr(e.message))
     api<Summary>(`/customers/${cid}/summary`).then(setSummary).catch((e) => setErr(e.message))
-    api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => setLastPending(ps.find((p) => p.status === 'pending' && isV2(p)) ?? null))
+    api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => {
+      const v2 = ps.filter((p) => isV2(p)).sort((a, b) => b.created_at.localeCompare(a.created_at))
+      setPast(v2)
+      // ?plan=<id> or ?plan=last opens a saved run straight away (for UI checks without a model run)
+      const want = urlPlan.current
+      if (want) {
+        urlPlan.current = null
+        const hit = want === 'last' ? v2.find((p) => p.status === 'pending') ?? v2[0] : v2.find((p) => p.id === want)
+        if (hit) openPlan(hit, '')
+      }
+    })
   }, [cid])
 
   // Live preview for the sliders, debounced; stale responses are dropped.
@@ -82,7 +94,7 @@ export default function Home() {
     setBusy(true); setErr(null)
     try {
       const p = await api<Proposal>(`/proposals/${ai.id}/approve`, { method: 'POST', body: JSON.stringify({ plan: planFrom(ai, knobs) }) })
-      setApproved(p); setLastPending(null); go(3)
+      setApproved(p); setPast((ps) => ps.map((x) => (x.id === ai.id ? { ...x, status: 'rejected' } : x))); go(3)
     } catch (e) {
       setErr((e as Error).message)
     } finally {
@@ -95,7 +107,7 @@ export default function Home() {
     setBusy(true)
     try {
       await api(`/proposals/${ai.id}/reject`, { method: 'POST' })
-      setAi(null); setKnobs(null); setLastPending(null); setReached(0); setScreen(0); setNote('Plan rejected. Nothing moved.')
+      setAi(null); setKnobs(null); setPast((ps) => ps.map((x) => (x.id === ai.id ? { ...x, status: 'rejected' } : x))); setReached(0); setScreen(0); setNote('Plan rejected. Nothing moved.')
     } catch (e) {
       setErr((e as Error).message)
     } finally {
@@ -127,7 +139,7 @@ export default function Home() {
         // Stays mounted after the run so Back/Next doesn't start another one.
         <div style={{ display: screen === 1 ? 'block' : 'none' }}>
           <Thinking key={cid} cid={cid} model={health?.model ?? ''} runKey={runKey}
-            onDone={(p, f) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setFinal(f); setKnobs(knobsFrom(p)); setLastPending(p) } }} />
+            onDone={(p, f) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setFinal(f); setKnobs(knobsFrom(p)); setPast((ps) => [p, ...ps.filter((x) => x.id !== p.id)]) } }} />
         </div>
       )}
       {screen === 2 && ai && knobs && (
@@ -141,6 +153,14 @@ export default function Home() {
         <button disabled={screen === 0} style={{ visibility: screen === 0 ? 'hidden' : 'visible' }} onClick={() => go(screen - 1)}>Back</button>
         {screen === 0 && (
           <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {past.length > 0 && (
+              <select aria-label="Previous runs" value="" onChange={(e) => { const p = past.find((x) => x.id === e.target.value); if (p) openPlan(p, '') }}>
+                <option value="">Previous runs ({past.length})</option>
+                {past.map((p) => (
+                  <option key={p.id} value={p.id}>{new Date(p.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {p.status}{p.simulation?.explain?.headline ? ` · ${p.simulation.explain.headline}` : ''}</option>
+                ))}
+              </select>
+            )}
             {lastPending && <button className="ghost" onClick={() => openPlan(lastPending, '')}>Open last plan</button>}
             <button className="primary" onClick={findPlan} disabled={!health?.nvidia}>Find a plan</button>
           </span>
