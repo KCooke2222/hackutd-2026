@@ -103,7 +103,8 @@ def sim_brief(sim: dict) -> dict:
     if b.get("net_paydown_per_month") is not None:  # lead with net: gross minus this month's new card purchases
         out["paydown"] = {k: b.get(k) for k in ("current_net_paydown_per_month", "net_paydown_per_month",
                                                 "current_debt_payments", "monthly_debt_budget",
-                                                "current_new_card_purchases", "new_card_purchases")}
+                                                "current_new_card_purchases", "new_card_purchases",
+                                                "paid_to_debt_per_month", "unused_per_month")}
     if sim.get("no_cuts"):
         out["no_cuts"] = sim["no_cuts"]
     return out

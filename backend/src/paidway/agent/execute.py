@@ -6,8 +6,9 @@ Called from the approve route only (never from graph.py or tools.py; test_safety
 3. Re-read balances; if they moved since the proposal, mark it stale.
 4. What runs in Nessie (docs/agent-v3/actions.md): every account has a Nessie mirror (data/seed.py), so each
    lump sum is a transfer from the source mirror to the debt mirror (plus the modelled tax of a sale), and each
-   monthly payment and autopay-in-full is a recurring bill on checking. Pausing contributions is the
-   customer's ("manual"); spending cuts are recorded and tracked by the check-in.
+   monthly payment of every remaining debt and autopay-in-full is a recurring bill on checking. Pausing
+   contributions is the customer's ("manual"); spending cuts and the leftover are watched by the agent ("agent",
+   the monthly check-in).
 5. Read the touched balances before and after, and record expected vs actual change.
 """
 
@@ -99,6 +100,14 @@ def _next_month(day_from: str | None = None) -> tuple[str, int]:
     return date(y, m, day).isoformat(), day
 
 
+def _month_name(ym: str) -> str:
+    """"2026-12" -> "Dec 2026"."""
+    from datetime import date
+
+    y, m = (int(x) for x in ym.split("-"))
+    return date(y, m, 1).strftime("%b %Y")
+
+
 def _mirror_note(row: dict, nick: str) -> str | None:
     if row.get("source") == "linked" or row.get("institution") not in (None, "PNC"):
         return f"Linked account ({row.get('institution') or 'other bank'}) mirrored in Nessie as \"{nick}\"; APR and terms stay in Paidway's data."
@@ -135,8 +144,9 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
              ids: dict | None = None) -> tuple[list[dict], list[dict]]:
     """Split a plan into (transfers, steps). Pure: no I/O beyond reading balances and the Nessie id map.
 
-    Every step has `runs`: "nessie" (a real Nessie call on approve, in step["nessie"]), "recorded" (the app
-    tracks it) or "manual" (the customer does it; `how`, maybe `link`). `transfers` keeps its old shape
+    Every step has `runs`: "nessie" (a real Nessie call on approve, in step["nessie"]), "agent" (the agent
+    watches it at the monthly check-in; `watch` says what it checks), "manual" (the customer does it; `how`, maybe
+    `link`), "recorded" (no simulation or no mirror: noted only) or "summary" (the month's split, not a step). `transfers` keeps its old shape
     ({from, to, to_debt, amount}; to = "credit_card" for the PNC card, else the debt's account id), one per lump
     sum. `sim` (the validated simulation) sizes the recurring bills; without it the monthly payments are
     recorded only."""
@@ -174,9 +184,10 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
             nessie["tax"] = round(gross - amt, 2)
         steps.append({"kind": "lump_sum", "step": text, "runs": "nessie", "debt_name": name, "gross": gross,
                       "note": " ".join(notes) or None, "nessie": nessie, **ls})
-    steps.append({"kind": "budget", "step": f"Pay ${plan['monthly_debt_budget']:,.2f}/mo across all debts, extra in order",
-                  "runs": "recorded",
-                  "extra_order": [debts.get(a, {}).get("name", a) for a in plan.get("extra_order") or []]})
+    order = [debts.get(a, {}).get("name", a) for a in plan.get("extra_order") or []]
+    if not sim_debts:  # no simulation to size the bills: the budget is recorded only
+        steps.append({"kind": "budget", "step": f"Pay ${plan['monthly_debt_budget']:,.2f}/mo across all debts, extra in order",
+                      "runs": "recorded", "extra_order": order})
     now_pay = current_payments(customer_id) if sim_debts else {}
     first_bill, _ = _next_month()
     # One recurring bill per payee: a card that autopays in full from the first bill month needs no payment bill.
@@ -189,16 +200,18 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
             continue
         name = d.get("name", k)
         cur = now_pay.get(k)
-        if cur is not None and abs(cur - amt) <= 1:
-            steps.append({"kind": "payment", "step": f"{name}: already paying ${cur:,.0f}/mo, no change", "runs": "recorded",
-                          "account_id": k, "amount": amt, "current": cur})
-            continue
-        if checking and k in mir:
+        mn = float(sd.get("min_payment") or d.get("min_payment") or 0)
+        if checking and k in mir:  # every remaining debt's monthly payment is a Nessie bill, "no change" ones too
             first, day = _next_month()
             amt = float(dollars(amt))
-            steps.append({"kind": "payment", "step": f"Pay {name} ${amt:,.0f}/mo from checking", "runs": "nessie",
-                          "account_id": k, "amount": amt, "current": cur,
-                          "replaces": "Updates your current payment to this" if cur else None,
+            extra = amt - mn
+            what = ("" if mn < 1 else "(minimum)" if abs(extra) < 1 else
+                    f"(minimum ${mn:,.0f} + ${extra:,.0f} extra)" if extra > 0 else "")
+            same = cur is not None and abs(cur - amt) <= 1
+            steps.append({"kind": "payment", "step": f"{name} ${amt:,.0f}/mo {what}".strip(), "runs": "nessie",
+                          "account_id": k, "amount": amt, "current": cur, "minimum": mn,
+                          "replaces": (f"Takes over your current ${cur:,.0f}/mo payment" if same else
+                                       f"Replaces your current ${cur:,.0f}/mo payment" if cur else None),
                           "note": _mirror_note(d, mir[k]["nickname"]),
                           "nessie": {"op": "bill", "from": checking["account_id"], "to": k, "payee": name,
                                      "nickname": f"Paidway plan: {name}", "payment_date": first,
@@ -211,33 +224,53 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
         paused = meta["flag"] == categories.PAUSE
         verb = "Pause" if paused else "Redirect"
         step = {"kind": "redirect", "step": f"{verb} ${float(r['amount_per_month']):,.2f}/mo of {meta['label'].lower()} "
-                                            f"to debt", "runs": "manual" if paused else "recorded", **r}
+                                            f"to debt", "runs": "manual" if paused else "agent",
+                **({} if paused else {"watch": "The monthly check-in checks it reached your debt bills"}), **r}
         if paused:
             step["how"], step["link"] = MANUAL["pause"]
         steps.append(step)
     for t in plan.get("spending_targets") or []:
         steps.append({"kind": "spending_target", "step": f"{t['category']}: ${t['current']:,.0f} -> ${t['target']:,.0f}/mo",
-                      "runs": "recorded", "category": t["category"], "target": t["target"], "how": t.get("how") or []})
+                      "runs": "agent", "watch": "The monthly check-in compares your spending to the target",
+                      "category": t["category"], "target": t["target"], "how": t.get("how") or []})
     for a in plan.get("autopay_full_cards") or []:
         d = debts.get(a) or by_id.get(a) or {}
         name = d.get("name", a)
-        step = {"kind": "autopay", "step": f"Autopay full statement on {name} once at $0", "account_id": a, "runs": "recorded"}
+        step = {"kind": "autopay", "step": f"Autopay full statement on {name} once at $0", "account_id": a, "runs": "agent"}
         payoff = (sim_debts.get(a) or {}).get("payoff_month")
         # New charges land on the PNC card (the simulation's card spending); other cards get no new charges.
         stmt = round(float((sim or {}).get("monthly_card_spending") or 0), 2) if a == f"A-{customer_id}-CREDIT_CARD" else 0.0
         has_bill = any(x.get("kind") == "payment" and x.get("account_id") == a and x["runs"] == "nessie" for x in steps)
-        if has_bill:  # one bill per payee: the payment bill switches to statement-in-full at payoff
-            step["note"] = "at payoff, the monthly check-in switches its bill to the statement in full"
+        if has_bill:  # one bill per payee: its payment bill pays it down; at payoff it should pay the statement instead
+            step["watch"] = (f"Its bill pays it down now; when it hits $0{' (' + _month_name(payoff) + ')' if payoff else ''} the bill "
+                             "should switch to the statement in full (not automated yet)")
         elif checking and a in mir and payoff and stmt >= 1:
             first, day = _next_month(payoff)
             stmt = float(dollars(stmt))
-            step.update(runs="nessie", note=_mirror_note(d, mir[a]["nickname"]),
+            text = (f"{name} statement in full ~${stmt:,.0f}/mo: your new purchases, not debt" if a in autopay_now
+                    else f"Autopay full statement on {name} once at $0")
+            step.update(step=text, runs="nessie", amount=stmt, note=_mirror_note(d, mir[a]["nickname"]),
                         nessie={"op": "bill", "from": checking["account_id"], "to": a,
                                 "payee": f"{name} (statement in full)", "nickname": f"Paidway autopay: {name}",
                                 "payment_date": first, "recurring_date": day, "amount": stmt})
-        elif payoff and stmt < 1:
-            step["note"] = "no new charges planned on this card, so there is no statement to pay"
+        elif payoff and stmt < 1:  # nothing to bill: a Nessie bill is a fixed amount, and no charges are planned
+            step.update(step=f"{name} stays at $0: no new charges planned, so no bill",
+                        watch="The monthly check-in reads its balance; any new charge shows up there")
+        else:
+            step["watch"] = "Not paid off in the plan's horizon yet"
         steps.append(step)
+    if sim_debts:  # where the month's budget really goes (the simulation's month 1): debt, new purchases, cash
+        bud = (sim or {}).get("budget") or {}
+        paid = round(sum(float(x.get("first_month_payment") or 0) for x in sim_debts.values()), 2)
+        buys = round(float((sim or {}).get("monthly_card_spending") or 0), 2)
+        left = round(max(float(plan.get("monthly_debt_budget") or 0) - paid, 0.0), 2)
+        net = round(float(bud.get("net_paydown_per_month", paid - buys)), 2)
+        if left >= 1:
+            steps.append({"kind": "leftover", "step": f"${left:,.0f}/mo left over -> stays in cash", "runs": "agent",
+                          "amount": left, "watch": "Budgeted but no debt needs it this month; the plan keeps it in cash, not debt"})
+        steps.append({"kind": "budget", "runs": "summary", "extra_order": order,
+                      "step": f"Debt shrinks ${net:,.0f}/mo", "budget": float(plan.get("monthly_debt_budget") or 0),
+                      "paid": paid, "new_purchases": buys, "net_paydown": net, "left_over": left})
     return transfers, steps
 
 
@@ -430,7 +463,7 @@ def _check(planned: list[dict], receipt: list[dict], mir: dict, before: dict, af
 
 def preview(pid: str) -> dict:
     """What approving this proposal would do, read-only and with no Nessie call at all (not even a GET):
-    the planned Nessie calls, then the recorded and manual steps."""
+    the planned Nessie calls, then what the agent watches, the recorded and manual steps, and the month's split."""
     p = store.get_proposal(pid)
     if not p:
         raise ApproveError(404, "no such proposal")
@@ -443,8 +476,10 @@ def preview(pid: str) -> dict:
     return {"proposal_id": pid, "customer_id": cid, "status": p["status"],
             "nessie_enabled": bool(NESSIE_KEY), "seeded": not any(_unseeded(c) for c in calls_),
             "nessie_calls": calls_,
+            "agent": [s for s in steps if s["runs"] == "agent"],
             "recorded": [s for s in steps if s["runs"] == "recorded"],
-            "manual": [s for s in steps if s["runs"] == "manual"]}
+            "manual": [s for s in steps if s["runs"] == "manual"],
+            "summary": next((s for s in steps if s["runs"] == "summary"), None)}
 
 
 def approve(pid: str, edits: dict | None = None) -> dict:

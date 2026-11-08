@@ -519,7 +519,8 @@ def brief(ctx: dict, plan: dict, sim: dict, trade: list[dict]) -> dict:
         # Lead with net: gross payments minus this month's new card purchases (that part is spending, not paydown).
         "paydown": {k: b.get(k) for k in ("current_net_paydown_per_month", "net_paydown_per_month",
                                           "current_debt_payments", "monthly_debt_budget",
-                                          "current_new_card_purchases", "new_card_purchases")},
+                                          "current_new_card_purchases", "new_card_purchases",
+                                          "paid_to_debt_per_month", "unused_per_month")},
         "lump_sums": [{**l, "debt": names.get(l["to_debt"])} for l in plan["lump_sums"]],
         "monthly_debt_budget": plan["monthly_debt_budget"],
         "extra_order": [names.get(x, x) for x in plan["extra_order"]],

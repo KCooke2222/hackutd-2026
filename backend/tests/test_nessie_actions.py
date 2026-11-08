@@ -20,10 +20,10 @@ PLAN = {"version": 2, "monthly_debt_budget": 2378.29, "extra_order": [STORE, CAR
         "autopay_full_cards": [CARD, STORE], "keep_emergency_months": 3.0}
 SIM = {"feasible": True, "problems": [], "net_worth_24m": 1.0, "baseline_net_worth_24m": 0.0,
        "high_cost_debt_free": "2027-05", "interest_total": 10.0, "monthly_card_spending": 1422.79, "months": [],
-       "debts": [{"account_id": CARD, "first_month_payment": 2154.05, "payoff_month": "2027-05"},
-                 {"account_id": LOAN, "first_month_payment": 29.17, "payoff_month": "2029-01"},
-                 {"account_id": STORE, "first_month_payment": 0.0, "payoff_month": "2026-11"},
-                 {"account_id": FED, "first_month_payment": 195.07, "payoff_month": None}]}
+       "debts": [{"account_id": CARD, "first_month_payment": 2154.05, "payoff_month": "2027-05", "min_payment": 197.14},
+                 {"account_id": LOAN, "first_month_payment": 29.17, "payoff_month": "2029-01", "min_payment": 29.17},
+                 {"account_id": STORE, "first_month_payment": 0.0, "payoff_month": "2026-11", "min_payment": 40.57},
+                 {"account_id": FED, "first_month_payment": 195.07, "payoff_month": None, "min_payment": 195.07}]}
 CHK, SAV, BRK = "A-C001-CHECKING", "A-C001-SAVINGS", "L-C001-BROKERAGE-1"
 
 
@@ -48,7 +48,7 @@ GROSS = float(int(300 / (1 - (9800 - 7056) / 9800 * 0.15) + 0.5))  # $300 net fr
 CALLS = [("POST", "/accounts/sav1/transfers"), ("POST", "/accounts/st1/deposits"),
          ("POST", "/accounts/sav1/transfers"), ("POST", "/accounts/cc1/deposits"),
          ("POST", "/accounts/brk1/transfers"), ("POST", "/accounts/cc1/deposits"),
-         ("POST", "/accounts/brk1/withdrawals"), *[("POST", "/accounts/chk1/bills")] * 2]
+         ("POST", "/accounts/brk1/withdrawals"), *[("POST", "/accounts/chk1/bills")] * 3]
 
 
 @pytest.fixture()
@@ -92,7 +92,7 @@ def test_schedule_tags_every_step(env):
     transfers, steps = env["execute"].schedule("C001", PLAN, SIM)
     assert [(t["from"], t["to"], t["to_debt"], t["amount"]) for t in transfers] == [  # old keys kept, one per lump
         ("savings", STORE, STORE, 1241.0), ("savings", "credit_card", CARD, 1936.0), ("brokerage", "credit_card", CARD, 300.0)]
-    assert all(s["runs"] in ("nessie", "recorded", "manual") for s in steps)
+    assert all(s["runs"] in ("nessie", "agent", "manual", "summary") for s in steps)  # nothing left "recorded"
     by = {(s["kind"], s.get("to_debt") or s.get("account_id") or s.get("flow") or s.get("category"), s.get("source")): s
           for s in steps}
     for key in (("lump_sum", STORE, "cash"), ("lump_sum", CARD, "cash"), ("lump_sum", CARD, "brokerage")):
@@ -101,21 +101,53 @@ def test_schedule_tags_every_step(env):
     sold = by[("lump_sum", CARD, "brokerage")]
     assert sold["nessie"]["from"] == BRK and sold["gross"] == GROSS and sold["nessie"]["tax"] == round(GROSS - 300, 2)
     assert "Brokerage" in sold["note"] and "capital-gains" in sold["note"]
-    for k in (CARD, LOAN):  # a changed monthly payment is a bill on checking
+    for k in (CARD, LOAN, FED):  # every remaining debt's monthly payment is a bill on checking
         assert by[("payment", k, None)]["runs"] == "nessie" and by[("payment", k, None)]["nessie"]["from"] == CHK
-    assert by[("payment", FED, None)]["runs"] == "recorded"  # already paying this: no new bill
+    fed = by[("payment", FED, None)]  # already paying this: the bill takes the payment over
+    assert fed["step"] == "Federal Direct Loan $195/mo (minimum)" and fed["replaces"].startswith("Takes over your current $")
     assert ("payment", STORE, None) not in by  # $0 month-1 payment: no bill
     assert by[("redirect", "brokerage_auto_invest", None)]["runs"] == "manual"
-    assert by[("spending_target", "travel", None)]["runs"] == "recorded"
+    target = by[("spending_target", "travel", None)]
+    assert target["runs"] == "agent" and "check-in" in target["watch"]  # the agent watches it, nobody ticks it
     auto = by[("autopay", CARD, None)]
-    assert auto["runs"] == "recorded" and "switches its bill" in auto["note"]  # one bill per payee
-    assert by[("autopay", STORE, None)]["runs"] == "recorded"  # no new charges on the store card: nothing to bill
+    assert auto["runs"] == "agent" and "not automated yet" in auto["watch"]  # one bill per payee, honest about payoff
+    store_ = by[("autopay", STORE, None)]  # paid off today, no charges planned: no fixed bill to make
+    assert store_["runs"] == "agent" and store_["step"] == "Store card stays at $0: no new charges planned, so no bill"
+    summary = by[("budget", None, None)]
+    assert summary["runs"] == "summary" and summary["paid"] == pytest.approx(2154.05 + 29.17 + 195.07)
 
 
 def test_without_sim_payments_are_not_billed(env):
     _, steps = env["execute"].schedule("C001", PLAN)
     assert not [s for s in steps if s["kind"] == "payment"]
-    assert {s["runs"] for s in steps if s["kind"] == "autopay"} == {"recorded"}
+    assert [s["runs"] for s in steps if s["kind"] == "budget"] == ["recorded"]  # nothing sizes the bills
+    assert {s["runs"] for s in steps if s["kind"] == "autopay"} == {"agent"}
+
+
+# C001 as approved: every high-cost debt paid off today, so month 1 pays the card's new purchases, the federal
+# minimum and the cents left by whole-dollar payoffs; the rest of the budget stays in cash.
+SIM_PAID = {**SIM, "monthly_card_spending": 1422.79,
+            "debts": [{"account_id": CARD, "first_month_payment": 1423.26, "payoff_month": "2026-11", "min_payment": 197.14},
+                      {"account_id": LOAN, "first_month_payment": 0.28, "payoff_month": "2026-11", "min_payment": 29.17},
+                      {"account_id": STORE, "first_month_payment": 0.56, "payoff_month": "2026-11", "min_payment": 40.57},
+                      {"account_id": FED, "first_month_payment": 195.07, "payoff_month": None, "min_payment": 195.07}]}
+
+
+def test_paid_off_today_bills_the_statement_and_labels_the_leftover(env):
+    ex = env["execute"]
+    plan = {**PLAN, "lump_sums": [], "redirects": []}
+    _, steps = ex.schedule("C001", plan, SIM_PAID)
+    calls = ex.nessie_calls("C001", [], steps, IDS)
+    assert [(c["to"], c["amount"], c["step"]) for c in calls] == [
+        ("Federal Direct Loan", 195.0, "Federal Direct Loan $195/mo (minimum)"),
+        ("PNC Credit card", 1423.0, "PNC Credit card statement in full ~$1,423/mo: your new purchases, not debt")]
+    assert calls[1]["body"]["payee"] == "PNC Credit card (statement in full)" and calls[1]["first_payment"] == "2026-12-07"
+    left = next(s for s in steps if s["kind"] == "leftover")  # never shown as "to debt"
+    assert left["runs"] == "agent" and left["step"] == "$759/mo left over -> stays in cash"
+    summary = next(s for s in steps if s["kind"] == "budget")
+    assert summary["net_paydown"] == pytest.approx(1423.26 + 0.28 + 0.56 + 195.07 - 1422.79, abs=0.01)
+    assert summary["left_over"] == pytest.approx(759.12, abs=0.01) and summary["step"] == "Debt shrinks $196/mo"
+    assert not [s for s in steps if s["runs"] == "recorded"]
 
 
 def test_nessie_calls_are_exact_and_ordered(env):
@@ -136,7 +168,8 @@ def test_nessie_calls_are_exact_and_ordered(env):
     assert bill["body"] == {"status": "recurring", "payee": "PNC Credit card", "nickname": "Paidway plan: PNC Credit card",
                             "payment_date": "2026-12-07", "recurring_date": 7, "payment_amount": 2154}
     assert bill["recurring_date"] == 7 and bill["tool"] == "nessie.write.create_bill"
-    assert [c["to"] for c in calls[7:]] == ["PNC Credit card", "PNC Personal loan"]
+    assert [c["to"] for c in calls[7:]] == ["PNC Credit card", "PNC Personal loan", "Federal Direct Loan"]
+    assert calls[9]["note"].startswith("Takes over your current $")
 
 
 def test_unseeded_accounts_show_placeholders(env):
@@ -170,7 +203,7 @@ def test_approve_sends_calls_and_records_receipt(env):
     # this Nessie never posts to the balance: the ledger (raw balance plus Paidway's transactions) moves instead
     assert check[CARD]["expected_change"] == -2236.0 and check[CARD]["actual_change"] == -2236.0 and check[CARD]["ok"]
     assert p["execution"]["nessie_balances_after"][SAV] == 100.0 - 1241 - 1936
-    assert [b["payee"] for b in p["execution"]["bills"]] == ["PNC Credit card", "PNC Personal loan"]
+    assert [b["payee"] for b in p["execution"]["bills"]] == ["PNC Credit card", "PNC Personal loan", "Federal Direct Loan"]
 
 
 def test_failed_payoff_is_held_back_and_retried(env):
@@ -189,12 +222,12 @@ def test_failed_payoff_is_held_back_and_retried(env):
     pid = _proposal(store)["id"]
     p = ex.approve(pid)
     assert p["status"] == "approved" and p["execution"]["retry_available"]  # tracked: the dashboard is reachable
-    assert [r["status"] for r in p["execution"]["nessie_calls"]] == [201] * 4 + ["error", "skipped", "skipped", 201, 201]
+    assert [r["status"] for r in p["execution"]["nessie_calls"]] == [201] * 4 + ["error", "skipped", "skipped", 201, 201, 201]
     assert (BRK, GROSS) not in env["paid"]  # the failed payoff's legs never ran
     down["on"] = False
     p = ex.retry(pid)
     assert p["status"] == "executed" and all(r["status"] == 201 for r in p["execution"]["nessie_calls"])
-    assert [r.get("retried", False) for r in p["execution"]["nessie_calls"]] == [False] * 4 + [True] * 3 + [False] * 2
+    assert [r.get("retried", False) for r in p["execution"]["nessie_calls"]] == [False] * 4 + [True] * 3 + [False] * 3
     assert [s[1] for s in env["sent"] if s[0] == "POST"].count("/accounts/sav1/transfers") == 2  # never sent twice
 
 
@@ -245,8 +278,9 @@ def test_preview_makes_no_nessie_call(env):
     body = r.json()
     assert not env["sent"]  # not even a GET
     assert [c["tool"] for c in body["nessie_calls"]] == [*["nessie.write.create_transfer", "nessie.write.create_deposit"] * 3,
-                                                         "nessie.write.create_withdrawal", *["nessie.write.create_bill"] * 2]
-    assert {s["runs"] for s in body["recorded"]} == {"recorded"} and {s["runs"] for s in body["manual"]} == {"manual"}
+                                                         "nessie.write.create_withdrawal", *["nessie.write.create_bill"] * 3]
+    assert not body["recorded"] and {s["runs"] for s in body["manual"]} == {"manual"}
+    assert {s["kind"] for s in body["agent"]} == {"spending_target", "autopay"} and body["summary"]["kind"] == "budget"
     assert env["store"].get_proposal(p["id"])["status"] == "pending"
     # what the preview shows is exactly what approve sends
     env["monkeypatch"].setattr(env["execute"], "NESSIE_KEY", "test")
