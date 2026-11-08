@@ -20,6 +20,19 @@ IDR_SHARE = 0.10  # income-driven repayment: 10% of discretionary income...
 IDR_POVERTY_150 = 23_475.0  # ...above 150% of the poverty line (1 person)
 SMALL_CUSHION_MONTHS = 1.0
 
+HOW = {  # what the customer does for each card (one line), and where to go when an official site exists
+    "idr_student_loan": ("Apply for an income-driven repayment plan; it takes about 10 minutes with your FSA ID.",
+                         "https://studentaid.gov/idr/"),
+    "card_hardship": ("Call the number on the back of each card and ask for their hardship program.", None),
+    "mortgage_help": ("Call your servicer and ask about a loan modification or forbearance; a HUD counselor is free.",
+                      "https://www.consumerfinance.gov/find-a-housing-counselor/"),
+    "pause_ira": ("Lower or pause the contribution at your IRA provider.", None),
+    "downsize": ("Talk to a real-estate agent about selling costs before deciding.", None),
+    "extra_income": ("Only count it once it's steady.", None),
+    "ira_withdrawal": ("Last resort: ask your IRA provider about the taxes and 10% penalty first.",
+                       "https://www.irs.gov/retirement-plans/hardships-early-withdrawals-and-loans"),
+}
+
 
 def _idr_payment(ctx: dict) -> float:
     return round(max(IDR_SHARE * (ctx["flows"]["income"] * 12 - IDR_POVERTY_150) / 12, 0.0), 2)
@@ -138,7 +151,8 @@ def underwater_options(customer_id: str) -> dict:
         if not ok.get(k):
             continue
         card = {"key": k, "title": title, "detail": detail, "modelled": bool(fn), "closes_per_month": None,
-                "cash_runs_out": None, "never_recommend": k in NEVER_RECOMMEND}
+                "cash_runs_out": None, "never_recommend": k in NEVER_RECOMMEND,
+                "runs": "manual" if k in HOW else "recorded", "how": HOW.get(k, (None, None))[0], "link": HOW.get(k, (None, None))[1]}
         if fn:
             rc = wealth.reality_check(customer_id, ctx=_ctx_with(customer_id, [k], None, base_ctx))
             card["closes_per_month"] = round(gap - _gap(rc), 2)

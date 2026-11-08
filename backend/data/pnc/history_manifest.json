@@ -6,7 +6,7 @@
   "months": 24,
   "customers": 30,
   "accounts": 196,
-  "transactions": 45555,
+  "transactions": 45552,
   "monthly_statements": 4704,
   "currency": "USD",
   "derived_from": "PNC pnc-utd-hackathon-2026 Lab_Package/generate_history.py (Apache-2.0), modified by Zeroday",

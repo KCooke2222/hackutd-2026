@@ -44,6 +44,9 @@ app.include_router(_scenarios_router)
 from .plan_view import router as _plan_view_router  # noqa: E402
 
 app.include_router(_plan_view_router)
+from .approve_view import router as _approve_view_router  # noqa: E402
+
+app.include_router(_approve_view_router)
 
 
 def _need_customer(cid: str) -> dict:

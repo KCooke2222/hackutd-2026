@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: install backend frontend test seed reseed linked data record reset-local
+.PHONY: install backend frontend test seed reseed linked data record reset-local dry-run demo-reset
 
 install:
 	cd backend && $(UV) sync
@@ -19,7 +19,7 @@ test:
 seed:
 	cd backend && $(UV) run python -m paidway.data.seed
 
-# DELETE all Nessie data for this key, seed C001-C003 again, rewrite the id map.
+# DELETE all Nessie data for this key, seed C001 and C027 again, rewrite the id map.
 reseed:
 	cd backend && $(UV) run python -m paidway.data.seed reseed
 
@@ -36,6 +36,14 @@ CUSTOMER ?= C001
 RUNS ?= 1
 record:
 	cd backend && $(UV) run python scripts/record_runs.py --customer $(CUSTOMER) --runs $(RUNS) --replace
+
+# Print the exact Nessie calls approving a fresh plan would make (no Nessie call). CUSTOMER=C001 by default.
+dry-run:
+	cd backend && $(UV) run python scripts/approve_dry_run.py $(CUSTOMER)
+
+# Demo reset (LIVE Nessie writes): delete the customer's Nessie accounts and seed them again, restore linked balances.
+demo-reset:
+	cd backend && $(UV) run python -m paidway.data.seed reset $(CUSTOMER)
 
 # Clear a customer's local proposals and demo tracking (SQLite only; never touches Nessie). Demo examples by default.
 reset-local:

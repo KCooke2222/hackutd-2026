@@ -209,6 +209,23 @@ def replace_linked_accounts(rows: list[dict]) -> int:
     return len(rows)
 
 
+def replace_linked_for(customer_id: str, rows: list[dict]) -> int:
+    """Replace one customer's linked accounts (demo reset puts back what approve paid down)."""
+    with _conn() as c:
+        c.execute("delete from linked_accounts where customer_id = ?", (customer_id,))
+        c.executemany(
+            f"insert into linked_accounts ({','.join(LINKED_COLS)}) values ({','.join('?' * len(LINKED_COLS))})",
+            [tuple(r.get(k) for k in LINKED_COLS) for r in rows],
+        )
+    return len(rows)
+
+
+def pay_linked(account_id: str, amount: float) -> None:
+    """Lower a linked account's balance after approve moved money for it (a debt paid, brokerage sold)."""
+    with _conn() as c:
+        c.execute("update linked_accounts set balance = max(balance - ?, 0) where account_id = ?", (amount, account_id))
+
+
 def linked_count() -> int:
     with _conn() as c:
         return c.execute("select count(*) from linked_accounts").fetchone()[0]

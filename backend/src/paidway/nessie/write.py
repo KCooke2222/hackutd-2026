@@ -5,6 +5,7 @@ The agent must never import this module (enforced by tests/test_safety.py).
 
 from __future__ import annotations
 
+from . import calls
 from ._http import request
 
 
@@ -17,7 +18,7 @@ def create_customer(first_name: str, last_name: str) -> dict:
     return request("POST", "/customers", json=body)
 
 
-def create_account(customer_id: str, type_: str, nickname: str, balance: int) -> dict:
+def create_account(customer_id: str, type_: str, nickname: str, balance: float) -> dict:
     body = {"type": type_, "nickname": nickname, "rewards": 0, "balance": balance}
     return request("POST", f"/customers/{customer_id}/accounts", json=body)
 
@@ -32,9 +33,13 @@ def create_deposit(account_id: str, amount: float, date: str, description: str) 
     return request("POST", f"/accounts/{account_id}/deposits", json=body)
 
 
+def send(call: dict) -> dict:
+    """Send one request built by nessie.calls."""
+    return request(call["method"], call["path"], json=call.get("body"))
+
+
 def create_transfer(from_account_id: str, to_account_id: str, amount: float, date: str, description: str) -> dict:
-    body = {"medium": "balance", "payee_id": to_account_id, "transaction_date": date, "amount": amount, "description": description}
-    return request("POST", f"/accounts/{from_account_id}/transfers", json=body)
+    return send(calls.transfer(from_account_id, to_account_id, amount, date, description))
 
 
 def create_merchant(name: str, category: str) -> dict:
@@ -45,3 +50,22 @@ def create_merchant(name: str, category: str) -> dict:
         "geocode": {"lat": 32.99, "lng": -96.75},
     }
     return request("POST", "/merchants", json=body)
+
+
+def create_withdrawal(account_id: str, amount: float, date: str, description: str) -> dict:
+    return send(calls.withdrawal(account_id, amount, date, description))
+
+
+def create_bill(account_id: str, payee: str, nickname: str, payment_date: str, recurring_date: int, amount: float) -> dict:
+    return send(calls.bill(account_id, payee, nickname, payment_date, recurring_date, amount))
+
+
+def delete_account(account_id: str) -> None:
+    request("DELETE", f"/accounts/{account_id}")
+
+
+def create_loan(account_id: str, type_: str, amount: float, monthly_payment: float, description: str) -> dict:
+    """A Nessie loan record (types home / auto / small business) on a loan's Credit Card-type mirror."""
+    body = {"type": type_, "status": "approved", "credit_score": 700, "monthly_payment": round(monthly_payment, 2),
+            "amount": round(amount, 2), "description": description}
+    return request("POST", f"/accounts/{account_id}/loans", json=body)

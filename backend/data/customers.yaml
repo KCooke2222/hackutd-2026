@@ -33,7 +33,7 @@ customers:
     credit_limit: 25193.32
     accounts:
       checking: {balance: 1604.0}
-      savings: {balance: 17416.6}
+      savings: {balance: 28000.0}
       ira: {balance: 6994.56}
       credit_card: {balance: 6571.46, monthly_payment: 197.14, apr_pct: 22.5}
       personal_loan: {balance: 1050.28, monthly_payment: 29.17, apr_pct: 11.0}

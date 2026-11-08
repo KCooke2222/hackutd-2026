@@ -389,7 +389,12 @@ def cut_split(ctx: dict, targets: list[dict]) -> dict:
         c = ctx["spend"].get(t.get("category"))
         if not c:
             continue
-        save = max(c["avg"] - float(t.get("target", c["avg"])), 0.0)
+        # Count the cut from the plan's own `current` (what the solver sized the budget on and the screen shows)
+        # when it is within 5% of today's average, so the solver and the approve-time validator agree even if
+        # the monthly averages moved a little since; otherwise from today's average.
+        cur = float(t.get("current") or c["avg"])
+        base = cur if c["avg"] and abs(cur - c["avg"]) <= 0.05 * c["avg"] else c["avg"]
+        save = max(base - float(t.get("target", base)), 0.0)
         if c["avg"] > 0:
             card_cut += save * c["card_avg"] / c["avg"]
             cash_cut += save * c["cash_avg"] / c["avg"]
@@ -669,6 +674,7 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
                           "debts": {k: round(d["bal"]) for k, d in debts.items()}}}
 
     months = [snapshot(0)]
+    first_pay: dict[str, float] = {}  # month-1 payment per debt (the recurring bills set up on approve)
     high_free = 0 if months[0]["high_cost_debt"] <= 0.01 else None
     short_reported = False
     for i in range(1, H + 1):
@@ -697,11 +703,15 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
                     short_reported = True
                 d["bal"] -= pay
                 left -= pay
+                if i == 1:
+                    first_pay[k] = first_pay.get(k, 0.0) + pay
             for k in order:
                 d = debts[k]
                 pay = min(d["bal"], left)
                 d["bal"] -= pay
                 left -= pay
+                if i == 1:
+                    first_pay[k] = first_pay.get(k, 0.0) + pay
         cash += saved + left  # the residual (and any unused budget) stays in cash
         for d in debts.values():
             if d["bal"] <= 0.005:
@@ -731,7 +741,8 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
         "debts": [{"account_id": d["account_id"], "name": d["name"], "apr_pct": d["apr_pct"], "balance": d["balance"],
                    "min_payment": d["min_payment"], "high_cost": d["high_cost"],
                    "payoff_month": _label(d["payoff"]) if d["payoff"] is not None else None,
-                   "interest": round(d["interest"], 2)} for d in debts.values()],
+                   "interest": round(d["interest"], 2),
+                   "first_month_payment": round(first_pay.get(d["account_id"], 0.0), 2)} for d in debts.values()],
         "months": months,
         "net_worth_24m": months[-1]["net_worth"],
         "net_worth_now": months[0]["net_worth"] + (upfront if plan else 0.0),

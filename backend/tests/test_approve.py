@@ -52,9 +52,12 @@ def test_double_approve_only_executes_once(client):
 def test_only_cash_to_nessie_card_is_a_transfer(client):
     p = _proposal()
     ex = client.post(f"/api/proposals/{p['id']}/approve").json()["execution"]
-    assert ex["transfers_pending"] == [{"from": "savings", "to": "credit_card", "to_debt": CARD, "amount": 500.0}]
+    assert [{k: t[k] for k in ("from", "to", "to_debt", "amount")} for t in ex["transfers_pending"]][0] == \
+        {"from": "savings", "to": "credit_card", "to_debt": CARD, "amount": 500.0}  # old keys kept
     kinds = [s["kind"] for s in ex["scheduled"]]
-    assert kinds.count("lump_sum") == 1 and "redirect" in kinds and "autopay" in kinds and "budget" in kinds
+    assert kinds.count("lump_sum") == 2 and "redirect" in kinds and "autopay" in kinds and "budget" in kinds
+    runs = {(s["kind"], s.get("source")): s["runs"] for s in ex["scheduled"]}
+    assert runs[("lump_sum", "cash")] == "nessie" and runs[("lump_sum", "brokerage")] == "nessie"  # brokerage mirror
 
 
 def test_stale_balances_refused(client, monkeypatch):
