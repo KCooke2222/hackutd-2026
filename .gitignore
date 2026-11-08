@@ -18,3 +18,4 @@ dist/
 *.log
 .run/
 backend/data/nessie_ids.json
+backend/data/demo_record_last.json

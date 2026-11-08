@@ -7,7 +7,8 @@ so every call site (first run, chat Q&A, chat edits, check-in, Nessie 400 repair
 Modes, per request:
     off     normal (default)
     record  call the model, save the response
-    replay  serve the saved response (after a short pause, so the UI still shows the steps); on a miss call the
+    replay  serve the saved response after the time the live call took, scaled by DEMO_REPLAY_SPEED and capped at
+            DEMO_REPLAY_CAP seconds (default 1.0 and 5.0), so the steps still show at a live pace; on a miss call the
             model for real and save it, and count the miss
 Set by the `pw_demo` cookie (the frontend's hidden toggle; EventSource can't send headers, cookies it does) or an
 `X-Paidway-Demo` header: 1/replay, record, 0/off. Server default: DEMO_REPLAY=1 (or =record) in .env. On the public
@@ -16,7 +17,11 @@ deploy (PAIDWAY_PUBLIC=1) visitors can't turn on record, and replay misses are k
 Keys: sha256 of (call site, model, messages, bound kwargs such as tools and max_tokens), with dates, times and
 ids normalized out so a rehearsal and the demo match. If that misses, a second key with digits and month names
 also normalized out (but not in what the customer typed) finds the same call on slightly different balances or
-another demo month; the closest recording by numbers wins. Recordings: data/demo_cache/<customer>.json (scripts/demo_rehearse.py writes them).
+another demo month; the closest recording by numbers wins. Any path recorded once replays: the key is the model
+request itself, so a new screen or agent run (a replan) needs no code here, only a recording.
+Recordings: data/demo_cache/<customer>.json, each entry with `ms` (how long the live call took).
+scripts/demo_record.py records every demo path in parallel on isolated backends; scripts/demo_rehearse.py walks a
+short script against a running one.
 """
 
 from __future__ import annotations
@@ -39,7 +44,9 @@ from ..config import BACKEND_DIR
 
 CACHE_DIR = Path(os.getenv("DEMO_CACHE_DIR") or BACKEND_DIR / "data" / "demo_cache")
 PUBLIC = os.getenv("PAIDWAY_PUBLIC") == "1"
-DELAY = float(os.getenv("DEMO_REPLAY_DELAY", "2.0"))  # seconds per replayed call, so the steps still show
+SPEED = float(os.getenv("DEMO_REPLAY_SPEED", "1.0"))  # replayed call = recorded time x SPEED (0: instant)...
+CAP = float(os.getenv("DEMO_REPLAY_CAP", "5.0"))  # ...but never more than CAP seconds
+UNTIMED_MS = 2500  # recordings from before `ms` was kept
 _ENV = {"1": "replay", "replay": "replay", "record": "record"}.get(os.getenv("DEMO_REPLAY", "").strip().lower())
 
 _mode: contextvars.ContextVar[str | None] = contextvars.ContextVar("demo_mode", default=None)
@@ -216,6 +223,38 @@ def _put(customer: str, key: str, entry: dict) -> None:
         _save(customer)
 
 
+def delay(entry: dict) -> float:
+    """Seconds to wait before serving a recording: its live time, scaled and capped."""
+    ms = entry.get("ms")
+    return max(0.0, min(CAP, (UNTIMED_MS if ms is None else float(ms)) / 1000 * SPEED))
+
+
+def merge(src: Path, dst: Path = CACHE_DIR) -> int:
+    """Copy recordings from another cache dir (a recorder worker's) into `dst`; returns how many were new.
+    An entry already in `dst` is kept unless the incoming one is newer."""
+    added = 0
+    dst.mkdir(parents=True, exist_ok=True)
+    for f in sorted(src.glob("*.json")):
+        try:
+            inc = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        out = dst / f.name
+        cur = json.loads(out.read_text()) if out.exists() else {}
+        for k, e in inc.items():
+            if k not in cur:
+                added += 1
+            if k not in cur or str(e.get("recorded_at", "")) > str(cur[k].get("recorded_at", "")):
+                cur[k] = e
+        tmp = out.with_suffix(".tmp")
+        tmp.write_text(json.dumps(cur, indent=1, sort_keys=True, default=str))
+        tmp.replace(out)
+    if dst == CACHE_DIR:
+        with _lock:
+            _files.clear()
+    return added
+
+
 def _log(what: str, site: str, customer: str) -> None:
     stats[what] += 1
     print(f"[demo] {what:8} {customer:6} {site}", file=sys.stderr, flush=True)
@@ -241,11 +280,12 @@ class ReplayMixin:
             e, how = _find(customer, key, near, body)
             if e:
                 _log(how, site, customer)
-                time.sleep(DELAY)
+                time.sleep(delay(e))
                 return _restore(e["result"])
             _log("miss", site, customer)
+        t0 = time.monotonic()
         result = super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)  # type: ignore[misc]
-        _put(customer, key, {"site": site, "near": near, "text": body,
+        _put(customer, key, {"site": site, "near": near, "text": body, "ms": round((time.monotonic() - t0) * 1000),
                              "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                              "result": _dump(result)})
         _log("recorded", site, customer)
@@ -292,7 +332,7 @@ class DemoMiddleware:
         if path == "/api/_demo":  # counters for the rehearsal script and for checking a deploy; no UI uses it
             from starlette.responses import JSONResponse
 
-            return await JSONResponse({"mode": mode(), "default": _ENV,
+            return await JSONResponse({"mode": mode(), "default": _ENV, "speed": SPEED, "cap_s": CAP,
                                        "stats": dict(stats), "recordings": {p.stem: len(_load(p.stem)) for p in CACHE_DIR.glob("*.json")}})(scope, receive, send)
         headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers") or []}
         raw = headers.get("x-paidway-demo")

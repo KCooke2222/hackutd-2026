@@ -10,6 +10,9 @@ script from the cache and prints the hit/miss counters (/api/_demo); a replay sh
 
 It leaves what a normal demo leaves: pending proposals. It never approves and never moves Nessie money. Options
 it adds (IDR) are put back as they were.
+
+To record every demo path (every chat chip, approve, each check-in, the replan) in parallel on isolated backends,
+use scripts/demo_record.py; this script stays as the quick replay check against the running app.
 """
 
 from __future__ import annotations
