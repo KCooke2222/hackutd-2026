@@ -57,7 +57,30 @@ export type SimV2 = {
   budget?: { current_debt_payments: number; redirects: number; checking_cuts: number; card_cuts: number; max_monthly_debt_budget: number; minimums: number }
 }
 
-export type Explain = { headline: string; levers?: { kind: string; label: string; amount?: number }[]; cuts?: { category: string; how: string }[] }
+export type Explain = {
+  headline: string
+  levers?: { kind: string; label: string; amount?: number }[]
+  cuts?: { category: string; how: string }[]
+  warning?: string | null // talk to the plan: the cost of a worse change, written in code
+  request?: string
+}
+
+// ---------- talk to the plan (PR 4) ----------
+
+/** A customer rule, as a removable tag. `item` names the list/map entry (e.g. the category). */
+export type RuleLabel = { key: string; item: string | null; label: string }
+export type Constraints = Record<string, unknown>
+
+/** The adjusted plan vs the plan it replaced (computed in code). */
+export type Compare = {
+  net_worth_24m: { before: number; after: number; delta: number }
+  interest_total: { before: number; after: number; delta: number }
+  high_cost_debt_free: { before: string | null; after: string | null; months_later: number | null }
+  worse: boolean
+  cost: number
+  why: string[]
+  changes: string[]
+}
 
 export type Proposal = {
   id: string
@@ -65,8 +88,11 @@ export type Proposal = {
   status: string
   created_at: string
   plan: PlanV2
-  simulation: SimV2 & { explain?: Explain; balances_snapshot?: unknown }
+  simulation: SimV2 & { explain?: Explain; balances_snapshot?: unknown; compare?: Compare; constraint_labels?: RuleLabel[] }
   rationale: string
+  parent_id?: string | null
+  constraints?: Constraints | null
+  request?: string | null
   execution?: {
     mode?: string
     note?: string

@@ -2,7 +2,7 @@
 
 Called from the approve route only (never from graph.py or tools.py; test_safety checks that).
 1. Atomically claim pending -> executing (double clicks get 409, never a second transfer).
-2. Merge edits, re-validate with validate_plan_v2.
+2. Merge edits, re-validate with validate_plan_v2 (including the customer's own constraints, PR 4).
 3. Re-read balances; if they moved since the proposal, mark it stale.
 4. Nessie transfers only for cash lump sums into a Nessie-backed debt (the PNC card). Everything else
    (CD / brokerage draws, linked debts, budget, redirects, cuts, autopay) is recorded as scheduled.
@@ -67,7 +67,7 @@ def approve(pid: str, edits: dict | None = None) -> dict:
     from .validator import PlanRejected, validate_plan_v2
 
     try:
-        sim = validate_plan_v2(cid, plan)
+        sim = validate_plan_v2(cid, plan, constraints=p.get("constraints"))
     except PlanRejected as e:
         store.release(pid)
         raise ApproveError(422, "; ".join(getattr(e, "reasons", None) or [str(e)]))

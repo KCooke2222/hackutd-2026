@@ -9,6 +9,7 @@ import Thinking from '../components/flow/Thinking'
 import PlanEditor from '../components/flow/PlanEditor'
 import Outcome from '../components/flow/Outcome'
 import PlanTimeline from '../components/flow/PlanTimeline'
+import Chat from '../components/flow/Chat'
 import IncomeExpense from '../components/IncomeExpense'
 import Brand from '../components/Brand'
 
@@ -71,7 +72,7 @@ export default function Home() {
     if (!knobs || !ai) return
     const n = ++seq.current
     const t = setTimeout(() => {
-      api<Preview>(`/customers/${cid}/plan/simulate`, { method: 'POST', body: JSON.stringify({ plan: planFrom(ai, knobs) }) })
+      api<Preview>(`/customers/${cid}/plan/simulate`, { method: 'POST', body: JSON.stringify({ plan: planFrom(ai, knobs), constraints: ai.constraints ?? null }) })
         .then((o) => { if (n === seq.current) setOutlook(o) })
         .catch((e) => n === seq.current && setErr(e.message))
     }, 200)
@@ -84,6 +85,13 @@ export default function Home() {
 
   function openPlan(p: Proposal, why: string) {
     setAi(p); setFinal(why); setKnobs(knobsFrom(p)); setApproved(null); go(2)
+  }
+
+  /** Talk to the plan produced a new pending plan (or Undo restored the previous one). */
+  function adjusted(p: Proposal) {
+    const prev = ai?.id
+    setPast((ps) => [p, ...ps.filter((x) => x.id !== p.id).map((x) => (x.id === prev ? { ...x, status: 'superseded' } : x))])
+    setAi(p); setFinal(''); setKnobs(knobsFrom(p)); setApproved(null); setErr(null)
   }
 
   function findPlan() {
@@ -154,7 +162,8 @@ export default function Home() {
       )}
       {screen === 2 && ai && knobs && (
         <PlanEditor ai={ai} headline={ai.simulation.explain?.headline ?? (final ? firstSentence(final) : firstSentence(ai.rationale))} knobs={knobs} setKnobs={setKnobs}
-          preview={outlook} busy={busy} error={err} onApprove={approve} onReject={reject} />
+          preview={outlook} busy={busy} error={err} onApprove={approve} onReject={reject}
+          chat={<Chat ai={ai} onAdjusted={adjusted} onRules={setAi} />} />
       )}
       {screen === 2 && ai && knobs && <PlanTimeline cid={cid} plan={planFrom(ai, knobs)} />}
       {screen === 3 && approved && <Outcome preview={outlook} approved={approved} />}

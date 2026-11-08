@@ -88,13 +88,16 @@ def _try(fn):
         return {"error": f"{type(e).__name__}: {e}"[:300]}
 
 
-def make_tools(customer_id: str, state: dict | None = None) -> list:
+def make_tools(customer_id: str, state: dict | None = None, constraints: dict | None = None) -> list:
     """Tools bound to one customer, so the agent can't read other customers' data.
 
-    `state` (optional) collects what the graph needs: proposal_id, rejections, stop.
+    `state` (optional) collects what the graph needs: proposal_id, rejections, stop. For an adjustment it also
+    carries parent_id and request, saved on the new proposal. `constraints` are the customer's own rules
+    (agent/constraints.py): simulate_plan reports breaks, propose_plan rejects them.
     """
     st = state if state is not None else {}
     st.setdefault("rejections", 0)
+    cons = constraints or {}
 
     def _sheet(keep: float = 3.0) -> dict:
         return balance_sheet.balance_sheet(customer_id, keep_months=keep)
@@ -166,7 +169,16 @@ def make_tools(customer_id: str, state: dict | None = None) -> list:
         interest, cash low point, net worth at 24 months vs the baseline (current behavior). Compare 2-3 options."""
         from .. import wealth
 
-        return _try(lambda: sim_brief(wealth.simulate_plan(customer_id, to_plan(kwargs))))
+        def go():
+            plan = to_plan(kwargs)
+            out = sim_brief(wealth.simulate_plan(customer_id, plan))
+            if cons:
+                from .constraints import check
+
+                out["breaks_customer_rules"] = check(plan, cons, wealth.context(customer_id)["spend"])
+            return out
+
+        return _try(go)
 
     @tool(args_schema=ProposeArgs)
     def propose_plan(**kwargs) -> dict:
@@ -183,8 +195,10 @@ def make_tools(customer_id: str, state: dict | None = None) -> list:
             from ..wealth import budget_limit, context
             if plan.get("extra_order"):
                 cap = budget_limit(context(customer_id), plan)["max_monthly_debt_budget"]
+                if cons.get("max_debt_budget") is not None:  # the customer capped it ("I can only pay $1,500/mo")
+                    cap = min(cap, cons["max_debt_budget"])
                 plan["monthly_debt_budget"] = max(float(plan.get("monthly_debt_budget") or 0), round(cap, 2))
-            sim = validate_plan_v2(customer_id, plan)
+            sim = validate_plan_v2(customer_id, plan, constraints=cons or None)
         except (PlanRejected, ValueError, KeyError, TypeError, AttributeError) as e:
             st["rejections"] += 1
             reasons = list(getattr(e, "reasons", None) or [str(e)])
@@ -196,7 +210,12 @@ def make_tools(customer_id: str, state: dict | None = None) -> list:
                     "attempts_left": MAX_REJECTIONS + 1 - st["rejections"]}
         sim = dict(sim)
         sim["balances_snapshot"] = balances.snapshot(customer_id)
-        p = store.create_proposal(customer_id, plan, sim, str(kwargs.get("rationale") or ""))
+        try:
+            p = store.create_proposal(customer_id, plan, sim, str(kwargs.get("rationale") or ""),
+                                      parent_id=st.get("parent_id"), constraints=cons or None, request=st.get("request"))
+        except store.Conflict as e:
+            st["stop"], st["last_reasons"] = True, [str(e)]
+            return {"saved": False, "stop": str(e)}
         st["proposal_id"] = p["id"]
         return {"saved": True, "proposal_id": p["id"], **{k: v for k, v in sim_brief(sim).items() if k != "debts"}}
 

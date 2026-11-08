@@ -13,13 +13,16 @@ SCHEMA = """
 create table if not exists proposals (
   id text primary key,
   customer_id text not null,
-  status text not null default 'pending',  -- pending | executing | approved | executed | rejected | stale | failed
+  status text not null default 'pending',  -- pending | executing | approved | executed | rejected | stale | failed | superseded
   created_at text not null,
   decided_at text,
   plan json not null,           -- what the agent proposed (validated)
   simulation json not null,     -- recomputed by the validator, not the LLM
   rationale text,
-  execution json
+  execution json,
+  parent_id text,               -- the proposal this one adjusts ("talk to the plan"); null for a fresh run
+  constraints json,             -- the customer's accumulated rules (agent/constraints.py)
+  request text                  -- what the customer asked for, for the adjust history
 );
 create table if not exists agent_runs (
   id text primary key,
@@ -61,6 +64,10 @@ def _conn() -> sqlite3.Connection:
     c = sqlite3.connect(DB_PATH)
     c.row_factory = sqlite3.Row
     c.executescript(SCHEMA)
+    have = {r[1] for r in c.execute("pragma table_info(proposals)")}
+    for col, typ in (("parent_id", "text"), ("constraints", "json"), ("request", "text")):
+        if col not in have:  # databases created before PR 4
+            c.execute(f"alter table proposals add column {col} {typ}")
     return c
 
 
@@ -70,20 +77,49 @@ def _now() -> str:
 
 def _row(r: sqlite3.Row) -> dict:
     d = dict(r)
-    for k in ("plan", "simulation", "execution"):
+    for k in ("plan", "simulation", "execution", "constraints"):
         if d.get(k):
             d[k] = json.loads(d[k])
     return d
 
 
-def create_proposal(customer_id: str, plan: dict, simulation: dict, rationale: str) -> dict:
+class Conflict(RuntimeError):
+    """The proposal being adjusted is no longer pending (approved, rejected or adjusted meanwhile)."""
+
+
+def create_proposal(customer_id: str, plan: dict, simulation: dict, rationale: str, *, parent_id: str | None = None,
+                    constraints: dict | None = None, request: str | None = None) -> dict:
+    """Save a pending proposal. With parent_id (an adjustment), the parent goes pending -> superseded in the
+    same transaction, so the customer has one pending plan at a time."""
     pid = uuid.uuid4().hex[:12]
     with _conn() as c:
         c.execute(
-            "insert into proposals (id, customer_id, created_at, plan, simulation, rationale) values (?,?,?,?,?,?)",
-            (pid, customer_id, _now(), json.dumps(plan), json.dumps(simulation), rationale),
+            "insert into proposals (id, customer_id, created_at, plan, simulation, rationale, parent_id, constraints, request)"
+            " values (?,?,?,?,?,?,?,?,?)",
+            (pid, customer_id, _now(), json.dumps(plan), json.dumps(simulation), rationale, parent_id,
+             json.dumps(constraints) if constraints else None, request),
         )
+        if parent_id:
+            cur = c.execute("update proposals set status = 'superseded', decided_at = ? where id = ? and status = 'pending'",
+                            (_now(), parent_id))
+            if cur.rowcount != 1:  # raising inside the `with` rolls back the insert too
+                raise Conflict(f"proposal {parent_id} is no longer pending")
     return get_proposal(pid)
+
+
+def restore(pid: str) -> dict | None:
+    """"Keep previous": the adjusted child becomes superseded and its parent is pending again. Only from the
+    pending child of a superseded parent; returns the parent, or None if that isn't the state."""
+    with _conn() as c:
+        r = c.execute("select parent_id, status from proposals where id = ?", (pid,)).fetchone()
+        if not r or not r["parent_id"] or r["status"] != "pending":
+            return None
+        cur = c.execute("update proposals set status = 'pending', decided_at = null where id = ? and status = 'superseded'",
+                        (r["parent_id"],))
+        if cur.rowcount != 1:
+            return None
+        c.execute("update proposals set status = 'superseded', decided_at = ? where id = ?", (_now(), pid))
+    return get_proposal(r["parent_id"])
 
 
 def get_proposal(pid: str) -> dict | None:
@@ -119,6 +155,14 @@ def annotate(pid: str, **fields) -> dict | None:
         sim = json.loads(r["simulation"] or "{}")
         sim.update(fields)
         c.execute("update proposals set simulation = ? where id = ?", (json.dumps(sim), pid))
+    return get_proposal(pid)
+
+
+def set_constraints(pid: str, constraints: dict | None) -> dict | None:
+    """Replace a pending proposal's constraints (the customer removed a rule tag)."""
+    with _conn() as c:
+        c.execute("update proposals set constraints = ? where id = ? and status = 'pending'",
+                  (json.dumps(constraints) if constraints else None, pid))
     return get_proposal(pid)
 
 

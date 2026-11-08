@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { usd } from '../../lib/api'
 import type { Proposal, SimDebt, SimV2 } from '../../lib/api'
 import { SOURCE_NAME, knobsFrom, title, ym } from '../../lib/flow'
@@ -51,9 +52,9 @@ function DebtStack({ sim, order }: { sim: SimV2; order: string[] }) {
   )
 }
 
-export default function PlanEditor({ ai, headline, knobs, setKnobs, preview, busy, error, onApprove, onReject }: {
+export default function PlanEditor({ ai, headline, knobs, setKnobs, preview, busy, error, onApprove, onReject, chat }: {
   ai: Proposal; headline: string; knobs: Knobs; setKnobs: (k: Knobs) => void; preview: Preview | null
-  busy: boolean; error: string | null; onApprove: () => void; onReject: () => void
+  busy: boolean; error: string | null; onApprove: () => void; onReject: () => void; chat?: ReactNode
 }) {
   const aiK = knobsFrom(ai)
   const sim = preview?.sim ?? ai.simulation
@@ -84,6 +85,8 @@ export default function PlanEditor({ ai, headline, knobs, setKnobs, preview, bus
         {headline && <p className="why1">{headline}</p>}
         <NetWorth sim={sim} baseline={preview?.baseline ?? null} />
       </div>
+
+      {chat}
 
       <div className="card">
         <h3 style={{ margin: '0 0 6px' }}>Debts</h3>

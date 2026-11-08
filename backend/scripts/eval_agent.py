@@ -97,13 +97,67 @@ def _months_between(a: str | None, b: str | None) -> int:
     return (yb - ya) * 12 + (mb - ma)
 
 
+def adjust_eval(cid: str, message: str) -> bool:
+    """PR 4: adjust the latest pending plan with `message`; check the rules were captured and obeyed, the parent
+    was superseded, and the shown cost matches the simulations."""
+    from zeroday.agent import constraints as C
+    from zeroday.agent.graph import stream_adjust
+    from zeroday.agent.validator import validate_plan_v2
+
+    parent = next((p for p in store.list_proposals(cid) if p["status"] == "pending"), None)
+    if not parent:
+        print("ADJUST: no pending proposal to adjust; run without --adjust first")
+        return False
+    t0 = time.time()
+    last: dict = {}
+    for ev in stream_adjust(parent["id"], message):
+        if ev["type"] in ("done", "error", "clarify"):
+            last = ev
+    print(f"\nADJUST {parent['id']} <- {message!r}  {time.time()-t0:.0f}s")
+    if last.get("type") != "done" or last.get("clarify"):
+        print(f"  ✗ no adjusted plan: {last.get('error') or last.get('clarify') or last.get('text')!r}")
+        return False
+    child = store.get_proposal(last["proposal_id"])
+    cons = child.get("constraints") or {}
+    sim = simulate_plan(cid, child["plan"])
+    cmp = child["simulation"].get("compare") or {}
+    checks = [
+        ("rules captured", bool(cons), ", ".join(d["label"] for d in C.describe(cons)) or "none"),
+        ("plan obeys the rules", not C.check(child["plan"], cons, None), "; ".join(C.check(child["plan"], cons, None)) or "ok"),
+        ("parent superseded", store.get_proposal(parent["id"])["status"] == "superseded", store.get_proposal(parent["id"])["status"]),
+        ("lineage", child["parent_id"] == parent["id"], child["parent_id"] or "-"),
+        ("cost matches simulation", abs(cmp.get("net_worth_24m", {}).get("after", -1) - sim["net_worth_24m"]) < 1,
+         f"shown ${cmp.get('net_worth_24m', {}).get('after', 0):,.0f} vs sim ${sim['net_worth_24m']:,.0f}"),
+        ("warning iff worse", bool((child["simulation"].get("explain") or {}).get("warning")) == bool(cmp.get("worse")),
+         f"worse={cmp.get('worse')} cost=${cmp.get('cost', 0):,.0f}"),
+    ]
+    try:
+        validate_plan_v2(cid, child["plan"], constraints=cons)
+        checks.append(("re-validates", True, "ok"))
+    except Exception as e:  # noqa: BLE001
+        checks.append(("re-validates", False, str(e)[:120]))
+    for s in cons.get("forbid_sources", []):
+        used = [ls for ls in child["plan"].get("lump_sums") or [] if ls.get("source") == s]
+        checks.append((f"no lump sum from {s}", not used, f"{len(used)} found"))
+    ok = all(c[1] for c in checks)
+    print(f"  {'PASS' if ok else 'FAIL'}  headline={(child['simulation'].get('explain') or {}).get('headline')!r}")
+    for name, passed, detail in checks:
+        print(f"  {'✓' if passed else '✗'} {name:45s} {detail}")
+    for line in cmp.get("changes") or []:
+        print(f"      · {line}")
+    return ok
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--customer", default="C001")
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--latest", action="store_true")
+    ap.add_argument("--adjust", metavar="REQUEST", help="PR 4: adjust the latest pending plan, e.g. \"don't touch my savings\"")
     args = ap.parse_args()
     cid = args.customer
+    if args.adjust:
+        return 0 if adjust_eval(cid, args.adjust) else 1
 
     ref = reference_plan(cid)
     ref_sim = simulate_plan(cid, ref)
