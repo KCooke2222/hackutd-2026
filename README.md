@@ -1,4 +1,7 @@
-# Zeroday
+# Paidway
+
+By Team Paidway (HackUTD 2026).
+
 
 A proactive credit-card payoff agent for the PNC challenge (HackUTD 2026). It reads a customer's
 accounts, explains why the card balance isn't going down (new spending + 22.5% interest refill
@@ -8,7 +11,8 @@ Nessie's write API.
 
 - `backend/`: FastAPI (uv). PNC CSVs in `backend/data/pnc/`, Nessie client (`nessie/read.py`,
   `nessie/write.py`), LangGraph ReAct agent on Nemotron (`agent/`), SQLite for proposals.
-- `frontend/`: React + Vite + TS. `/` = agent check + proposal card, `/data` = PNC data explorer.
+- `frontend/`: React + Vite + TS. One page: snapshot → agent thinking → plan (sliders, month by month) → done.
+  `/?plan=last` (or `/?plan=<id>`) opens a saved run without calling the model.
 
 ## Teammate setup
 
@@ -31,11 +35,11 @@ Then (needs [uv](https://docs.astral.sh/uv/) and Node 20+):
 ```bash
 make install
 make backend     # terminal 1: http://127.0.0.1:8710/api/health
-make frontend    # terminal 2: http://127.0.0.1:5710  (proxies /api to the backend)
+make frontend    # terminal 2: http://127.0.0.1:5710  (proxies /api to the backend; PORT / API_PORT override)
 make test
 ```
 
-Without keys everything still runs on the local PNC CSVs: the explorer and charts work,
+Without keys everything still runs on the local PNC CSVs: the snapshot and charts work,
 `/api/agent/run` returns 503 "NVIDIA_API_KEY is not set", and approvals are recorded locally only.
 
 ## Nessie seed
@@ -56,9 +60,8 @@ empty `PNC <id>` customers.
 | Method | Path | |
 |---|---|---|
 | GET | `/api/health` | which keys are set |
-| GET | `/api/overview` | dataset counts, account types, categories, card-vs-savings per customer |
-| GET | `/api/customers`, `/api/customers/{id}` | profile, accounts, totals, monthly statements |
-| GET | `/api/customers/{id}/transactions` | filters: account_id, transaction_type, category, flow_class, date_from, date_to; page, page_size |
+| GET | `/api/customers` | customer list with totals |
+| GET | `/api/customers/{id}/balance-sheet` | every account (PNC + Nessie + linked), ladder, debt priority |
 | GET | `/api/customers/{id}/summary`, `/refill` | card history + why the balance is stuck |
 | POST | `/api/simulate` | payoff simulator |
 | POST | `/api/agent/run` | `{customer_id}` → agent trace + pending proposal |
@@ -91,5 +94,5 @@ and linked accounts, then computes:
 - **Debt priority**: every minimum, ordered by consequence (secured, federal student loan,
   unsecured), then extra money to the highest APR. Secured or <8% APR debt gets minimums only.
 
-API: `/api/customers/{id}/balance-sheet`, `/ladder?amount=`, `/debts`, `/api/linked`.
+API: `/api/customers/{id}/balance-sheet`, `/debts`.
 CD and brokerage draws can't run in Nessie; approval records them as manual steps.

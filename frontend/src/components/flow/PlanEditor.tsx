@@ -41,7 +41,7 @@ function DebtStack({ sim, order }: { sim: SimV2; order: string[] }) {
             <span>{d.name} <span className="small muted">{d.apr_pct}% · {usd(d.balance)}</span></span>
             <b className={`num ${n != null && n <= H ? 'good' : ''}`} style={{ fontSize: 13 }}>{d.payoff_month ? `$0 ${ym(d.payoff_month)}` : '> 2 yrs'}</b>
             <span />
-            <span style={{ gridColumn: '2 / 4', height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+            <span style={{ gridColumn: '2 / 4', height: 6, background: 'var(--soft)', borderRadius: 3, overflow: 'hidden' }}>
               <span style={{ display: 'block', height: '100%', width: `${w}%`, background: i >= 0 ? ACCENT : GREY, borderRadius: 3 }} />
             </span>
           </div>

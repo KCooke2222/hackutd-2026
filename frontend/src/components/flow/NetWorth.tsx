@@ -3,7 +3,7 @@ import { usd } from '../../lib/api'
 import type { SimV2 } from '../../lib/api'
 import { ym, ymShort } from '../../lib/flow'
 
-export const GREY = '#9ca3af', ACCENT = '#ea580c', GOOD = '#16a34a', BAD = '#dc2626'
+export const GREY = 'var(--grey)', ACCENT = 'var(--accent)', GOOD = 'var(--good)', BAD = 'var(--bad)'
 
 /** Net worth for 24 months: the plan vs doing nothing (both from wealth.simulate_plan). */
 export default function NetWorth({ sim, baseline, height = 240 }: { sim: SimV2; baseline: SimV2 | null; height?: number }) {
@@ -23,14 +23,14 @@ export default function NetWorth({ sim, baseline, height = 240 }: { sim: SimV2; 
       </div>
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={{ top: 18, right: 16, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="#e5e7eb" vertical={false} />
-          <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 11, fill: '#6b7280' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} />
-          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: '#6b7280' }} width={48} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
+          <CartesianGrid stroke="var(--line)" vertical={false} />
+          <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 11, fill: 'var(--muted)' }} tickLine={false} axisLine={{ stroke: 'var(--line)' }} />
+          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: 'var(--muted)' }} width={48} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
           <Tooltip formatter={(v, n) => [usd(Number(v)), n === 'plan' ? 'Plan' : 'Do nothing']} labelFormatter={(m) => ym(String(m))} />
           <Line dataKey="base" stroke={GREY} strokeDasharray="5 4" strokeWidth={2} dot={false} isAnimationActive={false} />
           <Line dataKey="plan" stroke={ACCENT} strokeWidth={3} dot={false} isAnimationActive={false} />
           {freeAt && (
-            <ReferenceDot x={freeAt.m} y={freeAt.plan} r={5} fill={GOOD} stroke="#fff"
+            <ReferenceDot x={freeAt.m} y={freeAt.plan} r={5} fill={GOOD} stroke="var(--panel)"
               label={{ value: `High-cost debt $0 · ${ym(freeAt.m)}`, fill: GOOD, fontSize: 12, fontWeight: 700, position: 'top' }} />
           )}
           {last && <ReferenceDot x={last.m} y={last.plan} r={0} label={{ value: usd(last.plan), fill: ACCENT, fontSize: 12, fontWeight: 700, position: 'insideTopRight' }} />}

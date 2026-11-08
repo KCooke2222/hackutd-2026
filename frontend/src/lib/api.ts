@@ -11,44 +11,6 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export const usd = (n: number | null | undefined, digits = 0) =>
   n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: digits, minimumFractionDigits: digits })
 
-export const pct = (n: number | null | undefined) => (n == null ? '—' : `${n}%`)
-
-export type Account = {
-  customer_id: string
-  account_id: string
-  account_type: string
-  balance: number
-  monthly_payment: number
-  apr_pct: number
-  annual_yield_pct: number
-  opening_balance: number
-  history_start: string
-  as_of_date: string
-}
-
-export type Statement = {
-  account_id: string
-  account_type: string
-  month: string
-  opening_balance: number
-  balance_increases: number
-  balance_decreases: number
-  closing_balance: number
-  transaction_count: number
-}
-
-export type Profile = { customer_id: string; monthly_income: number; monthly_non_debt_expenses: number; credit_limit: number }
-
-export type Totals = {
-  assets: number
-  debts: number
-  net_worth: number
-  liquid: number
-  card_balance: number
-  card_apr_pct: number
-  card_interest_last_12m: number
-}
-
 export type Refill = {
   has_card: boolean
   apr_pct: number
@@ -59,15 +21,6 @@ export type Refill = {
   monthly_avg: { payment: number; new_spending: number; interest: number; fees: number }
   new_spending_by_category: Record<string, { monthly_avg: number; share_of_payment: number }>
   share_of_payment_refilled: number
-}
-
-export type Sim = {
-  pays_off: boolean
-  months_to_zero: number | null
-  total_interest: number | null
-  interest_first_12m: number
-  start_balance: number
-  schedule: { month: number; balance: number }[]
 }
 
 // ---------- plan v2 (docs/agent-v2/CONTRACT.md) ----------
@@ -145,8 +98,6 @@ export type SheetAccount = {
   secures_account_id: string | null
 }
 
-export type LinkedAccount = Omit<SheetAccount, 'side'> & { customer_id: string; as_of_date: string }
-
 export type Draw = { tier: number; key: string; amount: number; cost: number }
 
 export type Tier = {
@@ -204,22 +155,6 @@ export type BalanceSheet = {
   totals: { assets: number; debts: number; net_worth: number; liquid: number; by_source: Record<string, number> }
   ladder: Ladder
   priority: Priority
-}
-
-export const SOURCE_LABEL: Record<Source, string> = { pnc: 'PNC data', nessie: 'Nessie (live)', linked: 'Linked' }
-
-export const ACCOUNT_COLORS: Record<string, string> = {
-  checking: '#2563eb',
-  savings: '#16a34a',
-  credit_card: '#dc2626',
-  auto_loan: '#ea580c',
-  personal_loan: '#d97706',
-  mortgage: '#7c3aed',
-  brokerage: '#0891b2',
-  ira: '#0d9488',
-  cd: '#65a30d',
-  student_loan: '#be185d',
-  property: '#78716c',
 }
 
 /** POST /customers/{cid}/plan/timeline: the plan over time, per account, before vs plan. */

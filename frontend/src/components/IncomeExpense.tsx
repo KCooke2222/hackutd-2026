@@ -9,7 +9,7 @@ type Month = {
 type CashFlow = { months: Month[]; monthly_avg: Month; unknown_outflow_per_month: number }
 
 const SERIES = [
-  { key: 'essentials', name: 'Essentials', color: '#6b7280' },
+  { key: 'essentials', name: 'Essentials', color: 'var(--muted)' },
   { key: 'discretionary', name: 'Discretionary', color: '#fb923c' },
   { key: 'debt_payments', name: 'Debt payoff', color: '#2563eb' },
   { key: 'savings_invest', name: 'Saved', color: '#0d9488' },
@@ -36,7 +36,7 @@ export default function IncomeExpense({ cid }: { cid: string }) {
       <div className="col-head">
         <h2 style={{ margin: 0 }}>Income vs spending</h2>
         <div className="legend">
-          <span><i style={{ borderColor: '#111827' }} />Income</span>
+          <span><i style={{ borderColor: 'var(--text)' }} />Income</span>
           <span><i className="dash" style={{ borderColor: '#16a34a' }} />Left over</span>
           {SERIES.map((s) => <span key={s.key}><i style={{ borderColor: s.color }} />{s.name}</span>)}
         </div>
@@ -49,14 +49,14 @@ export default function IncomeExpense({ cid }: { cid: string }) {
       </div>
       <ResponsiveContainer width="100%" height={240}>
         <ComposedChart data={data} margin={{ top: 16, right: 16, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="#e5e7eb" vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6b7280' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} />
-          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: '#6b7280' }} width={44} tickLine={false} axisLine={false} />
+          <CartesianGrid stroke="var(--line)" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--muted)' }} tickLine={false} axisLine={{ stroke: 'var(--line)' }} />
+          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: 'var(--muted)' }} width={44} tickLine={false} axisLine={false} />
           <Tooltip formatter={(v, name) => [usd(Number(v)), name]} />
           {SERIES.map((s) => (
             <Bar key={s.key} dataKey={s.key} name={s.name} stackId="out" fill={s.color} isAnimationActive={false} />
           ))}
-          <Line dataKey="income" name="Income" stroke="#111827" strokeWidth={2.5} dot={false} type="linear" isAnimationActive={false} />
+          <Line dataKey="income" name="Income" stroke="var(--text)" strokeWidth={2.5} dot={false} type="linear" isAnimationActive={false} />
           <Line dataKey="surplus" name="Left over" stroke="#16a34a" strokeDasharray="5 4" strokeWidth={2} dot={false} type="linear" isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
