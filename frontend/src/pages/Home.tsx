@@ -28,6 +28,13 @@ const NAMES = ['Snapshot', 'Thinking', 'Plan', 'Done']
 
 // Last agent run per customer ({cid: run id}), so a reload or a customer switch can re-attach to it.
 const RUNS_KEY = 'paidway.runs'
+// ?fresh=1 (after `make fresh`): forget the remembered runs so the page opens on the Snapshot.
+if (new URLSearchParams(location.search).get('fresh') === '1') {
+  try { localStorage.removeItem(RUNS_KEY) } catch { /* private window */ }
+  const u = new URL(location.href)
+  u.searchParams.delete('fresh')
+  history.replaceState(null, '', u)
+}
 function storedRuns(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(RUNS_KEY) ?? '{}') ?? {} } catch { return {} }
 }
