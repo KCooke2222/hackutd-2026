@@ -1,18 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import { api, fmtDuration } from '../lib/api'
-import type { BalanceSheet, Proposal, RealityCheck as RC, ReplayMeta, ReplayRun, Tracking } from '../lib/api'
+import type { ApprovePreview, BalanceSheet, Proposal, RealityCheck as RC, ReplayMeta, ReplayRun, SimV2, Tracking } from '../lib/api'
 import { isV2, knobsFrom, planFrom } from '../lib/flow'
-import type { Knobs, Preview } from '../lib/flow'
+import type { Knobs, Preview, Schedule } from '../lib/flow'
 import Snapshot from '../components/flow/Snapshot'
 import Thinking from '../components/flow/Thinking'
 import type { RunMeta } from '../components/flow/Thinking'
-import PlanEditor from '../components/flow/PlanEditor'
 import Outcome from '../components/flow/Outcome'
-import PlanTimeline from '../components/flow/PlanTimeline'
-import Chat from '../components/flow/Chat'
+import PlanReport from '../components/flow/PlanReport'
+import AgentActions, { callsFor } from '../components/flow/AgentActions'
+import ChatDrawer from '../components/flow/ChatDrawer'
 import RealityCheck from '../components/flow/RealityCheck'
-import WhyPlan from '../components/flow/WhyPlan'
 import UnderwaterOptions from '../components/flow/UnderwaterOptions'
 import Scenarios from '../components/flow/Scenarios'
 import IncomeExpense from '../components/IncomeExpense'
@@ -75,7 +74,10 @@ export default function Home() {
     return on
   }
   const [reality, setReality] = useState<RC | null>(null)
-  const [planTab, setPlanTab] = useState<'time' | 'whatif'>('time')
+  const [planTab, setPlanTab] = useState<'plan' | 'whatif'>('plan')
+  // For the plan page: approve's exact Nessie calls, and the same plan without its suggested cuts (net worth chart).
+  const [pv, setPv] = useState<ApprovePreview | null>(null)
+  const [extras, setExtras] = useState<{ no_cuts: SimV2 | null; schedule: Schedule | null } | null>(null)
   const [replays, setReplays] = useState<ReplayMeta[]>([])
   const [replay, setReplay] = useState<ReplayRun | null>(null)
   const pendingReplay = useRef<ReplayRun & { customer_id: string } | null>(null)
@@ -155,6 +157,16 @@ export default function Home() {
     }, 200)
     return () => clearTimeout(t)
   }, [knobs, cid, ai])
+
+  useEffect(() => {
+    setPv(null); setExtras(null)
+    if (!ai) return
+    let live = true
+    api<ApprovePreview>(`/proposals/${ai.id}/preview`).then((r) => live && setPv(r)).catch(() => {})
+    api<{ no_cuts: SimV2 | null; schedule: Schedule | null }>(`/customers/${ai.customer_id}/plan/extras`, { method: 'POST', body: JSON.stringify({ plan: ai.plan }) })
+      .then((r) => live && setExtras(r)).catch(() => {})
+    return () => { live = false }
+  }, [ai?.id])
 
   function go(i: number) {
     setView('flow'); setScreen(i); setReached((r) => Math.max(r, i)); setErr(null)
@@ -265,23 +277,38 @@ export default function Home() {
         </div>
       )}
       {screen === 1 && thinkingDone && !ai && reality && !reality.realistic && <RealityCheck rc={reality} />}
-      {screen === 2 && reality && !reality.realistic && <RealityCheck rc={reality} />}
-      {screen === 2 && reality && !reality.realistic && <UnderwaterOptions key={cid} cid={cid} cards={ai?.simulation.explain?.underwater_options} noHelp={ai?.simulation.explain?.underwater_not_helping} />}
-      {screen === 2 && ai && <WhyPlan ex={ai.simulation.explain} />}
-      {screen === 2 && ai && knobs && (
-        <PlanEditor ai={ai} knobs={knobs} setKnobs={setKnobs}
-          preview={outlook} busy={busy} error={err} onApprove={approve} onReject={reject}
-          chat={<Chat ai={ai} onAdjusted={adjusted} onRules={setAi} />} />
-      )}
       {screen === 2 && ai && knobs && (
         <div className="seg plan-tabs" role="tablist">
-          <button role="tab" className={planTab === 'time' ? 'on' : ''} onClick={() => setPlanTab('time')}>Over time</button>
+          <button role="tab" className={planTab === 'plan' ? 'on' : ''} onClick={() => setPlanTab('plan')}>Plan</button>
           <button role="tab" className={planTab === 'whatif' ? 'on' : ''} onClick={() => setPlanTab('whatif')}>What if</button>
         </div>
       )}
-      {screen === 2 && ai && knobs && planTab === 'time' && <PlanTimeline cid={cid} plan={planFrom(ai, knobs)} />}
+      {screen === 2 && !ai && reality && !reality.realistic && <RealityCheck rc={reality} />}
+      {screen === 2 && ai && knobs && planTab === 'plan' && (
+        <PlanReport ai={ai} baseline={outlook?.baseline ?? null} noCuts={extras?.no_cuts ?? null} preview={pv} schedule={extras?.schedule ?? null}
+          underwater={reality && !reality.realistic ? (
+            <>
+              <RealityCheck rc={reality} />
+              <UnderwaterOptions key={cid} cid={cid} cards={ai.simulation.explain?.underwater_options} noHelp={ai.simulation.explain?.underwater_not_helping} />
+            </>
+          ) : undefined}>
+          <AgentActions title={ai.status === 'pending' ? 'What the agent will do on approve' : 'What approve does'} {...callsFor(pv, extras?.schedule)}
+            note={pv && (!pv.nessie_enabled || !pv.seeded) ? "This customer isn't set up in Nessie yet: approve records these calls without sending them." : 'Nothing is sent until you approve. Each row is one real Nessie API call.'}>
+            {outlook && !outlook.valid && <div className="error">{outlook.reasons.join('; ')}</div>}
+            {err && <div className="error">{err}</div>}
+            {ai.status === 'pending'
+              ? (
+                <div className="actions" style={{ marginTop: 14 }}>
+                  <button className="primary big" onClick={approve} disabled={busy || (outlook != null && !outlook.valid)}>{busy ? 'Approving…' : 'Approve'}</button>
+                  <button className="big" onClick={reject} disabled={busy}>Reject</button>
+                </div>
+              )
+              : <div className="small muted" style={{ marginTop: 10 }}>This plan is {ai.status}; only a pending plan can be approved.</div>}
+          </AgentActions>
+        </PlanReport>
+      )}
       {screen === 2 && ai && knobs && planTab === 'whatif' && <Scenarios cid={cid} plan={planFrom(ai, knobs)} />}
-      {screen === 3 && approved && <Outcome preview={outlook} approved={approved} />}
+      {screen === 3 && approved && <Outcome preview={outlook} approved={approved} planned={pv} sheet={sheet} />}
 
       <div className="flow-nav">
         <button disabled={screen === 0} style={{ visibility: screen === 0 ? 'hidden' : 'visible' }} onClick={() => go(screen - 1)}>Back</button>
@@ -318,6 +345,7 @@ export default function Home() {
       </div>
       </div>
       </main>
+      <ChatDrawer cid={cid} ai={ai} onAdjusted={adjusted} onRules={setAi} onSeePlan={(p) => { setPlanTab('plan'); openPlan(p) }} />
     </div>
   )
 }

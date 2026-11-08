@@ -68,11 +68,20 @@ function CompareCard({ r, busy, onUndo, onKeep }: { r: Result; busy: boolean; on
   )
 }
 
-/** Talk to the plan: type or speak a change; the agent re-plans from the current plan under your rules. */
-export default function Chat({ ai, onAdjusted, onRules }: {
-  ai: Proposal
+const ASK = /^(what|why|how|when|where|who|which|is|are|am|should|do|does|did|will|would|can|could|explain|tell me)\b/i
+/** A question (answered, nothing changes) vs a change to the plan (re-plans). */
+export const isQuestion = (m: string) => m.trim().endsWith('?') || ASK.test(m.trim())
+const QUESTIONS = ["What's driving my debt?", 'How much do I owe in total?', 'Which debt should go first?']
+
+/** Talk to the plan: type or speak a change; the agent re-plans from the current plan under your rules.
+ *  With `onQuestion`, questions (and everything when there is no pending plan) go there instead. */
+export default function Chat({ ai, onAdjusted, onRules, onQuestion, bare = false, asking = false }: {
+  ai: Proposal | null
   onAdjusted: (p: Proposal) => void // the new pending plan (adjusted, or the parent after Undo)
   onRules: (p: Proposal) => void // same plan, rules changed
+  onQuestion?: (m: string) => void
+  bare?: boolean // inside the drawer: no card title
+  asking?: boolean // a question is being answered
 }) {
   const [text, setText] = useState('')
   const [run, setRun] = useState<Run | null>(null)
@@ -82,14 +91,16 @@ export default function Chat({ ai, onAdjusted, onRules }: {
   const [listening, setListening] = useState(false)
   const es = useRef<EventSource | null>(null)
   const rec = useRef<Recognition | null>(null)
-  const rules = ai.simulation.constraint_labels ?? []
+  const rules = ai?.simulation.constraint_labels ?? []
   const running = run != null && !run.done
 
   useEffect(() => () => { es.current?.close(); rec.current?.stop() }, [])
 
   function send(msg: string) {
     const m = msg.trim()
-    if (!m || running) return
+    if (!m || running || asking) return
+    if (onQuestion && (!ai || isQuestion(m))) { onQuestion(m); setText(''); return }
+    if (!ai) return
     setErr(null); setResult(null)
     setRun({ steps: [], done: false, error: null, clarify: null, added: [], dropped: [] })
     const s = new EventSource(`/api/proposals/${ai.id}/adjust/stream?message=${encodeURIComponent(m)}`)
@@ -145,6 +156,7 @@ export default function Chat({ ai, onAdjusted, onRules }: {
   }
 
   async function dropRule(r: RuleLabel) {
+    if (!ai) return
     setBusy(true); setErr(null)
     try {
       onRules(await api<Proposal>(`/proposals/${ai.id}/constraints/remove`, { method: 'POST', body: JSON.stringify({ key: r.key, item: r.item }) }))
@@ -157,7 +169,7 @@ export default function Chat({ ai, onAdjusted, onRules }: {
 
   return (
     <div className="card">
-      <h3 style={{ margin: '0 0 6px' }}>Change the plan</h3>
+      {!bare && <h3 style={{ margin: '0 0 6px' }}>Change the plan</h3>}
       {rules.length > 0 && (
         <div className="chips" title="Your rules: every plan must follow them">
           {rules.map((r) => (
@@ -170,13 +182,14 @@ export default function Chat({ ai, onAdjusted, onRules }: {
       )}
       <form style={{ display: 'flex', gap: 6 }} onSubmit={(e) => { e.preventDefault(); send(text) }}>
         <input style={{ flex: 1 }} value={text} onChange={(e) => setText(e.target.value)} disabled={running}
-          placeholder={listening ? 'Listening…' : 'e.g. "don\'t touch my savings"'} aria-label="change the plan" maxLength={500} />
+          placeholder={listening ? 'Listening…' : !ai ? 'Ask about your money' : onQuestion ? 'Ask, or say a change' : 'e.g. "don\'t touch my savings"'} aria-label={onQuestion ? 'ask or change the plan' : 'change the plan'} maxLength={500} />
         {SpeechCtor && <button type="button" onClick={mic} disabled={running} aria-label="speak" className={`icon-btn ${listening ? 'primary' : ''}`}>{listening ? <Square size={14} strokeWidth={2} /> : <Mic size={16} strokeWidth={2} />}</button>}
-        <button className="primary" type="submit" disabled={running || !text.trim()}>{running ? 'Working…' : 'Send'}</button>
+        <button className="primary" type="submit" disabled={running || asking || !text.trim()}>{running || asking ? 'Working…' : 'Send'}</button>
       </form>
       {!run && !result && (
         <div className="chips" style={{ marginTop: 8 }}>
-          {suggest(ai).map((s) => <button key={s} className="chip" onClick={() => send(s)}>{s}</button>)}
+          {(ai ? suggest(ai).slice(0, onQuestion ? 3 : 4) : []).map((s) => <button key={s} className="chip" onClick={() => send(s)}>{s}</button>)}
+          {onQuestion && (ai ? QUESTIONS.slice(0, 1) : QUESTIONS).map((s) => <button key={s} className="chip" onClick={() => send(s)}>{s}</button>)}
         </div>
       )}
       {run && (running || run.error || run.clarify) && <Steps steps={run.steps} done={run.done} waiting="Reading your plan" />}

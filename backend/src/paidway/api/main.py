@@ -41,6 +41,9 @@ app.include_router(_tracking_router)
 from .scenarios import router as _scenarios_router  # noqa: E402
 
 app.include_router(_scenarios_router)
+from .plan_view import router as _plan_view_router  # noqa: E402
+
+app.include_router(_plan_view_router)
 
 
 def _need_customer(cid: str) -> dict:

@@ -1,20 +1,38 @@
 import { usd } from '../../lib/api'
 import type { BalanceSheet, SheetAccount } from '../../lib/api'
+import NessieChip from '../NessieChip'
 
 type Row = { id: string; name: string; bal: number; tags: [string, string?][]; dim?: boolean } | { group: string }
 
-function Col({ title, total, rows }: { title: string; total: number; rows: Row[] }) {
+/** Every account with a Nessie id is live there; linked ones (other banks, the brokerage) are mirrored. */
+const inNessie = (a: SheetAccount | undefined) => !!a && (!!a.nessie_id || a.source === 'nessie')
+const display = (a: SheetAccount | undefined, name: string) => (a && inNessie(a) && a.account_type === 'brokerage' ? 'Brokerage' : name)
+
+function Col({ title, total, rows, byId }: { title: string; total: number; rows: Row[]; byId: Map<string, SheetAccount> }) {
   return (
     <div className="card">
       <div className="col-head"><h2 style={{ margin: 0 }}>{title}</h2><span className="total">{usd(total)}</span></div>
       {rows.map((r, i) => 'group' in r
         ? <div key={'g' + i} className="group-label">{r.group}</div>
         : (
-          <div key={r.id} className={`lrow ${r.dim ? 'dim' : ''}`}>
-            <span className="name">{r.name}</span><span className="amt">{usd(r.bal)}</span>
-            {r.tags.length > 0 && <span className="sub">{r.tags.map(([t, c]) => <span key={t} className={`tag ${c ?? ''}`}>{t}</span>)}</span>}
-          </div>
+          <Line key={r.id} r={r} a={byId.get(r.id)} />
         ))}
+    </div>
+  )
+}
+
+function Line({ r, a }: { r: Exclude<Row, { group: string }>; a: SheetAccount | undefined }) {
+  const live = inNessie(a)
+  const mirrored = live && a?.source === 'linked'
+  return (
+    <div className={`lrow ${r.dim ? 'dim' : ''}`}>
+      <span className="name">{display(a, r.name)}{live && <> <NessieChip /></>}</span><span className="amt">{usd(r.bal)}</span>
+      {(r.tags.length > 0 || mirrored) && (
+        <span className="sub">
+          {r.tags.map(([t, c]) => <span key={t} className={`tag ${c ?? ''}`}>{t}</span>)}
+          {mirrored && <span className="small muted">linked, mirrored in Nessie</span>}
+        </span>
+      )}
     </div>
   )
 }
@@ -51,8 +69,8 @@ export default function Snapshot({ sheet }: { sheet: BalanceSheet }) {
 
   return (
     <div className="ledger">
-      <Col title="Have" total={sheet.totals.assets} rows={have} />
-      <Col title="Owe" total={sheet.totals.debts} rows={owe} />
+      <Col title="Have" total={sheet.totals.assets} rows={have} byId={byId} />
+      <Col title="Owe" total={sheet.totals.debts} rows={owe} byId={byId} />
     </div>
   )
 }

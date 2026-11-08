@@ -27,7 +27,8 @@ export type Refill = {
 
 export type LumpSum = { source: 'cash' | 'cd' | 'brokerage'; amount: number; to_debt: string }
 export type Redirect = { flow: string; amount_per_month: number }
-export type SpendingTarget = { category: string; current: number; target: number; proof_month: string; how: string[] }
+export type CutBuys = { net_worth_gain: number; months_sooner: number | null; high_cost_debt_free: string | null; interest_saved: number }
+export type SpendingTarget = { category: string; current: number; target: number; proof_month: string; how: string[]; source?: 'agreed' | 'suggested'; lumpy?: boolean; buys?: CutBuys }
 
 export type PlanV2 = {
   version: 2
@@ -40,8 +41,8 @@ export type PlanV2 = {
   keep_emergency_months: number
 }
 
-export type SimDebt = { account_id: string; name: string; apr_pct: number; balance: number; min_payment?: number; high_cost?: boolean; payoff_month: string | null; interest: number }
-export type SimMonth = { month: string; total_debt: number; high_cost_debt: number; cash: number; invested: number; net_worth: number }
+export type SimDebt = { account_id: string; name: string; apr_pct: number; balance: number; min_payment?: number; high_cost?: boolean; payoff_month: string | null; interest: number; first_month_payment?: number }
+export type SimMonth = { month: string; total_debt: number; high_cost_debt: number; cash: number; invested: number; net_worth: number; balances?: { debts: Record<string, number>; assets: Record<string, number> } }
 
 export type SimV2 = {
   feasible: boolean
@@ -54,7 +55,15 @@ export type SimV2 = {
   baseline_interest_total: number
   high_cost_debt_free: string | null
   upfront_cost: number
-  budget?: { current_debt_payments: number; redirects: number; checking_cuts: number; card_cuts: number; max_monthly_debt_budget: number; minimums: number }
+  budget?: {
+    current_debt_payments: number; redirects: number; checking_cuts: number; card_cuts: number; max_monthly_debt_budget: number; minimums: number
+    monthly_debt_budget?: number; net_paydown_per_month?: number; current_net_paydown_per_month?: number
+    new_card_purchases?: number; current_new_card_purchases?: number
+  }
+  /** The same plan without its suggested cuts (solver), and what the cuts buy together. */
+  no_cuts?: { net_worth_24m: number; high_cost_debt_free: string | null; interest_total: number; monthly_debt_budget: number; net_paydown_per_month: number; suggested_cut_per_month?: number; suggested_buys?: CutBuys }
+  baseline_high_cost_debt_free?: string | null
+  monthly_card_spending?: number
 }
 
 export type Explain = {
@@ -123,9 +132,27 @@ export type Proposal = {
     amount?: number
     transfer?: unknown
     transfers_pending?: { to_debt: string; amount: number }[]
-    scheduled?: { kind: string; step: string; how?: string[] }[]
+    scheduled?: { kind: string; step: string; how?: string[]; runs?: string; link?: string }[]
     error?: string
+    /** The receipt: each Nessie write call approve sent, with its status and the id Nessie created. */
+    nessie_calls?: NessieCall[]
+    /** Planned but not sent (no key, or the customer isn't seeded into Nessie). */
+    nessie_pending?: NessieCall[]
+    nessie_balances_after?: Record<string, number | string>
   }
+}
+
+/** One Nessie write call: planned (preview) or sent (receipt, with status and id). */
+export type NessieCall = {
+  tool: string; method: string; path: string; body?: Record<string, unknown>
+  from?: string; to?: string; amount: number; recurring_date?: number | null; first_payment?: string; step?: string
+  status?: number | string; id?: string | null; error?: string
+}
+export type ApprovePreview = {
+  proposal_id: string; customer_id: string; status: string; nessie_enabled: boolean; seeded: boolean
+  nessie_calls: NessieCall[]
+  recorded: { kind: string; step: string; runs?: string; how?: string[] }[]
+  manual: { kind: string; step: string; runs?: string; how?: string[] | string; link?: string }[]
 }
 
 export type Source = 'pnc' | 'nessie' | 'linked'
@@ -137,6 +164,7 @@ export type SheetAccount = {
   kind: string | null
   institution: string | null
   source: Source
+  nessie_id?: string | null
   side: 'asset' | 'debt'
   balance: number
   apr_pct: number
