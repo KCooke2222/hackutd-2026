@@ -245,7 +245,7 @@ function Alerts({ t }: { t: Tracking }) {
           <div key={a.month_index} className={`alert ${i === 0 ? 'pop' : ''}`}>
             <span className={`tag ${cls}`}>{a.title}</span>
             <span>{a.text}</span>
-            <span className="small muted num">{ym(a.month)}</span>
+            <span className="small muted num">{a.from_month ? `${ymShort(a.from_month)}–${ymShort(a.month)}` : ym(a.month)}</span>
           </div>
         )
       })}

@@ -228,3 +228,18 @@ def test_step_reset_choose_pending(setup, tmp_path, monkeypatch):
     assert store.get_proposal(prop["id"])["status"] == "approved"  # the tracked plan is untouched
     T.reset(CID, prop["id"])
     assert T.history(CID, prop["id"]) == []
+
+
+def test_alerts_collapse_repeats():
+    from paidway.planning.tracking import _collapse
+    feed = [{"month_index": i, "month": f"2027-0{i}", "scenario": s, "level": lv, "title": t, "text": x}
+            for i, (s, lv, t, x) in enumerate([
+                ("on_plan", "on_track", "On plan", "Debt $3"), ("on_plan", "on_track", "On plan", "Debt $2"),
+                ("income_drop", "off_track", "Off track", "Income down 14%"),
+                ("income_drop", "off_track", "Off track", "Income down 14%"),
+                ("income_drop", "off_track", "Off track", "Income down 14%")], start=1)]
+    actual = months = [{"cash": 100.0 * i} for i in range(7)]
+    out = _collapse(feed, actual, months)
+    assert [(a["title"], a["month"], a["from_month"]) for a in out] == [
+        ("On plan", "2027-02", "2027-01"), ("Off track", "2027-03", None), ("Off track", "2027-05", None)]
+    assert out[1]["text"] == "Income down 14%" and out[2]["text"].startswith("Still, 2 months later")

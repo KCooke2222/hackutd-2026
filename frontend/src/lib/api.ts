@@ -293,7 +293,7 @@ export type TrackDebt = {
   account_id: string; name: string; apr_pct: number; high_cost: boolean; start: number; actual: number; expected: number
   goal_month: string | null; projected_month: string | null; done: boolean; late_months: number
 }
-export type TrackAlert = { month_index: number; month: string; scenario: string; level: TrackLevel | 'good'; title: string; text: string }
+export type TrackAlert = { month_index: number; month: string; scenario: string; level: TrackLevel | 'good'; title: string; text: string; from_month?: string | null }
 export type SwitchSource = { kind: 'card_cap' | 'cut' | 'pause_flow'; label: string; detail?: string; amount: number }
 export type SwitchOption = {
   key: 'lock_in' | 'move_date'; title: string; goal_month: string; feasible: boolean
