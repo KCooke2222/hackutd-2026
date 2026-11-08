@@ -53,7 +53,7 @@ def _schedule_preview(cid: str, plan: dict) -> dict | None:
     try:
         from ..agent import execute
 
-        transfers, steps = execute.schedule(cid, plan)
+        transfers, steps = execute.schedule(cid, plan, execute._bill_sim(cid, plan, None), live=False)
         return {"transfers": transfers, "steps": steps}
     except Exception:  # noqa: BLE001 - a preview must never break the plan page
         return None
