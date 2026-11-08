@@ -340,6 +340,11 @@ def _bill_sim(customer_id: str, plan: dict, constraints: dict | None) -> dict | 
     try:
         return validate_plan_v2(customer_id, plan, live=False, constraints=constraints)
     except (PlanRejected, ValueError, KeyError, TypeError):
+        pass
+    try:  # a plan the checks flag (e.g. a debt missing from extra_order) still gets its bills sized
+        from ..planning import wealth
+        return wealth.simulate_plan(customer_id, plan)
+    except Exception:  # noqa: BLE001
         return None
 
 
