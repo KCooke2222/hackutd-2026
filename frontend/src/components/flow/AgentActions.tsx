@@ -23,6 +23,8 @@ const day = (s?: string) => (s ? new Date(s + 'T12:00:00').toLocaleDateString([]
 /** One planned (or sent) Nessie call in plain words. */
 export function what(c: NessieCall): { verb: string; text: string; when: string } {
   const desc = typeof c.body?.description === 'string' ? (c.body.description as string) : ''
+  if (c.tool.endsWith('delete_bill'))
+    return { verb: 'Bill paused', text: c.step ? pretty(c.step) : `${c.from ?? 'Checking'} → ${c.to ?? 'PNC IRA'} paused`, when: '/mo · stops now' }
   if (c.tool.endsWith('create_bill'))
     return { verb: 'Recurring bill', text: `${c.from ?? 'Checking'} pays ${c.to ?? 'the debt'}`, when: `/mo · the ${nth(c.recurring_date ?? 1)}${c.first_payment ? `, from ${day(c.first_payment)}` : ''}` }
   if (c.tool.endsWith('create_transfer'))

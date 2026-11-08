@@ -103,6 +103,29 @@ def _create_mirror(write, nessie_customer: str, m: dict) -> dict:
     return out
 
 
+def _seed_ira_bill(write, cid: str, entry: dict) -> None:
+    """Today's monthly IRA contribution as a recurring Nessie bill (checking -> IRA mirror), so a plan that
+    pauses it can delete the bill on approve. Stored as entry["bills"]["ira"] = {id, amount}."""
+    bills = entry.setdefault("bills", {})
+    ira_mirror = (entry.get("accounts") or {}).get(f"A-{cid}-IRA")
+    if bills.get("ira") or not ira_mirror or not entry.get("checking"):
+        return
+    try:
+        from ..planning import finance, wealth
+
+        amt = round(float(wealth.context(cid, with_options=False)["flows"]["contrib"].get("ira", 0.0)), 2)
+        if amt < 1:
+            return
+        y, m = map(int, finance.today()[:7].split("-"))
+        first = f"{y + m // 12}-{m % 12 + 1:02d}-05"
+        res = write.create_bill(entry["checking"], "PNC IRA", f"IRA contribution: {cid}", first, 5, float(int(round(amt))))
+        bid = ((res or {}).get("objectCreated") or {}).get("_id")
+        if bid:
+            bills["ira"] = {"id": bid, "amount": float(int(round(amt)))}
+    except Exception as e:  # noqa: BLE001 - a missing contribution bill must never break seeding
+        print(f"{cid}: IRA bill not seeded ({str(e)[:120]})")
+
+
 def seed(customer_ids: list[str], reload_local: bool = True) -> dict:
     """Mirror every account of each customer into Nessie (adds missing mirrors to customers seeded before)."""
     if reload_local:
@@ -148,6 +171,9 @@ def seed(customer_ids: list[str], reload_local: bool = True) -> dict:
                 if t["category"] not in merchants:
                     merchants[t["category"]] = write.create_merchant(t["category"].title(), t["category"])["objectCreated"]["_id"]
                 write.create_purchase(entry["credit_card"], merchants[t["category"]], round(abs(t["amount"]), 2), t["posted_date"], t["description"])
+        _seed_ira_bill(write, cid, entry)
+        ids[cid] = entry
+        IDS_PATH.write_text(json.dumps(ids, indent=2))
         entry["complete"] = entry["mirrors_complete"] = True
         ids[cid] = entry
         IDS_PATH.write_text(json.dumps(ids, indent=2))

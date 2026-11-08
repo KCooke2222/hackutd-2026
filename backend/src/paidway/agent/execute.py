@@ -227,6 +227,16 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
         else:
             steps.append({"kind": "payment", "step": f"Pay {name} ${amt:,.2f}/mo", "runs": "recorded",
                           "account_id": k, "amount": amt})
+    ira_bill = ((_ids(customer_id).get("bills") or {}).get("ira")) if checking else None
+    try:
+        from ..planning import options as _opts
+        pause_ira = "pause_ira" in _opts.applied(customer_id)
+    except Exception:  # noqa: BLE001
+        pause_ira = False
+    if pause_ira and ira_bill:  # the IRA contribution is a seeded Nessie bill: pausing it deletes the bill
+        steps.append({"kind": "pause", "step": f"Pause IRA contribution ${ira_bill['amount']:,.0f}/mo", "runs": "nessie",
+                      "amount": ira_bill["amount"], "nessie": {"op": "delete_bill", "bill": ira_bill["id"],
+                                                               "from": checking["account_id"], "amount": ira_bill["amount"]}})
     for r in plan.get("redirects") or []:
         meta = categories.flow_flag(r["flow"]) or {"flag": "redirect", "label": r["flow"]}
         paused = meta["flag"] == categories.PAUSE
@@ -316,6 +326,13 @@ def nessie_calls(customer_id: str, transfers: list[dict], steps: list[dict], ids
                         "to_nickname": None, "amount": n["tax"],
                         "recurring_date": None, "step": s["step"], "local": [], "expect": {n["from"]: -n["tax"]},
                         "group": f"payoff-{i}"})
+    for s, n in ops:
+        if n.get("op") == "delete_bill":
+            f = mir[n["from"]]
+            out.append({"tool": "nessie.write.delete_bill", "method": "DELETE", "path": f"/bills/{n['bill']}", "body": None,
+                        "from": f["name"], "to": "PNC IRA", "from_nickname": f["nickname"], "to_nickname": None,
+                        "amount": n["amount"], "recurring_date": None, "step": s["step"],
+                        "note": "Pauses the monthly IRA deposit; that money goes to the debt bills", "local": [], "expect": {}})
     for s, n in ops:
         if n.get("op") == "bill":
             f = mir[n["from"]]
