@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zeroday: How It Works</title>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--text:#111827;--muted:#6b7280;--line:#e5e7eb;--accent:#ea580c;--good:#16a34a;--bad:#dc2626;--code:#f3f4f6;--blue:#2563eb;--violet:#7c3aed}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--panel:#171a20;--text:#e5e7eb;--muted:#9ca3af;--line:#2a2f38;--accent:#fb923c;--good:#4ade80;--bad:#f87171;--code:#1f232b;--blue:#60a5fa;--violet:#a78bfa}}
+:root[data-theme="dark"]{--bg:#0f1115;--panel:#171a20;--text:#e5e7eb;--muted:#9ca3af;--line:#2a2f38;--accent:#fb923c;--good:#4ade80;--bad:#f87171;--code:#1f232b;--blue:#60a5fa;--violet:#a78bfa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+.top{background:#111827;color:#fff;padding:10px 16px;display:flex;gap:20px;align-items:center;position:sticky;top:0;z-index:5}
+.top b{color:#fb923c;letter-spacing:.03em}.top a{color:#d1d5db;text-decoration:none}.top a.on{color:#fff;border-bottom:2px solid #fb923c}
+main{max-width:1000px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:36px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.sub{color:var(--muted);margin:0 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.grid .card{margin:0}.card h3{margin:0 0 4px;font-size:15px}.card p{margin:0;color:var(--muted);font-size:14px}
+code{font:13px ui-monospace,Menlo,monospace;background:var(--code);padding:1px 5px;border-radius:4px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.tw{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.tag{display:inline-block;font:600 11px/1 ui-monospace,monospace;padding:3px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.t-new{color:var(--violet);border-color:var(--violet)}.t-live{color:var(--good);border-color:var(--good)}.t-llm{color:var(--blue);border-color:var(--blue)}.t-code{color:var(--muted)}
+.tree{font:13px/1.7 ui-monospace,Menlo,monospace;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;white-space:pre}
+.tree .c{color:var(--muted)}.tree .n{color:var(--violet)}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--text);font:13px Inter,system-ui,sans-serif}svg .m{fill:var(--muted);font-size:11px}
+svg .box{fill:var(--panel);stroke:var(--line);stroke-width:1.5}svg .llm{stroke:var(--blue)}svg .act{stroke:var(--accent)}svg .data{stroke:var(--good)}
+svg .ar{stroke:var(--muted);stroke-width:1.5;fill:none;marker-end:url(#a)}
+.note{border-left:3px solid var(--accent);padding:8px 12px;background:var(--panel);border-radius:0 8px 8px 0;margin:12px 0;font-size:14px}
+ul{padding-left:20px}li{margin:4px 0}
+</style>
+</head>
+<body>
+<div class="top"><b>ZERODAY</b><a class="on" href="../system/">How it works</a><a href="../roadmap/">Roadmap</a></div>
+<main>
+<h1>How Zeroday works</h1>
+<p class="sub">An agent that finds why your debt isn't going down, proposes a plan that grows your net worth, and moves money only when you approve.</p>
+<p class="sub"><span class="tag t-live">built</span> on <code>feat/balance-sheet</code> · <span class="tag t-new">v2</span> being built now</p>
+
+<h2>The whole system</h2>
+<div class="card">
+<svg viewBox="0 0 960 330" role="img" aria-label="System diagram">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#9ca3af"/></marker></defs>
+<!-- data -->
+<rect class="box data" x="10" y="20" width="200" height="62" rx="8"/><text x="22" y="44">PNC CSVs</text><text class="m" x="22" y="64">24 months of statements</text>
+<rect class="box data" x="10" y="100" width="200" height="62" rx="8"/><text x="22" y="124">SQLite (app DB)</text><text class="m" x="22" y="144">linked accounts, proposals, logs</text>
+<rect class="box data" x="10" y="180" width="200" height="62" rx="8"/><text x="22" y="204">Nessie (Capital One)</text><text class="m" x="22" y="224">checking, savings, card balances</text>
+<!-- backend -->
+<rect class="box" x="270" y="20" width="230" height="222" rx="8"/><text x="284" y="44">Backend (FastAPI)</text>
+<text class="m" x="284" y="68">balance sheet · ladder · debt order</text>
+<text class="m" x="284" y="88">cash flow · spending detail</text>
+<text class="m" x="284" y="108">wealth simulator · source compare</text>
+<text class="m" x="284" y="128">validator (safety rules)</text>
+<text class="m" x="284" y="148">read-only SQL sandbox</text>
+<text class="m" x="284" y="178">/api/* for the UI</text>
+<!-- agent -->
+<rect class="box llm" x="560" y="20" width="180" height="100" rx="8"/><text x="574" y="44">Planning agent</text><text class="m" x="574" y="64">LangGraph + Nemotron</text><text class="m" x="574" y="84">reads, simulates,</text><text class="m" x="574" y="102">proposes one plan</text>
+<!-- ui -->
+<rect class="box" x="560" y="142" width="180" height="100" rx="8"/><text x="574" y="166">Web app (React)</text><text class="m" x="574" y="186">snapshot · thinking ·</text><text class="m" x="574" y="204">plan sliders · outcome</text>
+<!-- human -->
+<rect class="box act" x="790" y="142" width="160" height="100" rx="8"/><text x="804" y="166">You</text><text class="m" x="804" y="186">adjust, then</text><text class="m" x="804" y="204">approve or reject</text>
+<!-- execute -->
+<rect class="box act" x="270" y="262" width="470" height="56" rx="8"/><text x="284" y="286">On approve: re-check plan, then transfer in Nessie</text><text class="m" x="284" y="304">only cash → PNC card moves for real; the rest is recorded as scheduled</text>
+<path class="ar" d="M210 51H268"/><path class="ar" d="M210 131H268"/><path class="ar" d="M210 211H268"/>
+<path class="ar" d="M500 70H558"/><path class="ar" d="M558 100H502"/>
+<path class="ar" d="M500 190H558"/><path class="ar" d="M740 192H788"/>
+<path class="ar" d="M870 242V290H742"/><path class="ar" d="M270 290H110V244"/>
+</svg>
+</div>
+
+<h2>The planning agent</h2>
+<div class="card">
+<svg viewBox="0 0 960 190" role="img" aria-label="Agent graph">
+<rect class="box" x="10" y="40" width="150" height="74" rx="8"/><text x="22" y="64">1 · Gather</text><text class="m" x="22" y="84">code: full snapshot</text><text class="m" x="22" y="100">every account + flow</text>
+<rect class="box llm" x="200" y="40" width="150" height="74" rx="8"/><text x="212" y="64">2 · Diagnose</text><text class="m" x="212" y="84">AI: top 3 causes, $/mo</text><text class="m" x="212" y="100">flags unknowns</text>
+<rect class="box llm" x="390" y="40" width="180" height="74" rx="8"/><text x="402" y="64">3 · Plan (tool loop)</text><text class="m" x="402" y="84">AI explores + simulates</text><text class="m" x="402" y="100">calls propose_plan once</text>
+<rect class="box act" x="610" y="40" width="150" height="74" rx="8"/><text x="622" y="64">4 · Validate</text><text class="m" x="622" y="84">code: safety rules</text><text class="m" x="622" y="100">reject → back with reasons</text>
+<rect class="box llm" x="800" y="40" width="150" height="74" rx="8"/><text x="812" y="64">5 · Explain</text><text class="m" x="812" y="84">AI: short UI labels</text><text class="m" x="812" y="100">headline ≤10 words</text>
+<path class="ar" d="M160 77H198"/><path class="ar" d="M350 77H388"/><path class="ar" d="M570 77H608"/><path class="ar" d="M760 77H798"/>
+<path class="ar" d="M685 114V150H480V116"/><text class="m" x="520" y="168">rejected (max 2 retries)</text>
+</svg>
+</div>
+<div class="tw"><table>
+<thead><tr><th>Tool the agent can call</th><th>What it gives back</th><th></th></tr></thead>
+<tbody>
+<tr><td><code>cash_flow</code></td><td>income, essentials, extras, debt payments, unknown outflow, by month</td><td><span class="tag t-code">read</span></td></tr>
+<tr><td><code>spending_detail</code></td><td>one category: monthly history, average, lowest month</td><td><span class="tag t-code">read</span></td></tr>
+<tr><td><code>find_recurring</code></td><td>bills and subscriptions</td><td><span class="tag t-code">read</span></td></tr>
+<tr><td><code>sql</code></td><td>free-form questions over this customer's data only</td><td><span class="tag t-code">read</span></td></tr>
+<tr><td><code>debt_priority</code></td><td>every debt, minimums, which gets extra money first</td><td><span class="tag t-code">read</span></td></tr>
+<tr><td><code>liquidity_ladder</code></td><td>what cash/CD/brokerage can be used, and what it costs</td><td><span class="tag t-code">read</span></td></tr>
+<tr><td><code>compare_sources</code></td><td>for $X to a debt: net-worth gain at 24 months per source</td><td><span class="tag t-code">read</span></td></tr>
+<tr><td><code>simulate_plan</code></td><td>month by month: each debt's $0 date, interest, net worth vs today's path</td><td><span class="tag t-code">read</span></td></tr>
+<tr><td><code>propose_plan</code></td><td>validates, then saves a <b>pending</b> proposal. Moves no money.</td><td><span class="tag t-new">only write</span></td></tr>
+</tbody></table></div>
+
+<h2>How it decides (the money logic)</h2>
+<div class="grid">
+<div class="card"><h3>Goal</h3><p>Highest net worth (assets − debts) in 24 months. Debt above 8% APR goes to $0 as fast as that allows.</p></div>
+<div class="card"><h3>Which debt first</h3><p>Every debt gets its minimum. Extra money goes to the highest APR. When one hits $0 its payment rolls to the next.</p></div>
+<div class="card"><h3>Where money comes from</h3><p>Monthly surplus → cash above the emergency buffer → CD → brokerage. Never retirement or property. Each source is used only if it beats leaving the money where it is, after tax and penalties.</p></div>
+<div class="card"><h3>Spending cuts</h3><p>Essentials stay whole. A cut needs a month where you already spent that little, and at most 30% off a category.</p></div>
+</div>
+<div class="tw" style="margin-top:12px"><table>
+<thead><tr><th>Assumption (we set these)</th><th>Return</th><th>Cost to pull money out</th></tr></thead>
+<tbody>
+<tr><td>Savings / checking</td><td>account rate</td><td>none</td></tr>
+<tr><td>CD</td><td>4.8%</td><td>3 months of interest</td></tr>
+<tr><td>Brokerage</td><td>7%</td><td>15% tax on gains (22% if under a year)</td></tr>
+<tr><td>IRA / 401k</td><td>7%</td><td>10% penalty + 22% income tax</td></tr>
+<tr><td>Property</td><td>—</td><td>mention only</td></tr>
+</tbody></table></div>
+<p class="sub" style="margin-top:8px">All in <code>backend/src/zeroday/assumptions.py</code>.</p>
+
+<h2>Safety</h2>
+<ul>
+<li>The agent can only <b>read</b> and <b>propose</b>. Its one write is a pending proposal.</li>
+<li>The SQL tool runs on an in-memory copy of one customer's data: SELECT only, one statement, time and row limits. Other customers' data isn't there at all.</li>
+<li>The validator runs on propose <i>and</i> again on approve. Approve runs only once per proposal and refuses if balances changed since the plan was made.</li>
+<li>Keys live in <code>.env</code> only.</li>
+</ul>
+
+<h2>Repo map</h2>
+<div class="tree"><span class="c"># backend: Python, FastAPI, run with `make backend` (port 8710)</span>
+backend/src/zeroday/
+  api.py              <span class="c">all /api routes the UI calls</span>
+  <span class="n">api_insights.py</span>     <span class="c">/cashflow route</span>
+  config.py           <span class="c">reads .env (NVIDIA + Nessie keys, model)</span>
+  pnc_data.py         <span class="c">loads the PNC CSVs</span>
+  linked.py           <span class="c">extra accounts PNC/Nessie lack: student loan, brokerage, store card, car</span>
+  store.py            <span class="c">SQLite: proposals, run logs, linked accounts, Nessie id map</span>
+  balance_sheet.py    <span class="c">have vs owe, liquidity ladder, debt order</span>
+  finance.py          <span class="c">card refill breakdown, single-card payoff math (v1)</span>
+  <span class="n">insights.py</span>         <span class="c">cash flow, spending detail, recurring charges</span>
+  <span class="n">assumptions.py</span>      <span class="c">returns, taxes, penalties, limits</span>
+  <span class="n">wealth.py</span>           <span class="c">all-debt simulator + net worth, compare_sources</span>
+  seed.py             <span class="c">puts demo customers into Nessie (`make seed` / `make reseed`)</span>
+  nessie/             <span class="c">Nessie HTTP client: read.py, write.py</span>
+  agent/
+    graph.py          <span class="c">the agent graph above</span>
+    <span class="n">prompts.py</span>        <span class="c">diagnose / plan / explain prompts</span>
+    tools.py          <span class="c">the tools table above</span>
+    <span class="n">sql_tool.py</span>       <span class="c">read-only SQL sandbox</span>
+    validator.py      <span class="c">safety rules for plans</span>
+    <span class="n">execute.py</span>        <span class="c">what happens on approve</span>
+backend/tests/        <span class="c">`make test`</span>
+backend/scripts/
+  <span class="n">eval_agent.py</span>       <span class="c">grades a live agent plan vs our reference plan</span>
+
+<span class="c"># frontend: React + Vite, `make frontend` (port 5710)</span>
+frontend/src/
+  pages/Home.tsx      <span class="c">main page: income vs expense, have vs owe, run agent</span>
+  pages/DataExplorer.tsx
+  components/BalanceSheet.tsx, <span class="n">IncomeExpense.tsx</span>
+  components/flow/    <span class="c">Snapshot → Thinking → PlanEditor → Outcome, <span class="n">NetWorth</span></span>
+  lib/api.ts, flow.ts <span class="c">API calls, flow state</span>
+
+docs/                 <span class="c">these pages + design notes (agent-flow, agent-v2)</span>
+mockups/              <span class="c">clickable HTML mocks</span>
+scripts/set-nvidia-key.sh</div>
+<p class="sub" style="margin-top:8px"><span class="tag t-new">purple</span> = v2, in progress.</p>
+
+<h2>What's real, what's assumed</h2>
+<div class="note"><b>Unknown outflow.</b> C001 sends about $2,890/mo out of checking with no clear destination. It's the plan's biggest lever, so the agent must flag it and ask the customer before counting it as savings.</div>
+<ul>
+<li>PNC data has no merchant names and spending is flat month to month, so realistic cuts are small (~8%).</li>
+<li>Nessie has no balance history. History comes from the PNC CSVs; Nessie is where money actually moves.</li>
+<li>Linked accounts (student loan, brokerage, store card, car) are generated per customer and stored in SQLite.</li>
+</ul>
+</main>
+</body>
+</html>
