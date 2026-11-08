@@ -14,6 +14,9 @@ const C = 'var(--lc)'
 const O = 'var(--lc-on)'
 const S = (w: number, c = O) => `fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"`
 
+/** The P of the wordmark: Outfit 800 P with the trend arrow cut out (tuned in the mark tuner). Same cut as favicon.svg. */
+const PAID_P = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="6.606 4 18.787 24" class="pm" aria-hidden="true"><defs><mask id="pw-cut" maskUnits="userSpaceOnUse" x="-8" y="-8" width="48" height="48"><rect x="-8" y="-8" width="48" height="48" fill="#fff"/><path d="M9.553 16.091L12.777 11.06L16.647 13.54L18.711 10.318" fill="none" stroke="#000" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.239 7.934L20.772 11.639L16.651 8.998Z" fill="#000" stroke="#000" stroke-width="1.65" stroke-linejoin="round"/></mask></defs><g mask="url(#pw-cut)"><path d="M63 0V709H376Q444 709 499 681.5Q554 654 586 603.5Q618 553 618 481Q618 411 586 359.5Q554 308 499 281Q444 254 376 254H242V0Z" transform="matrix(0.03385 0 0 -0.03385 4.474 28)" fill="currentColor"/></g></svg>'
+
 export const LOGO_FONTS = 'https://fonts.googleapis.com/css2?display=swap&family=Outfit:wght@300;600;800&family=Archivo+Narrow:wght@700&family=Archivo:wght@600'
 
 export const LOGOS: Logo[] = [
@@ -23,7 +26,7 @@ export const LOGOS: Logo[] = [
     mark: `<g transform="rotate(-8 12 12)"><rect x="2.6" y="5.2" width="18.8" height="13.6" rx="2" fill="none" stroke="${C}" stroke-width="2"/><rect x="5" y="7.6" width="14" height="8.8" rx=".8" fill="none" stroke="${C}" stroke-width=".9"/></g><path d="M8.6 12.3l2.3 2.3 4.6-4.7" ${S(2.1, C)}/>` },
   { slug: 'paidbold', name: 'Paid + way', kind: 'Wordmark', tone: 'green', bare: true,
     blurb: 'Pure type: heavy green "Paid", light "way". The name does the work.',
-    word: '<b>Paid</b><i>way</i>' },
+    word: `<b>${PAID_P}aid</b><i>way</i>` },
   { slug: 'ytail', name: 'Way underline', kind: 'Wordmark', tone: 'teal', bare: true,
     blurb: 'The y drops into a line that runs back under the word: the way, from start dot to paid.',
     word: 'Paidwa<span class="y">y</span>' },
