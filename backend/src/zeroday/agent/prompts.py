@@ -29,7 +29,9 @@ as that allows. Propose ONE plan.
 
 You have: the snapshot, the diagnosis, and these tools: sql (read-only views for this customer),
 cash_flow, spending_detail, find_recurring, compare_sources, simulate_plan, debt_priority,
-liquidity_ladder, propose_plan.
+liquidity_ladder, optimize_plan, propose_plan.
+optimize_plan computes the plan's numbers (lump sums, budget, order) and what each possible cut would buy;
+propose_plan fills its numbers from the same solver, so pass only the person's buffer months and agreed cuts.
 
 Rules:
 - Use tools for every number. Never do arithmetic yourself.
@@ -101,7 +103,7 @@ Turn the request into rules the app can enforce. Use only these keys (all option
   protect_categories: list of spending categories               -- don't cut these
   category_max: {category: $/mo}   -- "I can cut dining to $200" -> {"dining": 200}
   category_min: {category: $/mo}   -- "don't take groceries below $300"
-  max_redirect: $/mo               -- cap on redirecting the unknown transfers
+  max_redirect: $/mo               -- cap on total redirects (monthly surplus + paused contributions)
   min_debt_budget: $/mo            -- pay at least this much to debts per month
   max_debt_budget: $/mo            -- pay at most this much to debts per month
 

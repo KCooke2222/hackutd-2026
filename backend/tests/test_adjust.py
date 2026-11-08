@@ -43,16 +43,16 @@ def test_plan_changes_lists_each_lever():
     b["monthly_debt_budget"] = 3800
     b["redirects"][0]["amount_per_month"] = 2000
     b["spending_targets"] = [t for t in b["spending_targets"] if t["category"] != "shopping"]
-    b["spending_targets"][0]["target"] = 300
+    next(t for t in b["spending_targets"] if t["category"] == "dining")["target"] = 300
     b["lump_sums"] = [{"source": "cd", "amount": 500, "to_debt": "X"}]
     b["keep_emergency_months"] = 6
     lines = plan_changes(a, b, {"X": "Store card"})
     assert lines == [
-        "Paid to debts: $4,300 → $3,800/mo",
-        "Redirect unknown transfers: $2,500 → $2,000/mo",
+        "Paid to debts: $2,881 → $3,800/mo",
+        "Brokerage auto-invest to debt: $225 → $2,000/mo",
         "CD → Store card: added $500",
-        "Dining: $330 → $300/mo",
-        "Shopping: no cut (was $330/mo)",
+        "Dining: $349 → $300/mo",
+        "Shopping: no cut (was $337/mo)",
         "Emergency cash: 3 → 6 months",
     ]
     assert plan_changes(a, copy.deepcopy(a)) == []
@@ -62,11 +62,11 @@ def test_compare_on_real_simulations():
     s0 = wealth.simulate_plan(CID, REFERENCE, live=False)
     p1 = copy.deepcopy(REFERENCE)
     p1["redirects"][0]["amount_per_month"] = 1000
-    p1["monthly_debt_budget"] = REFERENCE["monthly_debt_budget"] - 1500
+    p1["monthly_debt_budget"] = REFERENCE["monthly_debt_budget"] - 1500  # below what's free: compare still prices it
     s1 = wealth.simulate_plan(CID, p1, live=False)
     c = compare(s0, s1, REFERENCE, p1)
     assert c["net_worth_24m"]["before"] == s0["net_worth_24m"] and c["net_worth_24m"]["after"] == s1["net_worth_24m"]
-    assert "Redirect unknown transfers: $2,500 → $1,000/mo" in c["changes"]
+    assert "Brokerage auto-invest to debt: $225 → $1,000/mo" in c["changes"]
 
 
 def test_adjust_supersedes_parent_and_restore_swaps_back(db):

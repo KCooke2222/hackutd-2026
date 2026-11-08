@@ -31,11 +31,18 @@ def plan_changes(before: dict, after: dict, names: dict[str, str] | None = None)
         out.append(f"Paid to debts: {_usd(b0)} → {_usd(b1)}/mo")
 
     def red(p):
-        return sum(float(r.get("amount_per_month") or 0) for r in p.get("redirects") or [])
+        d: dict[str, float] = {}
+        for r in p.get("redirects") or []:
+            d[r.get("flow")] = d.get(r.get("flow"), 0.0) + float(r.get("amount_per_month") or 0)
+        return d
+
+    from ..categories import FLOWS
 
     r0, r1 = red(before), red(after)
-    if abs(r1 - r0) >= 1:
-        out.append(f"Redirect unknown transfers: {_usd(r0)} → {_usd(r1)}/mo")
+    for f in sorted(set(r0) | set(r1), key=str):
+        a, b = r0.get(f, 0.0), r1.get(f, 0.0)
+        if abs(b - a) >= 1:
+            out.append(f"{(FLOWS.get(f) or {}).get('label', f)} to debt: {_usd(a)} → {_usd(b)}/mo")
 
     def lumps(p):
         d: dict[tuple, float] = {}

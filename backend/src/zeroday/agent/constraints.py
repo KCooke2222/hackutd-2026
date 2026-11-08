@@ -191,3 +191,43 @@ def remove(constraints: dict | None, key: str, item: str | None = None) -> dict:
     else:
         c.pop(key, None)
     return {k: v for k, v in c.items() if v not in ([], {}, None)}
+
+
+SOLVER_KEYS = ("forbid_sources", "min_debt_budget", "max_debt_budget", "max_redirect")
+
+
+def solver_inputs(constraints: dict | None, keep_months: float | None, targets: list[dict] | None,
+                  spend: dict | None = None) -> dict:
+    """The customer's rules as solver.solve() inputs, so the solved plan obeys them by construction
+    (check() then runs on it as a safety net):
+        min_emergency_months -> keep_emergency_months (at least)
+        protect_categories   -> no spending target there
+        category_max / _min  -> clamp the chosen targets; a cap below the current average adds that cut
+        forbid_sources, min/max_debt_budget, max_redirect -> passed through to the solver
+    `spend` is wealth.context()['spend'], used to skip caps the customer already meets."""
+    c = constraints or {}
+    keep = keep_months
+    if (m := c.get("min_emergency_months")) is not None:
+        keep = max(float(keep if keep is not None else 0.0), float(m))
+    protect = set(c.get("protect_categories") or [])
+    cmax, cmin = c.get("category_max") or {}, c.get("category_min") or {}
+    out, seen = [], set()
+    for t in targets or []:
+        cat = str(t.get("category", "")).lower()
+        if cat in protect:
+            continue
+        target = float(t["target"])
+        if cat in cmax:
+            target = min(target, cmax[cat])
+        if cat in cmin:
+            target = max(target, cmin[cat])
+        avg = ((spend or {}).get(cat) or {}).get("avg")
+        if avg is not None and target >= float(avg) - 0.5:
+            continue  # clamped back to no cut
+        seen.add(cat)
+        out.append({**t, "category": cat, "target": round(target, 2)})
+    for cat, cap in cmax.items():
+        avg = ((spend or {}).get(cat) or {}).get("avg")
+        if cat not in seen and cat not in protect and (avg is None or cap < float(avg) - 0.5):
+            out.append({"category": cat, "target": max(cap, cmin.get(cat, 0.0))})
+    return {"keep_emergency_months": keep, "spending_targets": out, **{k: c[k] for k in SOLVER_KEYS if k in c}}

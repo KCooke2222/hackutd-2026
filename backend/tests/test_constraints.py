@@ -24,7 +24,7 @@ def rejected(p, cons) -> str:
 
 def test_reference_plan_passes_with_compatible_constraints():
     cons = {"forbid_sources": ["cash", "cd", "brokerage"], "min_emergency_months": 3, "protect_categories": ["transport"],
-            "category_max": {"dining": 340}, "max_redirect": 2500}
+            "category_max": {"dining": 350}, "max_redirect": 225}
     validate_plan_v2(CID, REFERENCE, live=False, constraints=cons)
     validate_plan_v2(CID, REFERENCE, live=False, constraints=None)
 
@@ -43,16 +43,16 @@ def test_protect_category():
 
 
 def test_category_max_applies_even_without_a_target():
-    # Plan cuts dining to 330 but customer said they can reach 300.
-    assert "dining target $330/mo" in rejected(REFERENCE, {"category_max": {"dining": 300}})
+    # Plan cuts dining to 349 but customer said they can reach 300.
+    assert "dining target $349/mo" in rejected(REFERENCE, {"category_max": {"dining": 300}})
     # No target for transport in the plan: current spending (~$356) is over the cap.
     assert "transport target" in rejected(REFERENCE, {"category_max": {"transport": 200}})
 
 
 def test_category_min_and_redirect_and_budget():
-    assert "no lower than $350" in rejected(REFERENCE, {"category_min": {"dining": 350}})
-    assert "at most $2,000" in rejected(REFERENCE, {"max_redirect": 2000})
-    assert "at most $3,000" in rejected(REFERENCE, {"max_debt_budget": 3000})
+    assert "no lower than $360" in rejected(REFERENCE, {"category_min": {"dining": 360}})
+    assert "at most $100" in rejected(REFERENCE, {"max_redirect": 100})
+    assert "at most $2,000" in rejected(REFERENCE, {"max_debt_budget": 2000})
     assert "at least $5,000" in rejected(REFERENCE, {"min_debt_budget": 5000})
 
 
@@ -82,3 +82,36 @@ def test_describe_and_remove():
     assert C.remove(c, "forbid_sources", "cash")["forbid_sources"] == ["cd"]
     assert "category_max" not in C.remove(c, "category_max", "dining")
     assert "min_emergency_months" not in C.remove(c, "min_emergency_months")
+
+
+# ---------------- constraints -> solver inputs (propose_plan solves with the customer's rules) ----------------
+
+def _solve(cons, targets=()):
+    from zeroday import solver, wealth
+
+    spend = wealth.context(CID, live=False)["spend"]
+    inp = C.solver_inputs(cons, 3.0, [dict(t) for t in targets], spend)
+    return inp, solver.solve(CID, inp, live=False, with_tradeoffs=False)["plan"], spend
+
+
+def test_solver_inputs_translate_each_rule():
+    inp = C.solver_inputs({"min_emergency_months": 6, "protect_categories": ["dining"], "category_max": {"shopping": 300},
+                           "category_min": {"shopping": 320}, "forbid_sources": ["cd"], "max_redirect": 100},
+                          3.0, [{"category": "dining", "target": 300}, {"category": "travel", "target": 431}],
+                          {"dining": {"avg": 416}, "shopping": {"avg": 422}, "travel": {"avg": 718}})
+    assert inp["keep_emergency_months"] == 6
+    assert [t["category"] for t in inp["spending_targets"]] == ["travel", "shopping"]  # dining protected
+    assert inp["spending_targets"][1]["target"] == 320  # cap clamped up to the floor
+    assert inp["forbid_sources"] == ["cd"] and inp["max_redirect"] == 100
+
+
+def test_solved_plan_obeys_rules_by_construction():
+    cons = {"forbid_sources": ["cash", "cd", "brokerage"], "max_debt_budget": 2000, "max_redirect": 100,
+            "category_max": {"dining": 380}}  # above the lowest month ($349), so the validator accepts it
+    _, plan_, spend = _solve(cons)
+    assert plan_["lump_sums"] == []
+    assert plan_["monthly_debt_budget"] <= 2000
+    assert sum(r["amount_per_month"] for r in plan_["redirects"]) <= 100
+    assert any(t["category"] == "dining" and t["target"] <= 380 for t in plan_["spending_targets"])
+    assert C.check(plan_, cons, spend) == []
+    validate_plan_v2(CID, plan_, live=False, constraints=cons)

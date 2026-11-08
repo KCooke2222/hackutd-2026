@@ -149,7 +149,9 @@ def _plan_at(plan: dict, ctx: dict, mods: dict) -> dict:
 
 def _run_from(ctx: dict, plan: dict, state: dict, mods: dict) -> dict:
     c = _ctx_at(ctx, state, mods)
-    return wealth._run(c, _plan_at(plan, c, mods))
+    # Same cash floor as wealth.simulate_plan: the buffer, or where current behaviour already leaves cash.
+    base = wealth._run(c, None)
+    return wealth._run(c, _plan_at(plan, c, mods), base_cash=[m["cash"] for m in base["months"]])
 
 
 def _totals(m: dict, ctx: dict) -> dict:
@@ -378,11 +380,14 @@ def _sources(plan: dict, ctx: dict, mods: dict) -> list[dict]:
                         "detail": f"your {_ym(c['min_month'])} level", "amount": round(room, 2), "from": round(cur, 2),
                         "to": round(c["min"], 2), "proof_month": c["min_month"],
                         "card_share": c["card_avg"] / c["avg"] if c["avg"] else 0.0})
-    redirect = sum(float(r.get("amount_per_month") or 0) for r in plan.get("redirects") or [])
-    room = ctx["redirectable_outflow"] - redirect
-    if room >= 1:
-        out.append({"kind": "pause_flow", "label": f"Pause {_usd(room)}/mo of transfers out",
-                    "detail": "the rest of the unexplained outflow", "amount": round(room, 2)})
+    have: dict[str, float] = {}
+    for r in plan.get("redirects") or []:
+        have[r.get("flow")] = have.get(r.get("flow"), 0.0) + float(r.get("amount_per_month") or 0)
+    for key, f in ctx["movable_flows"].items():  # what each movable flow (surplus, contributions) has left
+        room = f["max_per_month"] - have.get(key, 0.0)
+        if room >= 1:
+            out.append({"kind": "pause_flow", "flow": key, "label": f"{f['label']}: {_usd(room)}/mo more",
+                        "detail": "redirect it to debt", "amount": round(room, 2)})
     return out
 
 
@@ -415,10 +420,11 @@ def _apply(plan: dict, ctx: dict, mods: dict, sources: list[dict], x: float) -> 
             budget_add += take * (1 - s["card_share"])
         elif s["kind"] == "pause_flow":
             rs = p.setdefault("redirects", [])
-            if rs:
-                rs[0]["amount_per_month"] = round(rs[0]["amount_per_month"] + take, 2)
+            hit = next((r for r in rs if r.get("flow") == s["flow"]), None)
+            if hit:
+                hit["amount_per_month"] = round(hit["amount_per_month"] + take, 2)
             else:
-                rs.append({"flow": wealth.FLOW_KEY, "amount_per_month": round(take, 2)})
+                rs.append({"flow": s["flow"], "amount_per_month": round(take, 2)})
             budget_add += take
     p["monthly_debt_budget"] = round(float(p["monthly_debt_budget"]) - m.get("budget_cut", 0.0) + budget_add, 2)
     m["budget_cut"] = 0.0  # folded into the plan's budget above

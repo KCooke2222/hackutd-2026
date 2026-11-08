@@ -97,6 +97,6 @@ def test_restore_and_remove_rule(env):
 
 def test_preview_enforces_constraints(env):
     c = env["client"]
-    r = c.post(f"/api/customers/{CID}/plan/simulate", json={"plan": REFERENCE, "constraints": {"max_redirect": 1000}})
+    r = c.post(f"/api/customers/{CID}/plan/simulate", json={"plan": REFERENCE, "constraints": {"max_redirect": 100}})
     assert r.status_code == 200 and not r.json()["valid"]
-    assert any("at most $1,000" in x for x in r.json()["reasons"])
+    assert any("at most $100" in x for x in r.json()["reasons"])
