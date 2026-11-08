@@ -326,7 +326,7 @@ export default function Home() {
         </PlanReport>
       )}
       {screen === 2 && ai && knobs && planTab === 'whatif' && <Scenarios cid={cid} plan={planFrom(ai, knobs)} />}
-      {screen === 3 && approved && <Outcome preview={outlook} approved={approved} planned={pv} sheet={sheet} />}
+      {screen === 3 && approved && <Outcome preview={outlook} approved={approved} planned={pv} sheet={sheet} onChange={(p) => { setApproved(p); loadTrack(false) }} />}
 
       <div className="flow-nav">
         <button disabled={screen === 0} style={{ visibility: screen === 0 ? 'hidden' : 'visible' }} onClick={() => go(screen - 1)}>Back</button>

@@ -76,6 +76,8 @@ def _overlay_nessie(customer_id: str, rows: list[dict]) -> None:
             mirrors[r["account_id"]] = ids[r["account_type"]]
     if not mirrors:
         return
+    posted = set(ids.get("posted") or [])
+    ledger: dict[str, tuple] = {}
     try:
         live = {a["_id"]: a for a in read.customer_accounts(ids["customer"])} if ids.get("customer") else {}
     except Exception:  # noqa: BLE001 - Nessie down: fall back to our balances
@@ -92,10 +94,28 @@ def _overlay_nessie(customer_id: str, rows: list[dict]) -> None:
                 r["nessie_error"] = True
                 continue
         r["balance"] = round(float(acc["balance"]), 2)
+        if nid in posted:  # Paidway posted transactions here: Nessie keeps them off the balance, so add them
+            r["nessie_raw_balance"] = r["balance"]
+            ledger[r["account_id"]] = (nid, r["account_type"] in DEBT_TYPES, r["balance"])
         r["nessie_id"] = nid
         r["nessie_nickname"] = acc.get("nickname")
         r["source"] = "nessie" if r["source"] == "pnc" else r["source"]
         r["mirrored"] = True
+    if ledger:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(8) as ex:
+            got = dict(zip(ledger, ex.map(lambda v: _try_ledger(read, *v), ledger.values())))
+        for r in rows:
+            if got.get(r["account_id"]) is not None:
+                r["balance"] = max(got[r["account_id"]], 0.0) if r["account_type"] in DEBT_TYPES else got[r["account_id"]]
+
+
+def _try_ledger(read, nid: str, debt: bool, raw: float) -> float | None:
+    try:
+        return read.ledger_balance(nid, debt, raw)
+    except Exception:  # noqa: BLE001 - keep the raw balance
+        return None
 
 
 def accounts(customer_id: str, live: bool = True) -> list[dict]:

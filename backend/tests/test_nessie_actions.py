@@ -43,7 +43,12 @@ NICK = {CHK: "C001 checking", SAV: "C001 savings", CARD: "C001 credit_card", LOA
         BRK: "Brokerage", STORE: "Store card", FED: "Federal Direct Loan"}
 IDS = {"customer": "cust1", "checking": "chk1", "savings": "sav1", "credit_card": "cc1", "complete": True,
        "accounts": {k: {"id": v, "nickname": NICK[k]} for k, v in MIRROR.items()}}
-GROSS = round(300 / (1 - (9800 - 7056) / 9800 * 0.15), 2)  # $300 net from a brokerage sale, 15% tax on the gain
+GROSS = float(int(300 / (1 - (9800 - 7056) / 9800 * 0.15) + 0.5))  # $300 net from a brokerage sale, 15% tax on the gain
+# Nessie moves whole dollars: each payoff is a transfer out of the source plus a deposit (payment) on the debt
+CALLS = [("POST", "/accounts/sav1/transfers"), ("POST", "/accounts/st1/deposits"),
+         ("POST", "/accounts/sav1/transfers"), ("POST", "/accounts/cc1/deposits"),
+         ("POST", "/accounts/brk1/transfers"), ("POST", "/accounts/cc1/deposits"),
+         ("POST", "/accounts/brk1/withdrawals"), *[("POST", "/accounts/chk1/bills")] * 2]
 
 
 @pytest.fixture()
@@ -67,8 +72,10 @@ def env(tmp_path, monkeypatch):
 
     def fake_request(method, path, json=None, params=None):
         sent.append((method, path, json))
-        if method == "GET":
+        if method == "GET" and path.count("/") == 2:
             return {"balance": 100.0}
+        if method == "GET":  # a transaction list: what was posted there (this Nessie never moves the balance)
+            return [b for m, p, b in sent if m == "POST" and p == path]
         return {"code": 201, "objectCreated": {"_id": f"id{len(sent)}"}}
 
     for m in (_http, read, write):
@@ -84,7 +91,7 @@ def _proposal(store):
 def test_schedule_tags_every_step(env):
     transfers, steps = env["execute"].schedule("C001", PLAN, SIM)
     assert [(t["from"], t["to"], t["to_debt"], t["amount"]) for t in transfers] == [  # old keys kept, one per lump
-        ("savings", STORE, STORE, 1240.55), ("savings", "credit_card", CARD, 1935.93), ("brokerage", "credit_card", CARD, 300.0)]
+        ("savings", STORE, STORE, 1241.0), ("savings", "credit_card", CARD, 1936.0), ("brokerage", "credit_card", CARD, 300.0)]
     assert all(s["runs"] in ("nessie", "recorded", "manual") for s in steps)
     by = {(s["kind"], s.get("to_debt") or s.get("account_id") or s.get("flow") or s.get("category"), s.get("source")): s
           for s in steps}
@@ -94,14 +101,14 @@ def test_schedule_tags_every_step(env):
     sold = by[("lump_sum", CARD, "brokerage")]
     assert sold["nessie"]["from"] == BRK and sold["gross"] == GROSS and sold["nessie"]["tax"] == round(GROSS - 300, 2)
     assert "Brokerage" in sold["note"] and "capital-gains" in sold["note"]
-    for k in (CARD, LOAN, FED):  # every debt's monthly payment is a bill on checking, linked ones too
+    for k in (CARD, LOAN):  # a changed monthly payment is a bill on checking
         assert by[("payment", k, None)]["runs"] == "nessie" and by[("payment", k, None)]["nessie"]["from"] == CHK
+    assert by[("payment", FED, None)]["runs"] == "recorded"  # already paying this: no new bill
     assert ("payment", STORE, None) not in by  # $0 month-1 payment: no bill
     assert by[("redirect", "brokerage_auto_invest", None)]["runs"] == "manual"
     assert by[("spending_target", "travel", None)]["runs"] == "recorded"
     auto = by[("autopay", CARD, None)]
-    assert auto["runs"] == "nessie" and auto["nessie"]["payment_date"] == "2027-06-07"  # the month after payoff
-    assert auto["nessie"]["amount"] == 1422.79
+    assert auto["runs"] == "recorded" and "switches its bill" in auto["note"]  # one bill per payee
     assert by[("autopay", STORE, None)]["runs"] == "recorded"  # no new charges on the store card: nothing to bill
 
 
@@ -114,29 +121,28 @@ def test_without_sim_payments_are_not_billed(env):
 def test_nessie_calls_are_exact_and_ordered(env):
     ex = env["execute"]
     calls = ex.nessie_calls("C001", *ex.schedule("C001", PLAN, SIM), IDS)
-    assert [(c["method"], c["path"]) for c in calls] == [
-        ("POST", "/accounts/sav1/transfers"), ("POST", "/accounts/sav1/transfers"), ("POST", "/accounts/brk1/transfers"),
-        ("POST", "/accounts/brk1/withdrawals"),
-        *[("POST", "/accounts/chk1/bills")] * 4]
-    assert [(c["from"], c["to"], c["amount"]) for c in calls[:4]] == [
-        ("PNC Savings", "Store card", 1240.55), ("PNC Savings", "PNC Credit card", 1935.93),
+    assert [(c["method"], c["path"]) for c in calls] == CALLS
+    assert [(c["from"], c["to"], c["amount"]) for c in calls[:7:2]] == [
+        ("PNC Savings", "Store card", 1241.0), ("PNC Savings", "PNC Credit card", 1936.0),
         ("Brokerage (index funds)", "PNC Credit card", 300.0),
-        ("Brokerage (index funds)", "Estimated tax / penalty (modelled)", round(GROSS - 300, 2))]
-    assert (calls[2]["from_nickname"], calls[2]["to_nickname"]) == ("Brokerage", "C001 credit_card")
-    assert calls[0]["body"] == {"medium": "balance", "payee_id": "st1", "transaction_date": "2026-11-07", "amount": 1240.55,
-                                "description": "Paidway approved payoff: Store card"}
-    assert calls[1]["body"]["payee_id"] == "cc1"
-    bill = calls[4]
+        ("Brokerage (index funds)", "Estimated tax / penalty (modelled)", GROSS - 300)]
+    assert [c.get("group") for c in calls[:7]] == ["payoff-0"] * 2 + ["payoff-1"] * 2 + ["payoff-2"] * 3
+    assert calls[0]["body"] == {"transaction_date": "2026-11-07", "status": "completed", "amount": 1241,
+                                "description": "Paidway payoff to Store card"}
+    assert calls[1]["body"] == {"medium": "balance", "transaction_date": "2026-11-07", "status": "completed",
+                                "amount": 1241, "description": "Paidway payoff from PNC Savings"}
+    assert all(isinstance(c["body"].get("amount", c["body"].get("payment_amount")), int) for c in calls)
+    bill = calls[7]
     assert bill["body"] == {"status": "recurring", "payee": "PNC Credit card", "nickname": "Paidway plan: PNC Credit card",
-                            "payment_date": "2026-12-07", "recurring_date": 7, "payment_amount": 2154.05}
+                            "payment_date": "2026-12-07", "recurring_date": 7, "payment_amount": 2154}
     assert bill["recurring_date"] == 7 and bill["tool"] == "nessie.write.create_bill"
-    assert [c["to"] for c in calls[4:]] == ["PNC Credit card", "PNC Personal loan", "Federal Direct Loan", "PNC Credit card"]
+    assert [c["to"] for c in calls[7:]] == ["PNC Credit card", "PNC Personal loan"]
 
 
 def test_unseeded_accounts_show_placeholders(env):
     ex = env["execute"]
     calls = ex.nessie_calls("C001", *ex.schedule("C001", PLAN, SIM, ids={}), {})
-    assert calls[0]["path"] == f"/accounts/<{SAV}>/transfers" and calls[0]["body"]["payee_id"] == f"<{STORE}>"
+    assert calls[0]["path"] == f"/accounts/<{SAV}>/transfers" and calls[1]["path"] == f"/accounts/<{STORE}>/deposits"
     assert all(ex._unseeded(c) for c in calls)
 
 
@@ -153,34 +159,73 @@ def test_approve_sends_calls_and_records_receipt(env):
     assert p["status"] == "executed"
     rec = p["execution"]["nessie_calls"]
     posts = [s for s in env["sent"] if s[0] == "POST"]
-    assert [(r["method"], r["path"], r["body"]) for r in rec] == posts and len(rec) == 8
-    assert all(r["status"] == 201 and r["id"] for r in rec)
+    assert [(r["method"], r["path"], r["body"]) for r in rec] == posts and len(rec) == len(CALLS)
+    assert all(r["status"] == 201 and r["id"] and not r["repairs"] for r in rec)
     assert {"from", "to", "amount", "recurring_date", "tool"} <= set(rec[0])
     # our store mirrors the linked balances too: the store card and the brokerage come down locally
-    assert (STORE, 1240.55) in env["paid"] and (BRK, GROSS) in env["paid"]
-    gets = [s[1] for s in env["sent"] if s[0] == "GET"]
-    assert set(gets) == {f"/accounts/{MIRROR[k]}" for k in (SAV, STORE, CARD, BRK)} and len(gets) == 8  # before + after
+    assert (STORE, 1241.0) in env["paid"] and (BRK, GROSS) in env["paid"]
+    gets = {s[1] for s in env["sent"] if s[0] == "GET"}
+    assert {f"/accounts/{v}" for v in MIRROR.values()} <= gets  # every mirror read before and after
     check = {c["account_id"]: c for c in p["execution"]["nessie_check"]}
-    assert check[CARD]["expected_change"] == round(-1935.93 - 300.0, 2) and check[CARD]["actual_change"] == 0.0
-    assert check[CARD]["ok"] is False  # the fake Nessie never moved: flagged, not assumed
-    assert p["execution"]["nessie_balances_after"][SAV] == 100.0
+    # this Nessie never posts to the balance: the ledger (raw balance plus Paidway's transactions) moves instead
+    assert check[CARD]["expected_change"] == -2236.0 and check[CARD]["actual_change"] == -2236.0 and check[CARD]["ok"]
+    assert p["execution"]["nessie_balances_after"][SAV] == 100.0 - 1241 - 1936
+    assert [b["payee"] for b in p["execution"]["bills"]] == ["PNC Credit card", "PNC Personal loan"]
 
 
-def test_approve_stops_at_first_failure(env):
+def test_failed_payoff_is_held_back_and_retried(env):
     ex, store = env["execute"], env["store"]
     env["monkeypatch"].setattr(ex, "NESSIE_KEY", "test")
     from paidway.nessie import write
 
+    real, down = write.request, {"on": True}
+
     def flaky(method, path, json=None, params=None):
-        if path == "/accounts/brk1/transfers":
+        if down["on"] and path == "/accounts/brk1/transfers":
             raise RuntimeError("Nessie 500")
-        return {"code": 201, "objectCreated": {"_id": "x"}}
+        return real(method, path, json=json, params=params)
 
     env["monkeypatch"].setattr(write, "request", flaky)
+    pid = _proposal(store)["id"]
+    p = ex.approve(pid)
+    assert p["status"] == "approved" and p["execution"]["retry_available"]  # tracked: the dashboard is reachable
+    assert [r["status"] for r in p["execution"]["nessie_calls"]] == [201] * 4 + ["error", "skipped", "skipped", 201, 201]
+    assert (BRK, GROSS) not in env["paid"]  # the failed payoff's legs never ran
+    down["on"] = False
+    p = ex.retry(pid)
+    assert p["status"] == "executed" and all(r["status"] == 201 for r in p["execution"]["nessie_calls"])
+    assert [r.get("retried", False) for r in p["execution"]["nessie_calls"]] == [False] * 4 + [True] * 3 + [False] * 2
+    assert [s[1] for s in env["sent"] if s[0] == "POST"].count("/accounts/sav1/transfers") == 2  # never sent twice
+
+
+def test_bad_body_is_reformatted_and_resent(env):
+    ex, store = env["execute"], env["store"]
+    env["monkeypatch"].setattr(ex, "NESSIE_KEY", "test")
+    from paidway.nessie import _http, write
+
+    real = write.request
+
+    def strict(method, path, json=None, params=None):
+        if method == "POST" and path.endswith("/transfers") and "status" not in json:
+            raise _http.NessieError("400", 400, '"1 validation error for TransferCreate\\nstatus\\n  field required '
+                                                '(type=value_error.missing)"')
+        return real(method, path, json=json, params=params)
+
+    env["monkeypatch"].setattr(write, "request", strict)
+    from paidway.nessie import calls
+
+    orig = calls.transfer
+
+    def no_status(*a):
+        c = orig(*a)
+        c["body"].pop("status")
+        return c
+
+    env["monkeypatch"].setattr(calls, "transfer", no_status)
     p = ex.approve(_proposal(store)["id"])
-    assert p["status"] == "failed"
-    assert [r["status"] for r in p["execution"]["nessie_calls"]] == [201, 201, "error", *["not_sent"] * 5]
-    assert env["paid"] == [(STORE, 1240.55), (SAV, 1240.55), (CARD, 1935.93), (SAV, 1935.93)]
+    assert p["status"] == "executed"
+    first = p["execution"]["nessie_calls"][0]
+    assert first["repairs"] == ["reformatted after 400: added status=completed"] and first["body"]["status"] == "completed"
 
 
 def test_approve_without_key_sends_nothing(env):
@@ -188,7 +233,7 @@ def test_approve_without_key_sends_nothing(env):
     env["monkeypatch"].setattr(ex, "NESSIE_KEY", "")
     p = ex.approve(_proposal(store)["id"])
     assert p["status"] == "approved" and p["execution"]["mode"] == "local_only"
-    assert len(p["execution"]["nessie_pending"]) == 8 and not env["sent"]
+    assert len(p["execution"]["nessie_pending"]) == len(CALLS) and not env["sent"]
 
 
 def test_preview_makes_no_nessie_call(env):
@@ -199,8 +244,8 @@ def test_preview_makes_no_nessie_call(env):
     assert r.status_code == 200, r.text
     body = r.json()
     assert not env["sent"]  # not even a GET
-    assert [c["tool"] for c in body["nessie_calls"]] == [*["nessie.write.create_transfer"] * 3,
-                                                         "nessie.write.create_withdrawal", *["nessie.write.create_bill"] * 4]
+    assert [c["tool"] for c in body["nessie_calls"]] == [*["nessie.write.create_transfer", "nessie.write.create_deposit"] * 3,
+                                                         "nessie.write.create_withdrawal", *["nessie.write.create_bill"] * 2]
     assert {s["runs"] for s in body["recorded"]} == {"recorded"} and {s["runs"] for s in body["manual"]} == {"manual"}
     assert env["store"].get_proposal(p["id"])["status"] == "pending"
     # what the preview shows is exactly what approve sends

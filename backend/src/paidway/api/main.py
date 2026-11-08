@@ -348,6 +348,17 @@ def approve_proposal(pid: str, edits: EditIn | None = None) -> dict:
         raise HTTPException(e.status, e.detail)
 
 
+@app.post("/api/proposals/{pid}/retry")
+def retry_proposal(pid: str) -> dict:
+    """Send again the Nessie calls of an approved plan that didn't go through (never the ones that did)."""
+    from ..agent.execute import ApproveError, retry
+
+    try:
+        return retry(pid)
+    except ApproveError as e:
+        raise HTTPException(e.status, e.detail)
+
+
 @app.post("/api/proposals/{pid}/reject")
 def reject_proposal(pid: str) -> dict:
     p = store.get_proposal(pid)

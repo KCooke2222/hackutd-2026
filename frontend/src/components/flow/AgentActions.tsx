@@ -25,6 +25,8 @@ function what(c: NessieCall): { verb: string; text: string; when: string } {
     return { verb: 'Recurring bill', text: `${c.from ?? 'Checking'} pays ${c.to ?? 'the debt'}`, when: `/mo · the ${nth(c.recurring_date ?? 1)}${c.first_payment ? `, from ${day(c.first_payment)}` : ''}` }
   if (c.tool.endsWith('create_transfer'))
     return { verb: 'Transfer', text: `${c.from} → ${c.to}`, when: 'today' }
+  if (c.tool.endsWith('create_deposit'))
+    return { verb: 'Payment', text: `${c.to} paid from ${c.from}`, when: 'today' }
   return { verb: 'Withdrawal', text: c.to?.startsWith('Estimated tax') ? `${c.from}: ${desc || 'estimated tax'}` : `${c.from} pays ${c.to}`, when: 'today' }
 }
 
@@ -50,6 +52,7 @@ export function callsFor(pv: ApprovePreview | null, schedule: Schedule | null | 
 function status(c: NessieCall) {
   if (c.status === 'error') return <span className="tag red">failed</span>
   if (c.status === 'not_sent') return <span className="tag">not sent</span>
+  if (c.status === 'skipped') return <span className="tag">held back</span>
   return <span className="tag good">{typeof c.status === 'number' ? `${c.status} created` : 'done'}</span>
 }
 
@@ -75,7 +78,7 @@ export default function AgentActions({ title, calls, recorded = [], manual = [],
               {c.note && <div className="small muted">{c.note}</div>}
             </div>
             <div className="amt">{usd(c.amount)}<small>{w.when}</small></div>
-            {receipt && <div className="rcpt">{status(c)}{c.id && <code>id {c.id}</code>}{c.error && <span className="bad">{c.error}</span>}</div>}
+            {receipt && <div className="rcpt">{status(c)}{c.id && <code>id {c.id}</code>}{c.error && <span className="bad">{c.error}</span>}{c.repairs?.map((r) => <span key={r} className="small muted">{r}</span>)}{c.retried && <span className="small muted">retried</span>}</div>}
           </div>
         )
       })}

@@ -142,6 +142,12 @@ export type Proposal = {
     /** Planned but not sent (no key, or the customer isn't seeded into Nessie). */
     nessie_pending?: NessieCall[]
     nessie_balances_after?: Record<string, number | string>
+    /** Every mirrored account's Nessie balance before and after approve (ledger: raw + Paidway's transactions). */
+    nessie_check?: { account_id: string; name: string; nickname: string; nessie_id: string; debt: boolean; before: number; after: number; expected_change: number; actual_change: number; ok: boolean }[]
+    /** The recurring bills approve created. */
+    bills?: { payee: string; amount: number; day: number; first?: string; id?: string | null; from?: string }[]
+    /** Some calls didn't go through: POST /proposals/{id}/retry sends just those. */
+    retry_available?: boolean
   }
 }
 
@@ -150,6 +156,8 @@ export type NessieCall = {
   tool: string; method: string; path: string; body?: Record<string, unknown>
   from?: string; to?: string; amount: number; recurring_date?: number | null; first_payment?: string; step?: string
   status?: number | string; id?: string | null; error?: string; note?: string | null
+  /** How approve re-formatted the body after a validation error, e.g. "reformatted after 400: dropped payee_id". */
+  repairs?: string[]; retried?: boolean; leg?: number; group?: string
 }
 export type ApprovePreview = {
   proposal_id: string; customer_id: string; status: string; nessie_enabled: boolean; seeded: boolean

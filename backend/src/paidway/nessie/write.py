@@ -29,8 +29,7 @@ def create_purchase(account_id: str, merchant_id: str, amount: float, date: str,
 
 
 def create_deposit(account_id: str, amount: float, date: str, description: str) -> dict:
-    body = {"medium": "balance", "transaction_date": date, "amount": amount, "description": description}
-    return request("POST", f"/accounts/{account_id}/deposits", json=body)
+    return send(calls.deposit(account_id, amount, date, description))
 
 
 def send(call: dict) -> dict:
@@ -38,8 +37,9 @@ def send(call: dict) -> dict:
     return request(call["method"], call["path"], json=call.get("body"))
 
 
-def create_transfer(from_account_id: str, to_account_id: str, amount: float, date: str, description: str) -> dict:
-    return send(calls.transfer(from_account_id, to_account_id, amount, date, description))
+def create_transfer(from_account_id: str, amount: float, date: str, description: str) -> dict:
+    """A transfer out of `from_account_id` (this Nessie's transfers have no destination; see calls.py)."""
+    return send(calls.transfer(from_account_id, amount, date, description))
 
 
 def create_merchant(name: str, category: str) -> dict:

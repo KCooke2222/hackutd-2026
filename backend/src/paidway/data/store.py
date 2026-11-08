@@ -185,6 +185,19 @@ def claim(pid: str) -> bool:
         return cur.rowcount == 1
 
 
+def claim_retry(pid: str) -> bool:
+    """Atomically flip approved -> executing for a retry of failed Nessie calls (double clicks get False)."""
+    with _conn() as c:
+        cur = c.execute("update proposals set status = 'executing' where id = ? and status = 'approved'", (pid,))
+        return cur.rowcount == 1
+
+
+def delete_proposal(pid: str) -> None:
+    """Remove one proposal row (scripts/approve_stress.py cleans up the proposals it made)."""
+    with _conn() as c:
+        c.execute("delete from proposals where id = ?", (pid,))
+
+
 def release(pid: str) -> None:
     """executing -> pending, for a recoverable refusal (e.g. an invalid edit)."""
     with _conn() as c:

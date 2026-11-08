@@ -33,6 +33,15 @@ def nessie_ids(customer_id: str) -> dict:
     return _load().get(customer_id, {})
 
 
+def mark_posted(customer_id: str, nessie_account_ids: list[str]) -> None:
+    """Remember which mirrors approve posted transactions to, so the balance sheet reads their ledger balance
+    (nessie.read.ledger_balance). A demo reset rewrites the entry, which clears this."""
+    ids = _load()
+    entry = ids.setdefault(customer_id, {})
+    entry["posted"] = sorted(set(entry.get("posted") or []) | set(nessie_account_ids))
+    IDS_PATH.write_text(json.dumps(ids, indent=2))
+
+
 def load_linked() -> None:
     """Linked external accounts (student loans, brokerage, property, other cards) go into SQLite."""
     from . import linked

@@ -13,8 +13,11 @@ Called from the approve route only (never from graph.py or tools.py; test_safety
 
 from __future__ import annotations
 
+import json
+
 from ..config import NESSIE_KEY
 from ..data import balances, categories, store
+from ..nessie.calls import dollars
 from ..planning import balance_sheet, finance
 
 EDITABLE = ("monthly_debt_budget", "extra_order", "lump_sums", "redirects", "spending_targets",
@@ -60,7 +63,8 @@ def mirrors(customer_id: str, rows: list[dict], ids: dict | None = None) -> dict
         m = have.get(r["account_id"])
         key = PRIMARY.get(r["account_id"].replace(customer_id, "{cid}"))
         nid = (m or {}).get("id") or (ids.get(key) if key else None)
-        out[r["account_id"]] = {"id": nid or f"<{r['account_id']}>", "name": r["name"],
+        out[r["account_id"]] = {"id": nid or f"<{r['account_id']}>", "name": r["name"], "debt": r.get("side") == "debt"
+                                or r["account_type"] in balance_sheet.DEBT_TYPES,
                                 "nickname": (m or {}).get("nickname") or mirror_nickname(customer_id, r)}
     return out
 
@@ -149,13 +153,15 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
         name = d.get("name", ls["to_debt"])
         amt = round(float(ls["amount"]), 2)
         src = _source_account(rows, ls["source"])
+        if src and ls["to_debt"] in mir:
+            amt = float(dollars(amt))  # Nessie moves whole dollars; the preview shows what is sent
         if not src or ls["to_debt"] not in mir:
             steps.append({"kind": "lump_sum", "step": f"Pay ${amt:,.2f} to {name}", "runs": "recorded", **ls})
             continue
-        gross = _gross(ls["source"], amt, src) if ls["source"] != "cash" else amt
+        gross = float(dollars(_gross(ls["source"], amt, src))) if ls["source"] != "cash" else amt
         to_m, from_m = mir[ls["to_debt"]], mir[src["account_id"]]
-        text = (f"Pay ${amt:,.2f} from savings to {name}" if ls["source"] == "cash" else
-                f"{VERB.get(ls['source'], 'Use')} ${gross:,.2f} from {src['name']}: pay ${amt:,.2f} to {name}")
+        text = (f"Pay ${amt:,.0f} from savings to {name}" if ls["source"] == "cash" else
+                f"{VERB.get(ls['source'], 'Use')} ${gross:,.0f} from {src['name']}: pay ${amt:,.0f} to {name}")
         notes = [n for n in (_mirror_note(src, from_m["nickname"]), _mirror_note(d, to_m["nickname"]),
                              SALE_NOTE.get(ls["source"]) if gross - amt >= 0.01 else None) if n]
         is_pnc_card = ls["to_debt"] == f"A-{customer_id}-CREDIT_CARD"
@@ -189,7 +195,8 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
             continue
         if checking and k in mir:
             first, day = _next_month()
-            steps.append({"kind": "payment", "step": f"Pay {name} ${amt:,.2f}/mo from checking", "runs": "nessie",
+            amt = float(dollars(amt))
+            steps.append({"kind": "payment", "step": f"Pay {name} ${amt:,.0f}/mo from checking", "runs": "nessie",
                           "account_id": k, "amount": amt, "current": cur,
                           "replaces": "Updates your current payment to this" if cur else None,
                           "note": _mirror_note(d, mir[k]["nickname"]),
@@ -223,6 +230,7 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
             step["note"] = "at payoff, the monthly check-in switches its bill to the statement in full"
         elif checking and a in mir and payoff and stmt >= 1:
             first, day = _next_month(payoff)
+            stmt = float(dollars(stmt))
             step.update(runs="nessie", note=_mirror_note(d, mir[a]["nickname"]),
                         nessie={"op": "bill", "from": checking["account_id"], "to": a,
                                 "payee": f"{name} (statement in full)", "nickname": f"Paidway autopay: {name}",
@@ -247,23 +255,26 @@ def nessie_calls(customer_id: str, transfers: list[dict], steps: list[dict], ids
     today = finance.today()
     ops = [(s, s.get("nessie") or {}) for s in steps]
     out = []
-    for s, n in ops:
-        if n.get("op") == "transfer":
+    for i, (s, n) in enumerate(ops):
+        if n.get("op") == "transfer":  # this Nessie's transfer has no payee: out of the source, then a payment in
             f, t = mir[n["from"]], mir[n["to"]]
+            names = {"from": f["name"], "to": t["name"], "from_nickname": f["nickname"], "to_nickname": t["nickname"],
+                     "amount": n["amount"], "recurring_date": None, "step": s["step"], "group": f"payoff-{i}"}
             out.append({"tool": "nessie.write.create_transfer",
-                        **calls.transfer(f["id"], t["id"], n["amount"], today, f"Paidway approved payoff: {s['debt_name']}"),
-                        "from": f["name"], "to": t["name"], "from_nickname": f["nickname"], "to_nickname": t["nickname"],
-                        "amount": n["amount"], "recurring_date": None,
-                        "step": s["step"], "local": n["local"],
-                        "expect": {n["from"]: -n["amount"], n["to"]: -n["amount"]}})
-    for s, n in ops:
+                        **calls.transfer(f["id"], n["amount"], today, f"Paidway payoff to {s['debt_name']}"),
+                        **names, "leg": 1, "local": [], "expect": {n["from"]: -n["amount"]}})
+            out.append({"tool": "nessie.write.create_deposit",
+                        **calls.deposit(t["id"], n["amount"], today, f"Paidway payoff from {f['name']}"),
+                        **names, "leg": 2, "local": n["local"], "expect": {n["to"]: -n["amount"]}})
+    for i, (s, n) in enumerate(ops):
         if n.get("tax"):  # the mirror keeps matching the asset's value: the modelled tax/penalty leaves it too
             f = mir[n["from"]]
             out.append({"tool": "nessie.write.create_withdrawal",
-                        **calls.withdrawal(f["id"], n["tax"], today, f"Estimated {s['source']} sale cost (modelled)"),
+                        **calls.withdrawal(f["id"], n["tax"], today, f"Paidway: estimated {s['source']} sale cost (modelled)"),
                         "from": f["name"], "to": "Estimated tax / penalty (modelled)", "from_nickname": f["nickname"],
                         "to_nickname": None, "amount": n["tax"],
-                        "recurring_date": None, "step": s["step"], "local": [], "expect": {n["from"]: -n["tax"]}})
+                        "recurring_date": None, "step": s["step"], "local": [], "expect": {n["from"]: -n["tax"]},
+                        "group": f"payoff-{i}"})
     for s, n in ops:
         if n.get("op") == "bill":
             f = mir[n["from"]]
@@ -295,24 +306,86 @@ def _created_id(res) -> str | None:
     return ((res or {}).get("objectCreated") or {}).get("_id") if isinstance(res, dict) else None
 
 
-def _send_all(planned: list[dict]) -> list[dict]:
-    """Send each planned call; returns the receipt [{tool, method, path, body, status, id, ...}]. Stops at the
-    first failure (its row has status "error" and the message); later calls are marked "not_sent"."""
-    # The only money-moving import in the app (lazy, approve path only; test_safety allows it here alone).
-    from ..nessie import write
+RECEIPT_KEYS = ("tool", "method", "path", "body", "from", "to", "from_nickname", "to_nickname", "amount",
+                "recurring_date", "first_payment", "step", "note", "group", "leg", "local", "expect")
+MAX_REPAIRS = 2  # deterministic re-formats per call, then one model try
 
-    receipt, failed = [], False
-    for c in planned:
-        row = {k: c.get(k) for k in ("tool", "method", "path", "body", "from", "to", "from_nickname", "to_nickname",
-                                     "amount", "recurring_date")}
-        if failed:
-            receipt.append({**row, "status": "not_sent", "id": None})
-            continue
+
+def _llm_fix(call: dict, body: dict, err: str) -> dict | None:
+    """Last resort: one quick model call that rewrites the body from Nessie's error. Checked by repair.safe."""
+    try:
+        from .graph import _llm, parse_json
+
+        llm = _llm()
         try:
-            res = write.send(c)
-        except Exception as e:  # noqa: BLE001 - recorded, then approve marks the proposal failed
-            receipt.append({**row, "status": "error", "id": None, "error": str(e)})
-            failed = True
+            llm = llm.bind(timeout=20)
+        except Exception:  # noqa: BLE001
+            pass
+        msg = llm.invoke(
+            "A banking API rejected this JSON request body. Return ONLY the corrected JSON body, no prose. "
+            "Keep every amount the same (whole dollars only), keep descriptions, drop fields it says are not "
+            f"permitted, add fields it says are required, and where it lists permitted values use one of them "
+            "exactly.\n\nRequest: {call['method']} {call['path']}\n"
+            f"Body: {json.dumps(body)}\nError: {err[:1500]}")
+        out = parse_json(getattr(msg, "content", msg))
+        return out if isinstance(out, dict) else None
+    except Exception:  # noqa: BLE001 - no model, or it failed: the call stays failed
+        return None
+
+
+def _send_one(c: dict, today: str) -> tuple[dict | None, dict, list[str], str | None]:
+    """Send one call; on a 400/422 validation error re-format the body from the message and retry (up to
+    MAX_REPAIRS times in code, then one model try). Returns (result, body sent last, repair notes, error)."""
+    from ..nessie import repair, write
+    from ..nessie._http import NessieError
+
+    body, notes, llm_tries = dict(c.get("body") or {}), [], 0
+    for _ in range(2 * MAX_REPAIRS + 1):
+        try:
+            return write.send({**c, "body": body}), body, notes, None
+        except NessieError as e:
+            err = str(e)
+            if e.status not in (400, 422):
+                return None, body, notes, err
+            fixed, what = repair.fix(body, e.text or err, today)
+            if fixed is not None and len([n for n in notes if n.startswith("reformatted")]) < MAX_REPAIRS:
+                notes.append(f"reformatted after {e.status}: {', '.join(what)}")
+                body = fixed
+                continue
+            if llm_tries >= MAX_REPAIRS:
+                return None, body, notes, err
+            llm_tries += 1
+            cand = _llm_fix(c, body, e.text or err)
+            if not cand or cand == body or not repair.safe(c.get("body") or {}, cand):
+                notes.append(f"model could not fix the {e.status}")
+                return None, body, notes, err
+            notes.append(f"rewritten by the model after {e.status}: {', '.join(sorted(set(cand) ^ set(body))) or 'values'}")
+            body = cand
+        except Exception as e:  # noqa: BLE001 - network or other: recorded, approve marks the call failed
+            return None, body, notes, str(e)
+    return None, body, notes, "gave up after repairs"
+
+
+def _send_all(planned: list[dict], *, today: str | None = None) -> list[dict]:
+    """Send each planned call; returns the receipt [{tool, method, path, body, status, id, repairs, ...}].
+    Calls are independent except the two legs of a payoff (same `group`): if the first leg fails, the second is
+    "skipped" so a debt is never credited with money that didn't leave. Everything else is still sent."""
+    # The only money-moving import in the app (lazy, approve path only; test_safety allows it here alone).
+    from ..nessie import write  # noqa: F401 - imported here so the approve path is the only one that loads it
+
+    today = today or finance.today()
+    receipt, broken = [], set()
+    for c in planned:
+        row = {k: c.get(k) for k in RECEIPT_KEYS}
+        if c.get("group") and c["group"] in broken:
+            receipt.append({**row, "status": "skipped", "id": None, "error": "first leg failed, not sent"})
+            continue
+        res, body, notes, err = _send_one(c, today)
+        row["body"], row["repairs"] = body, notes
+        if err:
+            receipt.append({**row, "status": "error", "id": None, "error": err})
+            if c.get("group"):
+                broken.add(c["group"])
             continue
         receipt.append({**row, "status": (res or {}).get("code", 201) if isinstance(res, dict) else 201, "id": _created_id(res)})
         for account_id, amount in c.get("local") or []:  # linked balances live in our store: bring them down
@@ -320,11 +393,20 @@ def _send_all(planned: list[dict]) -> list[dict]:
     return receipt
 
 
+def _ok(r: dict) -> bool:
+    return r.get("status") not in ("error", "not_sent", "skipped")
+
+
 def _read_balances(mir: dict[str, dict], account_ids: list[str]) -> dict[str, float] | dict:
+    """Ledger balance of each mirror, read from Nessie (raw balance plus Paidway's own transactions)."""
+    from concurrent.futures import ThreadPoolExecutor
+
     from ..nessie import read
 
     try:
-        return {k: round(float(read.account(mir[k]["id"])["balance"]), 2) for k in account_ids}
+        with ThreadPoolExecutor(8) as ex:
+            vals = list(ex.map(lambda k: read.ledger_balance(mir[k]["id"], mir[k]["debt"]), account_ids))
+        return {k: round(v, 2) for k, v in zip(account_ids, vals)}
     except Exception as e:  # noqa: BLE001 - a failed re-read must not hide what already ran
         return {"error": str(e)}
 
@@ -334,12 +416,13 @@ def _check(planned: list[dict], receipt: list[dict], mir: dict, before: dict, af
     not assumed). Debts: positive balance owed, so a payment should lower it, same as an asset it leaves."""
     exp: dict[str, float] = {}
     for c, r in zip(planned, receipt):
-        if r["status"] not in ("error", "not_sent"):
+        if _ok(r):
             for k, v in (c.get("expect") or {}).items():
                 exp[k] = round(exp.get(k, 0.0) + v, 2)
     if "error" in before or "error" in after:
         return []
-    return [{"account_id": k, "nickname": mir[k]["nickname"], "before": before[k], "after": after[k],
+    return [{"account_id": k, "name": mir[k]["name"], "nickname": mir[k]["nickname"], "nessie_id": mir[k]["id"],
+             "debt": mir[k]["debt"], "before": before[k], "after": after[k],
              "expected_change": exp.get(k, 0.0), "actual_change": round(after[k] - before[k], 2),
              "ok": abs(after[k] - before[k] - exp.get(k, 0.0)) < 1.0}  # Nessie may keep whole dollars
             for k in before]
@@ -408,18 +491,75 @@ def approve(pid: str, edits: dict | None = None) -> dict:
         return store.set_status(pid, "approved", {**record, "mode": "local_only",
                                                   "note": "customer not seeded into Nessie (run reseed)", **pending})
     mir = mirrors(cid, balance_sheet.accounts(cid, live=False))
-    touched = list(dict.fromkeys(k for c in planned for k in (c.get("expect") or {})))
-    before = _read_balances(mir, touched)
+    shown = [k for k, m in mir.items() if not m["id"].startswith("<")]  # every mirrored account, for the Done screen
+    before = _read_balances(mir, shown)
     try:
         receipt = _send_all(planned)
     finally:
+        _mark_posted(cid, receipt)
         balance_sheet.clear_cache()
-    after = _read_balances(mir, touched)
+    return store.set_status(pid, *_outcome(cid, record, planned, receipt, mir, before, shown, transfers))
+
+
+def _mark_posted(cid: str, receipt: list[dict]) -> None:
+    from ..data.seed import mark_posted
+
+    nids = [r["path"].split("/")[2] for r in receipt if _ok(r) and not r["tool"].endswith("create_bill")]
+    if nids:
+        mark_posted(cid, nids)
+
+
+def _outcome(cid, record, planned, receipt, mir, before, shown, transfers) -> tuple[str, dict]:
+    """(status, execution). Any call that didn't go through leaves the plan approved (the dashboard tracks it)
+    with `retry_available`; all through is executed."""
+    after = _read_balances(mir, shown)
     done = {"nessie_calls": receipt, "nessie_balances_before": before, "nessie_balances_after": after,
-            "nessie_check": _check(planned, receipt, mir, before, after)}
-    errors = [r for r in receipt if r["status"] == "error"]
-    if errors:
-        return store.set_status(pid, "failed", {**record, **done, "error": errors[0]["error"]})
+            "nessie_check": _check(planned, receipt, mir, before, after), "nessie_planned": planned,
+            "bills": [{"payee": r["body"].get("payee"), "amount": r["body"].get("payment_amount"),
+                       "day": r["body"].get("recurring_date"), "first": r["body"].get("payment_date"), "id": r["id"],
+                       "from": r.get("from_nickname") or r.get("from")}
+                      for r in receipt if r["tool"].endswith("create_bill") and _ok(r)]}
+    bad = [r for r in receipt if not _ok(r)]
     total = round(sum(t["amount"] for t in transfers), 2)
-    return store.set_status(pid, "executed", {**record, **done, "mode": "nessie", "amount": total,
-                                              "transfer": next((r for r in receipt if r["tool"].endswith("create_transfer")), None)})
+    if bad:
+        errs = [r for r in bad if r["status"] == "error"]
+        return "approved", {**record, **done, "mode": "nessie_partial", "amount": total, "retry_available": True,
+                            "error": f"{len(bad)} of {len(receipt)} Nessie calls didn't go through"
+                                     + (f": {errs[0]['error']}" if errs else "")}
+    return "executed", {**record, **done, "mode": "nessie", "amount": total,
+                        "transfer": next((r for r in receipt if r["tool"].endswith("create_transfer")), None)}
+
+
+def retry(pid: str) -> dict:
+    """Send again only the calls of an approved plan that didn't go through (errors, and the second legs they
+    held back). Calls that went through are never sent twice."""
+    p = store.get_proposal(pid)
+    if not p:
+        raise ApproveError(404, "no such proposal")
+    ex = p.get("execution") or {}
+    receipt = ex.get("nessie_calls") or []
+    if not ex.get("retry_available") or not any(not _ok(r) for r in receipt):
+        raise ApproveError(409, "nothing to retry")
+    if not store.claim_retry(pid):
+        raise ApproveError(409, "a retry is already running")
+    cid = p["customer_id"]
+    mir = mirrors(cid, balance_sheet.accounts(cid, live=False))
+    shown = [k for k, m in mir.items() if not m["id"].startswith("<")]
+    todo = [i for i, r in enumerate(receipt) if not _ok(r)]
+    try:
+        again = _send_all([{**receipt[i], "body": (ex.get("nessie_planned") or receipt)[i].get("body") or receipt[i]["body"]}
+                           for i in todo])
+    except Exception:
+        store.set_status(pid, "approved")
+        raise
+    finally:
+        balance_sheet.clear_cache()
+    for i, r in zip(todo, again):
+        r["retried"] = True
+        receipt[i] = r
+    _mark_posted(cid, again)
+    planned = ex.get("nessie_planned") or receipt
+    record = {k: ex.get(k) for k in ("plan", "scheduled", "simulation")}
+    transfers = [{"amount": r["amount"]} for r in planned if r.get("leg") == 1]
+    status, execution = _outcome(cid, record, planned, receipt, mir, ex.get("nessie_balances_before") or {}, shown, transfers)
+    return store.set_status(pid, status, execution)

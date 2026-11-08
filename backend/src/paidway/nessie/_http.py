@@ -12,7 +12,12 @@ class NessieUnavailable(RuntimeError):
 
 
 class NessieError(RuntimeError):
-    """HTTP error from Nessie, with the API key scrubbed (httpx puts it in the URL)."""
+    """HTTP error from Nessie, with the API key scrubbed (httpx puts it in the URL). `status` is the HTTP status
+    (None for a network error), `text` the response body (Nessie's validation message)."""
+
+    def __init__(self, msg: str, status: int | None = None, text: str = ""):
+        super().__init__(msg)
+        self.status, self.text = status, text
 
 
 def enabled() -> bool:
@@ -28,5 +33,5 @@ def request(method: str, path: str, json: Any | None = None, params: dict | None
     except httpx.HTTPError as e:
         raise NessieError(f"{method} {path}: {type(e).__name__}") from None
     if r.is_error:
-        raise NessieError(f"{method} {path} -> {r.status_code}: {r.text[:200]}")
+        raise NessieError(f"{method} {path} -> {r.status_code}: {r.text[:300]}", r.status_code, r.text[:2000])
     return r.json() if r.content else None
