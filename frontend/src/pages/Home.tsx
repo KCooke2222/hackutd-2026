@@ -4,7 +4,6 @@ import type { BalanceSheet, Proposal, RealityCheck as RC, ReplayMeta, ReplayRun,
 import { isV2, knobsFrom, planFrom } from '../lib/flow'
 import type { Knobs, Preview } from '../lib/flow'
 import Snapshot from '../components/flow/Snapshot'
-import type { Summary } from '../components/flow/Snapshot'
 import Thinking from '../components/flow/Thinking'
 import type { RunMeta } from '../components/flow/Thinking'
 import PlanEditor from '../components/flow/PlanEditor'
@@ -46,7 +45,6 @@ export default function Home() {
   const [cid, setCid] = useState(() => new URLSearchParams(location.search).get('customer') ?? 'C001')
   const [health, setHealth] = useState<Health | null>(null)
   const [sheet, setSheet] = useState<BalanceSheet | null>(null)
-  const [summary, setSummary] = useState<Summary | null>(null)
   const [screen, setScreen] = useState(0)
   const [reached, setReached] = useState(0)
   const [runKey, setRunKey] = useState(0)
@@ -113,7 +111,7 @@ export default function Home() {
   }
 
   useEffect(() => {
-    setSheet(null); setSummary(null); setReality(null); setAi(null); setKnobs(null); setOutlook(null); setApproved(null); setErr(null)
+    setSheet(null); setReality(null); setAi(null); setKnobs(null); setOutlook(null); setApproved(null); setErr(null)
     setScreen(0); setReached(0); setRunKey(0); setAttach(null); setThinkingDone(false); setTrack(null); trackRef.current = null
     const n = ++epoch.current
     const tracked = loadTrack(!urlPlan.current && !urlReplay.current)
@@ -131,7 +129,6 @@ export default function Home() {
       })
     }
     api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch((e) => setErr(e.message))
-    api<Summary>(`/customers/${cid}/summary`).then(setSummary).catch((e) => setErr(e.message))
     api<RC>(`/customers/${cid}/reality-check`).then(setReality).catch(() => setReality(null))
     api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => {
       const v2 = ps.filter((p) => isV2(p)).sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -260,8 +257,7 @@ export default function Home() {
       )}
       <div style={{ display: dash ? 'none' : 'block' }}>
 
-      {screen === 0 && sheet && summary && <Snapshot sheet={sheet} summary={summary} />}
-      {screen === 0 && reality && <RealityCheck rc={reality} />}
+      {screen === 0 && sheet && <Snapshot sheet={sheet} />}
       {screen === 0 && <IncomeExpense cid={cid} />}
       {runKey > 0 && (
         // Stays mounted after the run so Back/Next doesn't start another one.

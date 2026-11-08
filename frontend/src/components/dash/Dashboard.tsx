@@ -2,7 +2,7 @@ import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveCont
 import { usd } from '../../lib/api'
 import type { TrackDebt, TrackLevel, Tracking } from '../../lib/api'
 import { ym, ymShort } from '../../lib/flow'
-import { GREY } from '../flow/NetWorth'
+import { C } from '../../lib/chart'
 import SwitchPlan from './SwitchPlan'
 
 const LEVEL: Record<TrackLevel | 'good', [string, string]> = {
@@ -78,24 +78,24 @@ function DebtChart({ t }: { t: Tracking }) {
       </div>
       <ResponsiveContainer width="100%" height={240}>
         <ComposedChart data={data} margin={{ top: 14, right: 12, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="var(--line)" vertical={false} />
-          <XAxis dataKey="month" tickFormatter={ymShort} interval={end > 12 ? 2 : 0} tick={{ fontSize: 11, fill: 'var(--muted)' }} tickLine={false} axisLine={{ stroke: 'var(--line)' }} />
-          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: 'var(--muted)' }} width={48} tickLine={false} axisLine={false} />
+          <CartesianGrid stroke={C.grid} vertical={false} />
+          <XAxis dataKey="month" tickFormatter={ymShort} interval={end > 12 ? 2 : 0} tick={{ fontSize: 11, fill: C.tick }} tickLine={false} axisLine={{ stroke: C.grid }} />
+          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: C.tick }} width={48} tickLine={false} axisLine={false} />
           <Tooltip labelFormatter={(m) => ym(String(m))}
             formatter={(v, n) => (n === 'range' ? [`${usd((v as number[])[0])}–${usd((v as number[])[1])}`, `Plan +${t.tolerance_pct}%`] : [usd(Number(v)), NAMES[String(n)] ?? String(n)])} />
-          <Area dataKey="range" stroke="none" fill="var(--soft)" fillOpacity={1} isAnimationActive={false} />
-          <Line dataKey="expected" stroke={GREY} strokeDasharray="5 4" strokeWidth={2} dot={false} isAnimationActive={false} />
-          <Line dataKey="projected" stroke="var(--accent)" strokeDasharray="2 4" strokeWidth={2} dot={false} connectNulls animationDuration={700} />
-          <Line dataKey="actual" stroke="var(--accent)" strokeWidth={3} dot={{ r: 3, fill: 'var(--accent)', strokeWidth: 0 }} animationDuration={700} />
-          {k > 0 && <ReferenceLine x={t.path[k].month} stroke="var(--text)" strokeDasharray="2 3" label={{ value: 'now', position: 'insideTopRight', fill: 'var(--muted)', fontSize: 11 }} />}
-          <ReferenceLine x={t.goal.month} stroke="var(--good)" strokeOpacity={0.6} label={{ value: `goal ${ymShort(t.goal.month)}`, position: 'insideTopLeft', fill: 'var(--good)', fontSize: 11 }} />
+          <Area dataKey="range" stroke="none" fill="var(--accent-soft)" fillOpacity={1} isAnimationActive={false} />
+          <Line dataKey="expected" stroke={C.plan} strokeDasharray="5 4" strokeWidth={2} dot={false} isAnimationActive={false} />
+          <Line dataKey="projected" stroke={C.marker} strokeDasharray="2 4" strokeWidth={2} dot={false} connectNulls animationDuration={700} />
+          <Line dataKey="actual" stroke={C.marker} strokeWidth={3} dot={{ r: 3, fill: C.marker, strokeWidth: 0 }} animationDuration={700} />
+          {k > 0 && <ReferenceLine x={t.path[k].month} stroke={C.base} strokeDasharray="2 3" label={{ value: 'now', position: 'insideTopRight', fill: C.tick, fontSize: 11 }} />}
+          <ReferenceLine x={t.goal.month} stroke={C.good} strokeOpacity={0.6} label={{ value: `goal ${ymShort(t.goal.month)}`, position: 'insideTopLeft', fill: C.good, fontSize: 11 }} />
         </ComposedChart>
       </ResponsiveContainer>
       <div className="legend">
-        <span><i style={{ borderColor: 'var(--accent)' }} />Actual</span>
-        <span><i className="dash" style={{ borderColor: 'var(--accent)' }} />Projected from here</span>
-        <span><i className="dash" style={{ borderColor: GREY }} />Plan</span>
-        <span><i style={{ borderColor: 'var(--soft)', borderTopWidth: 8 }} />Within {t.tolerance_pct}% of plan</span>
+        <span><i style={{ borderColor: C.marker }} />Actual</span>
+        <span><i className="dash" style={{ borderColor: C.marker }} />Projected from here</span>
+        <span><i className="dash" style={{ borderColor: C.plan }} />Plan</span>
+        <span><i style={{ borderColor: 'var(--accent-soft)', borderTopWidth: 8 }} />Within {t.tolerance_pct}% of plan</span>
       </div>
     </div>
   )

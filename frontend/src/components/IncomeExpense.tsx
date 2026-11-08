@@ -1,24 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, usd } from '../lib/api'
+import { C, FLOW_SERIES, short } from '../lib/chart'
 
 type Month = {
   month: string; income: number; essentials: number; discretionary: number; debt_payments: number
   savings_invest: number; surplus: number
 }
-type CashFlow = { months: Month[]; monthly_avg: Month; saved_per_month: number }
+type CashFlow = { months: Month[]; monthly_avg: Month }
 
-const SERIES = [
-  { key: 'essentials', name: 'Essentials', color: 'var(--muted)' },
-  { key: 'discretionary', name: 'Discretionary', color: 'var(--c-disc)' },
-  { key: 'debt_payments', name: 'Debt payoff', color: 'var(--c-debt)' },
-  { key: 'savings_invest', name: 'Invested', color: 'var(--c-save)' },
-] as const
-
-const short = (v: number) => (Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`)
 const mon = (m: string) => new Date(`${m}-15`).toLocaleString('en-US', { month: 'short' })
 
-/** Income vs where it went, last 12 months (insights.cash_flow). */
+/** Income vs where it went, last 12 months (insights.cash_flow). The coloured averages double as the key. */
 export default function IncomeExpense({ cid }: { cid: string }) {
   const [cf, setCf] = useState<CashFlow | null>(null)
   useEffect(() => {
@@ -29,34 +22,35 @@ export default function IncomeExpense({ cid }: { cid: string }) {
   const a = cf.monthly_avg
   // Stacked bars can't go below 0: a month where the card grew shows 0 debt payoff.
   const data = cf.months.map((m) => ({ ...m, debt_payments: Math.max(0, m.debt_payments), label: mon(m.month) }))
+  // Left over = what stays in cash (the change in PNC cash), so it is the "saved" number too.
+  const stats = [
+    { k: 'Income', v: a.income, color: C.income, line: 'solid' },
+    ...FLOW_SERIES.map((s) => ({ k: s.name, v: a[s.key], color: s.color, line: 'bar' })),
+    { k: 'Left over', v: a.surplus, color: C.leftOver, line: 'dash' },
+  ]
 
   return (
     <div className="card">
-      <div className="col-head">
-        <h2 style={{ margin: 0 }}>Income vs spending</h2>
-        <div className="legend">
-          <span><i style={{ borderColor: 'var(--text)' }} />Income</span>
-          <span><i className="dash" style={{ borderColor: 'var(--c-left)' }} />Left over</span>
-          {SERIES.map((s) => <span key={s.key}><i style={{ borderColor: s.color }} />{s.name}</span>)}
-        </div>
-      </div>
-      <div className="outs">
-        <div><div className="k">Income / mo</div><div className="v">{usd(a.income)}</div></div>
-        <div><div className="k">Saved / mo</div><div className={`v ${cf.saved_per_month > 0 ? '' : 'bad'}`}>{usd(cf.saved_per_month)}</div></div>
-        <div><div className="k">Debt payoff / mo</div><div className="v">{usd(a.debt_payments)}</div></div>
-        <div><div className="k">Left over / mo</div><div className={`v ${a.surplus > 0 ? '' : 'bad'}`}>{usd(a.surplus)}</div></div>
+      <h2>Income vs spending <span className="small muted" style={{ fontWeight: 400 }}>· monthly average, last 12 months</span></h2>
+      <div className="outs keyed">
+        {stats.map((s) => (
+          <div key={s.k}>
+            <div className="k"><i className={s.line} style={{ borderColor: s.color }} />{s.k}</div>
+            <div className="v" style={{ color: s.color }}>{usd(s.v)}</div>
+          </div>
+        ))}
       </div>
       <ResponsiveContainer width="100%" height={240}>
         <ComposedChart data={data} margin={{ top: 16, right: 16, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="var(--line)" vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--muted)' }} tickLine={false} axisLine={{ stroke: 'var(--line)' }} />
-          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: 'var(--muted)' }} width={44} tickLine={false} axisLine={false} />
+          <CartesianGrid stroke={C.grid} vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: C.tick }} tickLine={false} axisLine={{ stroke: C.grid }} />
+          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: C.tick }} width={44} tickLine={false} axisLine={false} />
           <Tooltip formatter={(v, name) => [usd(Number(v)), name]} />
-          {SERIES.map((s) => (
+          {FLOW_SERIES.map((s) => (
             <Bar key={s.key} dataKey={s.key} name={s.name} stackId="out" fill={s.color} isAnimationActive={false} />
           ))}
-          <Line dataKey="income" name="Income" stroke="var(--text)" strokeWidth={2.5} dot={false} type="linear" isAnimationActive={false} />
-          <Line dataKey="surplus" name="Left over" stroke="var(--c-left)" strokeDasharray="5 4" strokeWidth={2} dot={false} type="linear" isAnimationActive={false} />
+          <Line dataKey="income" name="Income" stroke={C.income} strokeWidth={2.5} dot={false} type="linear" isAnimationActive={false} />
+          <Line dataKey="surplus" name="Left over" stroke={C.leftOver} strokeDasharray="5 4" strokeWidth={2} dot={false} type="linear" isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

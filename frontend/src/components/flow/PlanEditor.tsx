@@ -3,7 +3,8 @@ import { usd } from '../../lib/api'
 import type { Proposal, SimDebt, SimV2 } from '../../lib/api'
 import { SOURCE_NAME, knobsFrom, title, ym } from '../../lib/flow'
 import type { Knobs, Preview } from '../../lib/flow'
-import NetWorth, { ACCENT, GOOD, GREY } from './NetWorth'
+import NetWorth from './NetWorth'
+import { ACCENT, GOOD, GREY } from '../../lib/chart'
 
 type SliderDef = { label: string; min: number; max: number; step: number; value: number; ai: number; meta: string; onChange: (v: number) => void }
 

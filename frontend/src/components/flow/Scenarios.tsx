@@ -3,9 +3,9 @@ import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip,
 import { api, usd } from '../../lib/api'
 import type { PlanV2, ScenarioEvent, ScenarioRange, ScenarioRun, ScenarioSpec, Verdict } from '../../lib/api'
 import { ym, ymShort } from '../../lib/flow'
-import { ACCENT, BAD, GREY } from './NetWorth'
+import { ACCENT, BAD, C, GREY } from '../../lib/chart'
 
-const ADJ = 'var(--c-adj)'
+const ADJ = C.adjusted
 
 type Custom = { jobMonths: number; incomePct: number; expense: number; expenseMonth: number }
 const NONE: Custom = { jobMonths: 0, incomePct: 0, expense: 0, expenseMonth: 1 }
@@ -110,18 +110,18 @@ export default function Scenarios({ cid, plan }: { cid: string; plan: PlanV2 }) 
               <span><i className="dash" style={{ borderColor: BAD }} />Hit by this</span>
               <span><i style={{ borderColor: ADJ }} />Adjusted</span>
               <span><i className="dash" style={{ borderColor: GREY }} />Do nothing</span>
-              {range && <span><i style={{ borderColor: 'var(--info-line)' }} />Likely range (p10–p90)</span>}
+              {range && <span><i style={{ borderColor: C.band }} />Likely range (p10–p90)</span>}
             </div>
             <button className="ghost" onClick={loadRange} disabled={rangeBusy}>{rangeBusy ? 'Running 500 lives…' : range ? 'Re-run range' : 'Show likely range'}</button>
           </div>
           <ResponsiveContainer width="100%" height={260}>
             <ComposedChart data={data} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
-              <CartesianGrid stroke="var(--line)" vertical={false} />
-              <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 11, fill: 'var(--muted)' }} tickLine={false} axisLine={{ stroke: 'var(--line)' }} />
-              <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: 'var(--muted)' }} width={48} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
+              <CartesianGrid stroke={C.grid} vertical={false} />
+              <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 11, fill: C.tick }} tickLine={false} axisLine={{ stroke: C.grid }} />
+              <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: C.tick }} width={48} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
               <Tooltip formatter={(v, n) => (n === 'lo' || n === 'band' ? [null, null] : [usd(Number(v)), names[String(n)] ?? n])} labelFormatter={(m) => ym(String(m))} />
               {range && <Area dataKey="lo" stackId="r" stroke="none" fill="transparent" isAnimationActive={false} />}
-              {range && <Area dataKey="band" stackId="r" stroke="none" fill="var(--info-line)" fillOpacity={0.5} isAnimationActive={false} />}
+              {range && <Area dataKey="band" stackId="r" stroke="none" fill={C.band} fillOpacity={0.5} isAnimationActive={false} />}
               <Line dataKey="base" stroke={GREY} strokeDasharray="5 4" strokeWidth={2} dot={false} isAnimationActive={false} />
               <Line dataKey="plan" stroke={ACCENT} strokeWidth={3} dot={false} isAnimationActive={false} />
               <Line dataKey="hit" stroke={BAD} strokeDasharray="6 4" strokeWidth={2} dot={false} isAnimationActive={false} />

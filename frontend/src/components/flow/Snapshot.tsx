@@ -1,21 +1,7 @@
 import { usd } from '../../lib/api'
-import type { BalanceSheet, Refill, SheetAccount } from '../../lib/api'
-
-export type Summary = { card_history: { month: string; balance: number }[]; refill: Refill }
+import type { BalanceSheet, SheetAccount } from '../../lib/api'
 
 type Row = { id: string; name: string; bal: number; tags: [string, string?][]; dim?: boolean } | { group: string }
-
-function Spark({ data }: { data: number[] }) {
-  if (data.length < 2) return null
-  const w = 150, h = 46, lo = Math.min(...data) - 60, hi = Math.max(...data) + 10
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * (w - 4) + 2},${h - 4 - ((v - lo) / (hi - lo)) * (h - 10)}`).join(' ')
-  return (
-    <svg width={w} height={h} aria-label="card balance, last 24 months">
-      <polyline points={pts} fill="none" stroke="var(--bad)" strokeWidth="2" />
-      <text x="2" y={h} fontSize="9" fill="var(--muted)">{data.length} mo</text>
-    </svg>
-  )
-}
 
 function Col({ title, total, rows }: { title: string; total: number; rows: Row[] }) {
   return (
@@ -33,19 +19,15 @@ function Col({ title, total, rows }: { title: string; total: number; rows: Row[]
   )
 }
 
-export default function Snapshot({ sheet, summary }: { sheet: BalanceSheet; summary: Summary }) {
-  const card = sheet.accounts.find((a) => a.account_type === 'credit_card' && a.source !== 'linked')
-  const r = summary.refill
-  const refill = r.monthly_avg.new_spending + r.monthly_avg.interest + r.monthly_avg.fees
-
+/** What you own and what you owe, with rates. */
+export default function Snapshot({ sheet }: { sheet: BalanceSheet }) {
   // Have: the ladder order (what can be tapped, cheapest first), then what is never tapped.
   const byId = new Map<string, SheetAccount>(sheet.accounts.map((a) => [a.account_id, a]))
   const have: Row[] = []
   const tiers = sheet.ladder.tiers
   for (const t of tiers.filter((t) => t.proposable)) {
     for (const a of t.accounts) {
-      const tags: [string, string?][] = t.key === 'cash' ? [['buffer']] : t.cost_pct ? [[`~${t.cost_pct}% ${t.key === 'cd' ? 'penalty' : 'tax'}`]] : []
-      have.push({ id: a.account_id, name: a.name, bal: a.balance, tags })
+      have.push({ id: a.account_id, name: a.name, bal: a.balance, tags: [] })
     }
   }
   const untapped = tiers.filter((t) => !t.proposable).flatMap((t) => t.accounts)
@@ -68,26 +50,9 @@ export default function Snapshot({ sheet, summary }: { sheet: BalanceSheet; summ
   }
 
   return (
-    <>
-      <div className="card hero">
-        <div>
-          <div className="k">PNC card · {card?.apr_pct}%</div>
-          <div className="big num">{usd(card?.balance, 0)}</div>
-          <div className="flowrow">
-            <span>Pay <b>{usd(r.monthly_avg.payment)}</b>/mo</span>
-            <span className="eq">≈</span>
-            <span title={`Spending ${usd(r.monthly_avg.new_spending)} + interest ${usd(r.monthly_avg.interest)} + fees ${usd(r.monthly_avg.fees, 2)}`}>Refills <b>{usd(refill)}</b>/mo</span>
-          </div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <Spark data={summary.card_history.map((h) => h.balance)} />
-          <div className={`small num ${r.net_change > 0 ? 'bad' : 'good'}`}>{r.net_change >= 0 ? '+' : ''}{usd(r.net_change)} / yr</div>
-        </div>
-      </div>
-      <div className="ledger">
-        <Col title="Have" total={sheet.totals.assets} rows={have} />
-        <Col title="Owe" total={sheet.totals.debts} rows={owe} />
-      </div>
-    </>
+    <div className="ledger">
+      <Col title="Have" total={sheet.totals.assets} rows={have} />
+      <Col title="Owe" total={sheet.totals.debts} rows={owe} />
+    </div>
   )
 }
