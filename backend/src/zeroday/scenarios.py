@@ -1,0 +1,220 @@
+"""What-if scenarios (roadmap PR 6): how does a plan hold up when life happens?
+
+Deterministic like wealth.py: a scenario is a list of events turned into a per-month cash shock,
+run through the same month loop (`wealth._run`). Cash that would go negative is borrowed on the
+PNC card, so a broken plan shows up as card debt instead of a silently negative balance.
+
+Each scenario returns the shocked plan, an *adjusted* plan (pause extra payments, keep minimums,
+until cash is back at the emergency buffer) and a verdict: holds / bends / breaks.
+`monte_carlo` runs a 3-state Markov chain (on track / drifting / shock) many times for a range.
+"""
+
+from __future__ import annotations
+
+import random
+
+from . import assumptions as A
+from . import wealth
+
+# Event kinds:
+#   {"kind": "job_loss", "start": 1, "months": 3}            income -> 0 for `months`
+#   {"kind": "income_change", "start": 1, "pct": -20, "months": None}   None = rest of horizon
+#   {"kind": "expense", "start": 1, "amount": 2000}          one-time cost
+PRESETS: list[dict] = [
+    {"id": "job_loss_3m", "label": "Lose your job for 3 months", "events": [{"kind": "job_loss", "start": 1, "months": 3}]},
+    {"id": "income_drop_20", "label": "Income drops 20%", "events": [{"kind": "income_change", "start": 1, "pct": -20}]},
+    {"id": "emergency_2k", "label": "$2,000 emergency", "events": [{"kind": "expense", "start": 1, "amount": 2000}]},
+]
+
+# Markov chain for the range view. State effects are per month.
+MARKOV_STATES = ("on_track", "drifting", "shock")
+MARKOV_P = {  # from -> probabilities of (on_track, drifting, shock) next month
+    "on_track": (0.90, 0.08, 0.02),
+    "drifting": (0.50, 0.45, 0.05),
+    "shock": (0.30, 0.10, 0.60),
+}
+DRIFT_SPEND_PCT = 15.0  # drifting: spending this much over normal
+
+
+def _horizon() -> int:
+    return A.get("horizon_months")
+
+
+def build_shock(ctx: dict, events: list[dict]) -> dict:
+    """Events -> {"cash_delta": [H+1], "pause_extra": [H+1], "months": [shocked month indexes]}."""
+    H = _horizon()
+    income = ctx["flows"]["income"]
+    delta = [0.0] * (H + 1)
+    for e in events or []:
+        kind = e.get("kind")
+        start = max(1, int(e.get("start") or 1))
+        if kind == "job_loss":
+            n = max(0, int(e.get("months") or 0))
+            for i in range(start, min(start + n, H + 1)):
+                delta[i] -= income
+        elif kind == "income_change":
+            pct = float(e.get("pct") or 0)
+            n = e.get("months")
+            end = H + 1 if n in (None, "") else min(start + int(n), H + 1)
+            for i in range(start, end):
+                delta[i] += income * pct / 100
+        elif kind == "expense":
+            if start <= H:
+                delta[start] -= float(e.get("amount") or 0)
+        else:
+            raise ValueError(f"unknown scenario event kind {kind!r}")
+    hit = [i for i, d in enumerate(delta) if d < -0.005]
+    return {"cash_delta": delta, "pause_extra": [False] * (H + 1), "months": hit}
+
+
+def adjusted_shock(ctx: dict, plan: dict, shock: dict) -> tuple[dict, dict, int | None]:
+    """The adjusted plan: pause extra payments (minimums still paid) from the first bad month through
+    month k, choosing k so nothing goes on the card and net worth is highest. No pause is a candidate.
+    Returns (shock with pauses, its simulation, last paused month index or None)."""
+    H = _horizon()
+    hit = shock["months"]
+    raw = wealth._run(ctx, plan, shock)
+    if not hit:
+        return shock, raw, None
+    first = hit[0]
+    best = (shock, raw, None)
+
+    def key(sim: dict) -> tuple:
+        return (round(sim["borrowed_on_card"]), -sim["net_worth_24m"])
+
+    for k in range(first, H + 1):
+        s = dict(shock, pause_extra=[first <= i <= k for i in range(H + 1)])
+        sim = wealth._run(ctx, plan, s)
+        if key(sim) < key(best[1]):
+            best = (s, sim, k)
+    return best
+
+
+def _months_between(a: str | None, b: str | None) -> int | None:
+    if a is None or b is None:
+        return None
+    return (int(b[:4]) * 12 + int(b[5:7])) - (int(a[:4]) * 12 + int(a[5:7]))
+
+
+def verdict(ctx: dict, ref: dict, sim: dict) -> dict:
+    H = _horizon()
+    floor = min(ctx["emergency_buffer"], ctx["assets"]["cash"]) - 1
+    ref_free, free = ref["high_cost_debt_free"], sim["high_cost_debt_free"]
+    if ref_free is None:
+        slip = None if free is None else 0
+    elif free is None:
+        slip = H  # pushed past the horizon
+    else:
+        slip = max(_months_between(ref_free, free) or 0, 0)
+    if sim["borrowed_on_card"] > 0.5:
+        v, why = "breaks", f"${sim['borrowed_on_card']:,.0f} goes on the card"
+    elif (slip or 0) <= 1 and sim["min_cash"] >= floor:
+        v, why = "holds", "on track"
+    elif (slip or 0) > 1:
+        v, why = "bends", ("high-cost debt not $0 within 2 years" if free is None else f"$0 date slips {slip} months")
+    else:
+        v, why = "bends", f"savings dip to ${sim['min_cash']:,.0f}, below the ${ctx['emergency_buffer']:,.0f} buffer"
+    return {"verdict": v, "why": why, "slip_months": slip, "nw_delta": round(sim["net_worth_24m"] - ref["net_worth_24m"], 2)}
+
+
+def _slim(sim: dict) -> dict:
+    keep = ("months", "debts", "net_worth_24m", "interest_total", "high_cost_debt_free",
+            "min_cash", "min_cash_month", "borrowed_on_card")
+    return {k: sim[k] for k in keep}
+
+
+_MON = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _ym(i: int) -> str:
+    s = wealth._label(i)
+    return f"{_MON[int(s[5:7]) - 1]} {s[:4]}"
+
+
+def _advice(ctx: dict, ref: dict, adj_sim: dict, last_pause: int | None, shock: dict) -> str:
+    if not shock["months"]:
+        return "Nothing to change."
+    first = shock["months"][0]
+    cost = ref["net_worth_24m"] - adj_sim["net_worth_24m"]
+    if last_pause is None:
+        msg = f"Keep the plan as is; savings absorb it. Costs ${cost:,.0f} of net worth vs no shock."
+    else:
+        span = _ym(first) if last_pause == first else f"{_ym(first)} to {_ym(last_pause)}"
+        msg = f"Pause extra debt payments {span}, keep paying every minimum"
+        msg += f", resume in {_ym(last_pause + 1)}" if last_pause < _horizon() else ", minimums only after that"
+        msg += f". Costs ${cost:,.0f} of net worth vs no shock."
+    if adj_sim["borrowed_on_card"] > 0.5:
+        msg += f" Still short: ${adj_sim['borrowed_on_card']:,.0f} goes on the card."
+    m = adj_sim["months"]
+    drain = (m[-7]["cash"] - m[-1]["cash"]) / 6 if len(m) > 7 else 0.0
+    if drain > 25 and m[-1]["cash"] < ctx["emergency_buffer"]:
+        msg += f" Cash keeps falling ~${drain:,.0f}/mo, so this needs a spending cut or more income, not just a pause."
+    return msg
+
+
+def run_scenarios(customer_id: str, plan: dict, scenarios: list[dict] | None = None, *, live: bool = True) -> dict:
+    """Run `plan` through each scenario (default: PRESETS). Everything shares one context."""
+    plan = {**plan, "version": 2}
+    ctx = wealth.context(customer_id, keep_months=plan.get("keep_emergency_months"), live=live)
+    ref = wealth._run(ctx, plan)
+    baseline = wealth._run(ctx, None)
+    out = []
+    for i, sc in enumerate(scenarios or PRESETS):
+        shock = build_shock(ctx, sc.get("events") or [])
+        raw = wealth._run(ctx, plan, shock)
+        adj_shock, adj, last_pause = adjusted_shock(ctx, plan, shock)
+        out.append({
+            "id": sc.get("id") or f"custom_{i}",
+            "label": sc.get("label") or "Custom",
+            "events": sc.get("events") or [],
+            **verdict(ctx, ref, raw),
+            "sim": _slim(raw),
+            "adjusted": {**_slim(adj), **verdict(ctx, ref, adj),
+                         "paused": [wealth._label(j) for j, p in enumerate(adj_shock["pause_extra"]) if p],
+                         "advice": _advice(ctx, ref, adj, last_pause, shock)},
+        })
+    return {
+        "customer_id": customer_id,
+        "monthly_income": round(ctx["flows"]["income"], 2),
+        "emergency_buffer": ctx["emergency_buffer"],
+        "reference": _slim(ref),
+        "baseline": _slim(baseline),
+        "results": out,
+    }
+
+
+def monte_carlo(customer_id: str, plan: dict, runs: int = 500, seed: int = 7, *, live: bool = True) -> dict:
+    """Range of outcomes: each month the customer is on track, drifting or hit by a shock (Markov chain)."""
+    plan = {**plan, "version": 2}
+    H = _horizon()
+    runs = max(10, min(int(runs), 2000))
+    ctx = wealth.context(customer_id, keep_months=plan.get("keep_emergency_months"), live=live)
+    income, spend = ctx["flows"]["income"], ctx["flows"]["expenses"]
+    effect = {"on_track": 0.0, "drifting": -spend * DRIFT_SPEND_PCT / 100, "shock": -income}
+    rng = random.Random(seed)
+    paths: list[list[float]] = []
+    free = borrowed = 0
+    for _ in range(runs):
+        state, delta = "on_track", [0.0] * (H + 1)
+        for i in range(1, H + 1):
+            state = rng.choices(MARKOV_STATES, weights=MARKOV_P[state])[0]
+            delta[i] = effect[state]
+        sim = wealth._run(ctx, plan, {"cash_delta": delta, "pause_extra": []})
+        paths.append([m["net_worth"] for m in sim["months"]])
+        free += sim["high_cost_debt_free"] is not None
+        borrowed += sim["borrowed_on_card"] > 0.5
+
+    def pct(vals: list[float], q: float) -> float:
+        s = sorted(vals)
+        return round(s[min(len(s) - 1, max(0, round(q * (len(s) - 1))))], 2)
+
+    months = []
+    for i in range(H + 1):
+        col = [p[i] for p in paths]
+        months.append({"month": wealth._label(i), "p10": pct(col, 0.1), "p50": pct(col, 0.5), "p90": pct(col, 0.9)})
+    return {
+        "runs": runs, "seed": seed, "months": months,
+        "p_high_cost_free": round(free / runs, 3),
+        "p_borrowed": round(borrowed / runs, 3),
+        "odds": {k: dict(zip(MARKOV_STATES, v)) for k, v in MARKOV_P.items()},
+    }

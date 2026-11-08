@@ -16,6 +16,8 @@ app = FastAPI(title="Zeroday")
 
 from .api_insights import router as _insights_router  # noqa: E402
 app.include_router(_insights_router)
+from .api_scenarios import router as _scenarios_router  # noqa: E402
+app.include_router(_scenarios_router)
 
 
 def _need_customer(cid: str) -> dict:

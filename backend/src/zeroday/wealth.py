@@ -361,8 +361,12 @@ def simulate_plan(customer_id: str, plan: dict | None, *, live: bool = True, ctx
     return res
 
 
-def _run(ctx: dict, plan: dict | None) -> dict:
+def _run(ctx: dict, plan: dict | None, shock: dict | None = None) -> dict:
+    """shock (scenarios.py): {"cash_delta": [per month], "pause_extra": [per month]}; None = no shock.
+    Under a shock, cash that would go negative is borrowed on the PNC card instead."""
     H = A.get("horizon_months")
+    s_delta = (shock or {}).get("cash_delta") or []
+    s_pause = (shock or {}).get("pause_extra") or []
     a = ctx["assets"]
     f = ctx["flows"]
     problems: list[str] = []
@@ -424,6 +428,10 @@ def _run(ctx: dict, plan: dict | None) -> dict:
 
     floor = min(ctx["emergency_buffer"], a["cash"]) - 1
     cash_problem = False
+    borrow_to = next((k for k, d in debts.items() if d["is_pnc_card"]), None) or \
+        next((k for k, d in sorted(debts.items(), key=lambda kv: kv[1]["apr_pct"]) if d["is_card"]), None)
+    borrowed = 0.0
+    min_cash, min_cash_i = cash, 0
 
     def snapshot(i: int) -> dict:
         total = sum(d["bal"] for d in debts.values())
@@ -461,13 +469,21 @@ def _run(ctx: dict, plan: dict | None) -> dict:
                     short_reported = True
                 d["bal"] -= pay
                 left -= pay
-            for k in order:
+            for k in ([] if i < len(s_pause) and s_pause[i] else order):
                 d = debts[k]
                 pay = min(d["bal"], left)
                 d["bal"] -= pay
                 left -= pay
             cash += left  # nothing left to prepay: back to cash
         cash += cash_in
+        if shock is not None:
+            cash += s_delta[i] if i < len(s_delta) else 0.0
+            if cash < 0 and borrow_to is not None:
+                debts[borrow_to]["bal"] += -cash
+                borrowed += -cash
+                cash = 0.0
+        if cash < min_cash:
+            min_cash, min_cash_i = cash, i
         for d in debts.values():
             if d["bal"] <= 0.005:
                 d["bal"] = 0.0
@@ -499,4 +515,7 @@ def _run(ctx: dict, plan: dict | None) -> dict:
         "high_cost_debt_free": _label(high_free) if high_free is not None else None,
         "upfront_cost": round(upfront, 2),
         "monthly_card_spending": round(charges, 2),
+        "min_cash": round(min_cash, 2),
+        "min_cash_month": _label(min_cash_i),
+        "borrowed_on_card": round(borrowed, 2),
     }

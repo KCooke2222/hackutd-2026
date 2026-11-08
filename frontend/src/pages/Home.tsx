@@ -8,6 +8,7 @@ import type { Summary } from '../components/flow/Snapshot'
 import Thinking from '../components/flow/Thinking'
 import PlanEditor from '../components/flow/PlanEditor'
 import Outcome from '../components/flow/Outcome'
+import Scenarios from '../components/flow/Scenarios'
 import IncomeExpense from '../components/IncomeExpense'
 
 type Health = { nessie: boolean; nvidia: boolean; model: string }
@@ -37,6 +38,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const [planTab, setPlanTab] = useState<'plan' | 'whatif'>('plan')
 
   useEffect(() => {
     api<{ customer_id: string }[]>('/customers').then((l) => setIds(l.map((c) => c.customer_id)))
@@ -130,9 +132,16 @@ export default function Home() {
         </div>
       )}
       {screen === 2 && ai && knobs && (
+        <div className="tabs" style={{ margin: '8px 0 0' }}>
+          <button className={planTab === 'plan' ? 'on' : ''} onClick={() => setPlanTab('plan')}>Plan</button>
+          <button className={planTab === 'whatif' ? 'on' : ''} onClick={() => setPlanTab('whatif')}>What if</button>
+        </div>
+      )}
+      {screen === 2 && ai && knobs && planTab === 'plan' && (
         <PlanEditor ai={ai} headline={ai.simulation.explain?.headline ?? (final ? firstSentence(final) : firstSentence(ai.rationale))} knobs={knobs} setKnobs={setKnobs}
           preview={outlook} busy={busy} error={err} onApprove={approve} onReject={reject} />
       )}
+      {screen === 2 && ai && knobs && planTab === 'whatif' && <Scenarios cid={cid} plan={planFrom(ai, knobs)} />}
       {screen === 3 && approved && <Outcome preview={outlook} approved={approved} />}
 
       <div className="flow-nav">
