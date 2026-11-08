@@ -109,6 +109,25 @@ OPTIONS: dict[str, tuple[str, object, str]] = {
 }
 
 
+# Chat: a question about one of these offers "try it in my plan"; the button saves the option, then sends
+# `message` as a chat edit, which re-checks the current plan with the option applied (no re-plan by the model).
+CHAT_OPTIONS: dict[str, tuple[str, str, str]] = {  # key -> (question pattern, button label, chat-edit message)
+    "idr_student_loan": (r"income.?(driven|based)|\bidr\b|\bibr\b|student.?loan", "Try IDR in my plan",
+                         "Plan with income-driven repayment on my federal student loan"),
+    "card_hardship": (r"hardship", "Try a hardship rate in my plan", "Plan with a card hardship rate"),
+    "pause_ira": (r"\bira\b", "Try pausing my IRA in my plan", "Plan with my IRA contributions paused"),
+}
+
+
+def chat_option_request(customer_id: str, request: str) -> str | None:
+    """The applied option a chat edit like "Plan with income-driven repayment..." asks to plan with, else None."""
+    r = (request or "").strip().lower()
+    for k, (_, _, msg) in CHAT_OPTIONS.items():
+        if r == msg.lower() and k in applied(customer_id):
+            return k
+    return None
+
+
 NEVER_RECOMMEND = {"extra_income", "ira_withdrawal", "downsize"}  # the customer's call, never pre-ticked
 TAIL = ["mortgage_help", "downsize", "extra_income", "ira_withdrawal"]  # stated-plainly cards, in this order
 NO_HELP = {

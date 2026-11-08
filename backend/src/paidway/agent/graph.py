@@ -662,6 +662,7 @@ class AdjustState(AgentState, total=False):
     compare: dict | None
     cap_notes: list[str]
     direct: bool
+    option_added: str | None  # "Plan with income-driven repayment...": the option's title (keep path, no model)
 
 
 def adjustable(pid: str) -> dict:
@@ -734,6 +735,14 @@ def build_adjust_graph(pid: str, request: str):
     def interpret(s: AdjustState) -> dict:
         w = _writer()
         _phase(w, "interpret", "Understanding your request")
+        from ..planning import options as O
+
+        if (k := O.chat_option_request(cid, request)):  # an option the chat just saved: re-check the same plan with it
+            title = O.OPTIONS[k][0]
+            w({"type": "constraints", "constraints": old, "labels": C.describe(old), "added": [], "dropped": [], "notes": []})
+            _phase(w, "interpret", "", f"{title} applied")
+            return {"constraints": old, "new_constraints": {}, "summary": title, "only_constraints": False, "fast": True,
+                    "option_added": title, "messages": list(s.get("messages") or [])}
         spend = wealth.context(cid)["spend"]
         cats = ", ".join(f"{k} ({'essential' if v.get('essential') else f'${v['avg']:,.0f}/mo'})" for k, v in spend.items())
         data, e = _ask_json(_budgeted(llm, INTERPRET_REASONING_BUDGET), prompts.fill(prompts.INTERPRET, categories=cats, plan=parent["plan"],
@@ -763,16 +772,36 @@ def build_adjust_graph(pid: str, request: str):
         """The plan already obeys the new rules: save it again under them, no re-plan."""
         w = _writer()
         _phase(w, "keep", "Checking your plan against it")
+        plan = parent["plan"]
+        if s.get("option_added"):  # a lower payment (IDR, hardship) frees cash: the budget drops to what its sources now cover
+            from ..planning import wealth
+
+            ctx = wealth.context(cid, keep_months=plan.get("keep_emergency_months"))
+            lim = wealth.budget_limit(ctx, plan)
+            budget = float(plan.get("monthly_debt_budget") or 0)
+            if budget > lim["max_monthly_debt_budget"] + 0.5:
+                plan = {**plan, "monthly_debt_budget": round(max(lim["max_monthly_debt_budget"], lim["minimums"]), 2)}
         try:
-            sim = dict(validate_plan_v2(cid, parent["plan"], constraints=s["constraints"]))
+            sim = dict(validate_plan_v2(cid, plan, constraints=s["constraints"]))
         except (PlanRejected, ValueError, KeyError, TypeError):
             _phase(w, "keep", "", "needs changes")
             return {"fast": False}
         from ..data import balances
 
         sim["balances_snapshot"] = balances.snapshot(cid)
+        for k in ("cut_options", "reality_check"):  # what the propose tool adds; same customer data, so carried over
+            if k in parent["simulation"]:
+                sim[k] = parent["simulation"][k]
+        if s.get("option_added"):  # the option changes the gap: recompute it
+            from ..planning.wealth import reality_check
+
+            try:
+                sim["reality_check"] = reality_check(cid)
+            except Exception:  # noqa: BLE001
+                sim.pop("reality_check", None)
         try:
-            p = store.create_proposal(cid, parent["plan"], sim, "Your plan already does this.", parent_id=pid,
+            note = f"Same plan, now with {s['option_added'].lower()}." if s.get("option_added") else "Your plan already does this."
+            p = store.create_proposal(cid, plan, sim, note, parent_id=pid,
                                       constraints=s["constraints"], request=request)
         except store.Conflict as ex:
             return {"fast": False, "error": str(ex)}
@@ -813,6 +842,14 @@ def build_adjust_graph(pid: str, request: str):
         w = _writer()
         cmp = s.get("compare") or {}
         extra = {"warning": _warning(cmp), "request": request}
+        if s.get("option_added"):
+            child = store.get_proposal(s["proposal_id"])
+            head = _gap_first(_diff_headline({}, {**cmp, "changes": [f"With {s['option_added'].lower()}"]}), child["simulation"])
+            data = _carry_explain(parent["simulation"].get("explain"), child["plan"], head, extra)
+            store.annotate(s["proposal_id"], explain=data)
+            _phase(w, "explain", "", head[:60])
+            w({"type": "final", "text": head, "why": ""})
+            return {"explain": data, "final": head}
         if s.get("fast"):
             head = ("Already at the limit. " + "; ".join(s["cap_notes"])) if s.get("cap_notes") else \
                 "No change needed: your plan already fits"
