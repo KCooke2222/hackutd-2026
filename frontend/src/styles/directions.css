@@ -330,7 +330,6 @@ html[data-direction^="mac-"] .dots button.on { background: var(--soft); color: v
 html[data-direction^="mac-"] .dots button .n { border: 0; background: var(--soft); }
 html[data-direction^="mac-"] .dots button.on .n { background: var(--accent); color: var(--on-accent); }
 html[data-direction^="mac-"] .lrow { border-radius: 0; padding: 9px 2px; }
-html[data-direction^="mac-"] .lrow.hl { border-radius: 6px; padding: 9px 8px; }
 @media (prefers-color-scheme: dark) {
   html[data-direction^="mac-"] {
     --bg: #1e1e1e; --panel: #1e1e1e; --soft: #2c2c2e; --text: #f5f5f7; --muted: #98989d; --grey: #545458;

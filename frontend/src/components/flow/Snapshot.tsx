@@ -1,10 +1,9 @@
-import { useState } from 'react'
 import { usd } from '../../lib/api'
 import type { BalanceSheet, Refill, SheetAccount } from '../../lib/api'
 
 export type Summary = { card_history: { month: string; balance: number }[]; refill: Refill }
 
-type Row = { id: string; name: string; bal: number; tags: [string, string?][]; dim?: boolean; hl?: boolean } | { group: string }
+type Row = { id: string; name: string; bal: number; tags: [string, string?][]; dim?: boolean } | { group: string }
 
 function Spark({ data }: { data: number[] }) {
   if (data.length < 2) return null
@@ -19,28 +18,17 @@ function Spark({ data }: { data: number[] }) {
 }
 
 function Col({ title, total, rows }: { title: string; total: number; rows: Row[] }) {
-  const [all, setAll] = useState(false)
-  const LIMIT = 4
-  let shown = 0
-  const visible: Row[] = []
-  for (const r of rows) {
-    if ('group' in r) { if (all) visible.push(r); continue }
-    if (!all && (r.dim || shown >= LIMIT)) continue
-    visible.push(r); shown++
-  }
-  const hidden = rows.filter((r) => !('group' in r)).length - shown
   return (
     <div className="card">
       <div className="col-head"><h2 style={{ margin: 0 }}>{title}</h2><span className="total">{usd(total)}</span></div>
-      {visible.map((r, i) => 'group' in r
+      {rows.map((r, i) => 'group' in r
         ? <div key={'g' + i} className="group-label">{r.group}</div>
         : (
-          <div key={r.id} className={`lrow ${r.dim ? 'dim' : ''} ${r.hl ? 'hl' : ''}`}>
+          <div key={r.id} className={`lrow ${r.dim ? 'dim' : ''}`}>
             <span className="name">{r.name}</span><span className="amt">{usd(r.bal)}</span>
             {r.tags.length > 0 && <span className="sub">{r.tags.map(([t, c]) => <span key={t} className={`tag ${c ?? ''}`}>{t}</span>)}</span>}
           </div>
         ))}
-      {(hidden > 0 || all) && <button className="ghost" onClick={() => setAll(!all)}>{all ? 'Show less' : `Show all (${hidden} more)`}</button>}
     </div>
   )
 }
@@ -68,7 +56,7 @@ export default function Snapshot({ sheet, summary }: { sheet: BalanceSheet; summ
   const debts = sheet.priority.debts
   const extra = debts.filter((d) => d.extra_rank != null).sort((a, b) => (a.extra_rank ?? 0) - (b.extra_rank ?? 0))
   const minOnly = debts.filter((d) => d.extra_rank == null)
-  const owe: Row[] = extra.map((d) => ({ id: d.account_id, name: byId.get(d.account_id)?.name ?? d.name, bal: d.balance, tags: [[`${d.apr_pct}%`]], hl: d.account_id === card?.account_id }))
+  const owe: Row[] = extra.map((d) => ({ id: d.account_id, name: byId.get(d.account_id)?.name ?? d.name, bal: d.balance, tags: [[`${d.apr_pct}%`]] }))
   if (minOnly.length) {
     owe.push({ group: 'Minimum only' })
     for (const d of minOnly) {

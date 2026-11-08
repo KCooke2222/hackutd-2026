@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: install backend frontend test seed reseed linked data record
+.PHONY: install backend frontend test seed reseed linked data record reset-local
 
 install:
 	cd backend && $(UV) sync
@@ -36,3 +36,7 @@ CUSTOMER ?= C001
 RUNS ?= 1
 record:
 	cd backend && $(UV) run python scripts/record_runs.py --customer $(CUSTOMER) --runs $(RUNS) --replace
+
+# Clear a customer's local proposals and demo tracking (SQLite only; never touches Nessie). Demo examples by default.
+reset-local:
+	cd backend && $(UV) run python scripts/reset_local.py $(if $(filter command line environment,$(origin CUSTOMER)),$(CUSTOMER),C001 C027)

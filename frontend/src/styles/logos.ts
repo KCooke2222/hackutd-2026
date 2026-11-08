@@ -77,7 +77,7 @@ export const LEGACY_LOGOS: Logo[] = [
 ]
 
 export const ALL_LOGOS = [...LOGOS, ...LEGACY_LOGOS]
-export const DEFAULT_LOGO = 'step'
+export const DEFAULT_LOGO = 'paidbold'
 
 export function markSvg(l: Logo, size = '1.25em') {
   return l.mark ? `<svg class="mark" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${l.mark}</svg>` : ''

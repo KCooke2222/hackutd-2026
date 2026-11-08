@@ -18,6 +18,8 @@ import Dashboard from '../components/dash/Dashboard'
 import DemoPanel from '../components/dash/DemoPanel'
 
 type Health = { nessie: boolean; nvidia: boolean; model: string }
+// The two demo stories; the other generated customers stay in the data but not in the UI.
+const EXAMPLES: [string, string][] = [['C001', 'Fixable'], ['C027', 'Underwater']]
 const NAMES = ['Snapshot', 'Thinking', 'Plan', 'Done']
 
 const firstSentence = (s: string) => {
@@ -26,8 +28,7 @@ const firstSentence = (s: string) => {
 }
 
 export default function Home() {
-  const [cid, setCid] = useState('C001')
-  const [ids, setIds] = useState<string[]>([])
+  const [cid, setCid] = useState(() => new URLSearchParams(location.search).get('customer') ?? 'C001')
   const [health, setHealth] = useState<Health | null>(null)
   const [sheet, setSheet] = useState<BalanceSheet | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -68,7 +69,6 @@ export default function Home() {
   cidRef.current = cid
 
   useEffect(() => {
-    api<{ customer_id: string }[]>('/customers').then((l) => setIds(l.map((c) => c.customer_id)))
     api<Health>('/health').then(setHealth)
     // ?replay=<id>&speed=8 plays a recorded run on load (switching customer first if needed).
     const q = new URLSearchParams(window.location.search)
@@ -202,12 +202,12 @@ export default function Home() {
               </button>
             ))}
           </nav>
-          <label className="who">
-            <span>Customer</span>
-            <select value={cid} onChange={(e) => setCid(e.target.value)} aria-label="customer">
-              {(ids.length ? ids : [cid]).map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </label>
+          <div className="seg who" role="tablist" aria-label="Example customer">
+            {EXAMPLES.map(([c, label]) => (
+              <button key={c} role="tab" className={cid === c ? 'on' : ''} aria-selected={cid === c} onClick={() => setCid(c)}>{label}</button>
+            ))}
+            {!EXAMPLES.some(([c]) => c === cid) && <button role="tab" className="on" aria-selected>{cid}</button>}
+          </div>
         </div>
       </header>
       <main className="page flow">
