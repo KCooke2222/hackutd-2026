@@ -158,6 +158,9 @@ def _sse(evs) -> StreamingResponse:
 
     def gen():
         for ev in evs:
+            if ev is None:  # keep-alive while a background run is quiet
+                yield ": ping\n\n"
+                continue
             yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -168,9 +171,47 @@ def agent_stream(customer_id: str, instruction: str | None = None) -> StreamingR
     """Server-sent events for one agent run: `step` per tool call/result, then `done` with the proposal.
     Each finished run is recorded (replays.py) so it can be replayed later without calling the model."""
     _need_customer(customer_id)
-    from . import replays
+    from . import replays, runs
 
-    return _sse(replays.record(customer_id, replays.live_events(customer_id, instruction), model=NEMOTRON_MODEL))
+    # The run lives on a background thread, so closing the page (or switching customer) doesn't stop it;
+    # /api/agent/runs/{id}/stream re-attaches. The first event, `run`, carries the id to re-attach with.
+    run = runs.start(customer_id, lambda: replays.record(customer_id, replays.live_events(customer_id, instruction), model=NEMOTRON_MODEL))
+    return _sse(_attach(run))
+
+
+def _attach(run):
+    yield {"type": "run", **run.meta()}
+    yield from run.tail()
+
+
+@app.get("/api/agent/runs/latest")
+def agent_run_latest(customer_id: str) -> dict | None:
+    """The customer's most recent run in this server process (running or finished), or null."""
+    from . import runs
+
+    r = runs.latest(customer_id)
+    return r.meta() if r else None
+
+
+@app.get("/api/agent/runs/{run_id}")
+def agent_run_meta(run_id: str) -> dict:
+    from . import runs
+
+    r = runs.get(run_id)
+    if r is None:
+        raise HTTPException(404, "no such run (the server may have restarted)")
+    return r.meta()
+
+
+@app.get("/api/agent/runs/{run_id}/stream")
+def agent_run_stream(run_id: str) -> StreamingResponse:
+    """Re-attach to a run: its buffered events at once, then live ones until it ends (same format as /api/agent/stream)."""
+    from . import runs
+
+    r = runs.get(run_id)
+    if r is None:
+        raise HTTPException(404, "no such run (the server may have restarted)")
+    return _sse(_attach(r))
 
 
 # --- recorded runs: replay a past agent run's event stream at N× speed ---

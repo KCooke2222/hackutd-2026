@@ -44,6 +44,8 @@ def test_record_then_replay_roundtrip(client, monkeypatch):
 
     monkeypatch.setattr(graph, "stream_run", fake_stream)
     live = sse(client.get("/api/agent/stream", params={"customer_id": "C001"}).text)
+    assert live[0][0] == "run" and live[0][1]["status"] == "running"  # re-attach id; not part of the recording
+    live = live[1:]
     assert [t for t, _ in live] == ["phase", "call", "result", "final", "done"]
     assert "messages" not in live[-1][1] and live[-1][1]["proposal"]["id"] == live[-1][1]["proposal_id"]
 
