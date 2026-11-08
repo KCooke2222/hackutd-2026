@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './styles/directions.css'
 import './styles/logos.css'
+import './styles/responsive.css'
 import App from './App.tsx'
 import './lib/demoMode' // hidden demo-mode toggle (Shift+D); see the file
 import StyleSwitcher from './components/StyleSwitcher'

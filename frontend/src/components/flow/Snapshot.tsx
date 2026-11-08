@@ -9,9 +9,14 @@ const inNessie = (a: SheetAccount | undefined) => !!a && (!!a.nessie_id || a.sou
 const display = (a: SheetAccount | undefined, name: string) => (a && inNessie(a) && a.account_type === 'brokerage' ? 'Brokerage' : name)
 
 function Col({ title, total, rows, byId }: { title: string; total: number; rows: Row[]; byId: Map<string, SheetAccount> }) {
+  // One Nessie chip per column; rows that aren't in Nessie say so instead.
+  const live = rows.some((r) => 'id' in r && inNessie(byId.get(r.id)))
   return (
     <div className="card">
-      <div className="col-head"><h2 style={{ margin: 0 }}>{title}</h2><span className="total">{usd(total)}</span></div>
+      <div className="col-head">
+        <span className="col-title"><h2 style={{ margin: 0 }}>{title}</h2>{live && <NessieChip title="Live in Nessie (Capital One sandbox), except rows marked otherwise" />}</span>
+        <span className="total">{usd(total)}</span>
+      </div>
       {rows.map((r, i) => 'group' in r
         ? <div key={'g' + i} className="group-label">{r.group}</div>
         : (
@@ -26,11 +31,12 @@ function Line({ r, a }: { r: Exclude<Row, { group: string }>; a: SheetAccount | 
   const mirrored = live && a?.source === 'linked'
   return (
     <div className={`lrow ${r.dim ? 'dim' : ''}`}>
-      <span className="name">{display(a, r.name)}{live && <> <NessieChip /></>}</span><span className="amt">{usd(r.bal)}</span>
-      {(r.tags.length > 0 || mirrored) && (
+      <span className="name">{display(a, r.name)}</span><span className="amt">{usd(r.bal)}</span>
+      {(r.tags.length > 0 || mirrored || !live) && (
         <span className="sub">
           {r.tags.map(([t, c]) => <span key={t} className={`tag ${c ?? ''}`}>{t}</span>)}
           {mirrored && <span className="small muted">linked, mirrored in Nessie</span>}
+          {!live && <span className="small muted">not in Nessie</span>}
         </span>
       )}
     </div>
