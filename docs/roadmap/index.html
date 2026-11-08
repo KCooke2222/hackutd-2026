@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zeroday Roadmap</title>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--text:#111827;--muted:#6b7280;--line:#e5e7eb;--accent:#ea580c;--good:#16a34a;--bad:#dc2626;--code:#f3f4f6;--blue:#2563eb;--violet:#7c3aed}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--panel:#171a20;--text:#e5e7eb;--muted:#9ca3af;--line:#2a2f38;--accent:#fb923c;--good:#4ade80;--bad:#f87171;--code:#1f232b;--blue:#60a5fa;--violet:#a78bfa}}
+:root[data-theme="dark"]{--bg:#0f1115;--panel:#171a20;--text:#e5e7eb;--muted:#9ca3af;--line:#2a2f38;--accent:#fb923c;--good:#4ade80;--bad:#f87171;--code:#1f232b;--blue:#60a5fa;--violet:#a78bfa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+.top{background:#111827;color:#fff;padding:10px 16px;display:flex;gap:20px;align-items:center;position:sticky;top:0;z-index:5}
+.top b{color:#fb923c;letter-spacing:.03em}.top a{color:#d1d5db;text-decoration:none}.top a.on{color:#fff;border-bottom:2px solid #fb923c}
+main{max-width:1000px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:36px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.sub{color:var(--muted);margin:0 0 8px}
+code{font:13px ui-monospace,Menlo,monospace;background:var(--code);padding:1px 5px;border-radius:4px}
+.pr{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
+.pr.gate{border-left-color:var(--accent)}.pr.p1{border-left-color:var(--blue)}.pr.p2{border-left-color:var(--violet)}.pr.p3{border-left-color:var(--muted)}
+.pr h3{margin:0;font-size:16px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.pr .n{font:700 13px ui-monospace,monospace;color:var(--muted)}
+.pr p{margin:6px 0}
+.meta{display:grid;grid-template-columns:110px 1fr;gap:2px 12px;font-size:13px;margin-top:8px}
+.meta dt{color:var(--muted)}.meta dd{margin:0}
+.tag{display:inline-block;font:600 11px/1 ui-monospace,monospace;padding:3px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.t-gate{color:var(--accent);border-color:var(--accent)}.t-now{color:var(--good);border-color:var(--good)}
+.tw{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+td.x{color:var(--bad);font-weight:600;text-align:center}td.o{color:var(--muted);text-align:center}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--text);font:13px Inter,system-ui,sans-serif}svg .m{fill:var(--muted);font-size:11px}
+svg .box{fill:var(--panel);stroke:var(--line);stroke-width:1.5}svg .g{stroke:var(--accent)}svg .b{stroke:var(--blue)}svg .v{stroke:var(--violet)}
+svg .ar{stroke:var(--muted);stroke-width:1.5;fill:none;marker-end:url(#a)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
+.note{border-left:3px solid var(--accent);padding:8px 12px;background:var(--panel);border-radius:0 8px 8px 0;margin:12px 0;font-size:14px}
+ul{padding-left:20px;margin:6px 0}li{margin:3px 0}
+</style>
+</head>
+<body>
+<div class="top"><b>ZERODAY</b><a href="../system/">How it works</a><a class="on" href="../roadmap/">Roadmap</a></div>
+<main>
+<h1>Roadmap</h1>
+<p class="sub">One card = one PR. Everything builds on the plan format from PR 0, so PR 0 has to work first.</p>
+
+<div class="note"><b>Goal framing (decided):</b> no "$0 by a date" target. The agent gives the <b>best next steps for your situation</b> (highest net worth in 24 months), shown next to the <b>bare minimum</b> (minimums only, interest paid). You decide; the agent says when your idea is worse and why.</div>
+
+<h2>Order and dependencies</h2>
+<div class="card">
+<svg viewBox="0 0 960 250" role="img" aria-label="PR dependency graph">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#9ca3af"/></marker></defs>
+<rect class="box g" x="10" y="95" width="170" height="60" rx="8"/><text x="22" y="119">0 · Agent v2</text><text class="m" x="22" y="139">good plan; eval passes</text>
+<rect class="box g" x="10" y="185" width="170" height="52" rx="8"/><text x="22" y="207">1 · Model fallback</text><text class="m" x="22" y="225">only if 0 fails</text>
+<rect class="box b" x="250" y="20" width="170" height="52" rx="8"/><text x="262" y="42">2 · Two plans</text><text class="m" x="262" y="60">bare minimum vs best</text>
+<rect class="box b" x="250" y="99" width="170" height="52" rx="8"/><text x="262" y="121">3 · Reality check</text><text class="m" x="262" y="139">"spend less or earn more"</text>
+<rect class="box b" x="250" y="178" width="170" height="52" rx="8"/><text x="262" y="200">4 · Talk to the plan</text><text class="m" x="262" y="218">type or speak changes</text>
+<rect class="box v" x="500" y="60" width="170" height="52" rx="8"/><text x="512" y="82">5 · Checkpoints + drift</text><text class="m" x="512" y="100">alert, then re-plan</text>
+<rect class="box v" x="500" y="150" width="170" height="52" rx="8"/><text x="512" y="172">6 · Scenarios</text><text class="m" x="512" y="190">job loss, shocks, range</text>
+<rect class="box" x="750" y="100" width="200" height="60" rx="8"/><text x="762" y="124">7 · Execute + demo</text><text class="m" x="762" y="144">real Nessie moves, story</text>
+<path class="ar" d="M180 112L248 50"/><path class="ar" d="M180 125H248"/><path class="ar" d="M180 138L248 200"/>
+<path class="ar" d="M420 125L498 95"/><path class="ar" d="M420 205L498 98"/><path class="ar" d="M420 130L498 170"/>
+<path class="ar" d="M670 86L748 122"/><path class="ar" d="M670 176L748 140"/>
+<path class="ar" d="M95 155V183"/>
+</svg>
+<p class="sub">Orange = gate · blue = next (parallel after 0) · purple = after that.</p>
+</div>
+
+<h2>PRs</h2>
+
+<div class="pr gate">
+<h3><span class="n">PR 0</span> Agent v2: a plan that isn't dumb <span class="tag t-now">building now</span><span class="tag t-gate">gate</span></h3>
+<p>Every debt in the plan, money sources compared by net worth, realistic cuts, read-only data access. Done when <code>scripts/eval_agent.py</code> passes on C001 a few runs in a row.</p>
+<dl class="meta"><dt>Touches</dt><dd><code>wealth.py</code>, <code>insights.py</code>, <code>assumptions.py</code>, <code>agent/*</code>, <code>components/flow/*</code>, <code>IncomeExpense.tsx</code></dd>
+<dt>Owner</dt><dd>Kevin (agent + integration)</dd><dt>Size</dt><dd>L, mostly done</dd></dl>
+</div>
+
+<div class="pr gate">
+<h3><span class="n">PR 1</span> Model fallback</h3>
+<p>If Nemotron keeps failing the eval, run the plan step on Claude instead, behind one config switch. Tools, validator and UI stay the same.</p>
+<dl class="meta"><dt>Touches</dt><dd><code>agent/graph.py</code>, <code>config.py</code></dd><dt>Depends</dt><dd>PR 0's eval</dd><dt>Owner</dt><dd>Kevin</dd><dt>Size</dt><dd>S</dd></dl>
+</div>
+
+<div class="pr p1">
+<h3><span class="n">PR 2</span> Two plans: bare minimum vs best</h3>
+<p>The outcome screen shows both side by side: interest paid, $0 date, net worth at 24 months. The "minimum" plan is pure code (minimums only, no agent).</p>
+<dl class="meta"><dt>Touches</dt><dd><code>wealth.py</code> (minimum plan), <code>components/flow/Outcome.tsx</code>, <code>NetWorth.tsx</code></dd><dt>Depends</dt><dd>PR 0</dd><dt>Owner</dt><dd>Frontend</dd><dt>Size</dt><dd>S</dd></dl>
+</div>
+
+<div class="pr p1">
+<h3><span class="n">PR 3</span> Reality check: when rearranging isn't enough</h3>
+<p>Code checks whether debt can shrink with the current income and spending at all. If not, the plan leads with the gap: "You're $X/mo short. Spend $X less or earn $X more." The agent then picks which changes are most realistic.</p>
+<dl class="meta"><dt>Touches</dt><dd><code>wealth.py</code> (gap calc), <code>agent/prompts.py</code> (diagnose), new <code>components/flow/Gap.tsx</code></dd><dt>Depends</dt><dd>PR 0</dd><dt>Owner</dt><dd>Engine</dd><dt>Size</dt><dd>S–M</dd></dl>
+</div>
+
+<div class="pr p1">
+<h3><span class="n">PR 4</span> Talk to the plan</h3>
+<p>After a plan exists, type or speak a change: "don't touch savings", "I can cut dining more". It's the same flow as planning, but it starts from the current plan plus your request. The agent can push back if the change is worse, and shows the cost.</p>
+<dl class="meta"><dt>Touches</dt><dd><code>agent/graph.py</code> (adjust entry), <code>agent/prompts.py</code>, <code>api.py</code> (<code>POST /api/proposals/{id}/adjust</code>), new <code>components/flow/Chat.tsx</code></dd><dt>Depends</dt><dd>PR 0</dd><dt>Owner</dt><dd>Kevin + Frontend</dd><dt>Size</dt><dd>M</dd></dl>
+</div>
+
+<div class="pr p2">
+<h3><span class="n">PR 5</span> Checkpoints and drift check</h3>
+<p>Each approved plan saves where every debt should be each month. A plain code check (no AI) compares actuals monthly. If a debt is off by more than 1 month of payments, or spending is &gt;15% over target, you get an alert and a re-plan through PR 4's adjust flow.</p>
+<dl class="meta"><dt>Touches</dt><dd><code>store.py</code> (checkpoints table), new <code>monitor.py</code>, <code>api.py</code>, alert banner on <code>Home.tsx</code></dd><dt>Depends</dt><dd>PR 0, PR 4</dd><dt>Owner</dt><dd>Execution + story</dd><dt>Size</dt><dd>M</dd></dl>
+</div>
+
+<div class="pr p2">
+<h3><span class="n">PR 6</span> Scenarios</h3>
+<p>See how the plan holds up: lose your job for 3 months, a 20% income drop, a $2k emergency. Each shows the new path to $0 and the adjusted plan. Later: a Markov model (each month you're on track, drifting or hit by a shock, with set odds) run many times to show a likely range instead of one line.</p>
+<dl class="meta"><dt>Touches</dt><dd><code>wealth.py</code> (shock inputs), new <code>scenarios.py</code>, new <code>components/flow/Scenarios.tsx</code></dd><dt>Depends</dt><dd>PR 0; uses PR 4 to re-plan</dd><dt>Owner</dt><dd>Engine</dd><dt>Size</dt><dd>M</dd></dl>
+</div>
+
+<div class="pr p3">
+<h3><span class="n">PR 7</span> Execute for real + demo story</h3>
+<p>Test a real Nessie transfer on approve end to end. Script the demo: C001's stuck card → diagnosis → plan → approve → money moves → drift alert.</p>
+<dl class="meta"><dt>Touches</dt><dd><code>agent/execute.py</code>, <code>nessie/write.py</code>, <code>seed.py</code>, demo notes</dd><dt>Depends</dt><dd>PR 0; demo uses 5 and 6</dd><dt>Owner</dt><dd>Execution + story</dd><dt>Size</dt><dd>S–M</dd></dl>
+</div>
+
+<h2>Where PRs collide</h2>
+<p class="sub">✕ = both edit the same file. Merge in number order, or agree on who owns the shared file.</p>
+<div class="tw"><table>
+<thead><tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>Shared file</th></tr></thead>
+<tbody>
+<tr><td><b>1</b></td><td></td><td class="o">·</td><td class="o">·</td><td class="x">✕</td><td class="o">·</td><td class="o">·</td><td class="o">·</td><td><code>agent/graph.py</code></td></tr>
+<tr><td><b>2</b></td><td></td><td></td><td class="x">✕</td><td class="o">·</td><td class="o">·</td><td class="x">✕</td><td class="o">·</td><td><code>wealth.py</code>, <code>Outcome.tsx</code></td></tr>
+<tr><td><b>3</b></td><td></td><td></td><td></td><td class="x">✕</td><td class="o">·</td><td class="x">✕</td><td class="o">·</td><td><code>wealth.py</code>, <code>prompts.py</code></td></tr>
+<tr><td><b>4</b></td><td></td><td></td><td></td><td></td><td class="x">✕</td><td class="o">·</td><td class="o">·</td><td><code>api.py</code>, adjust flow</td></tr>
+<tr><td><b>5</b></td><td></td><td></td><td></td><td></td><td></td><td class="o">·</td><td class="x">✕</td><td><code>store.py</code>, alerts</td></tr>
+<tr><td><b>6</b></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="o">·</td><td></td></tr>
+</tbody></table></div>
+<p class="sub" style="margin-top:8px">To keep <code>wealth.py</code> from becoming a hotspot: new math goes in its own file (<code>scenarios.py</code>, the gap calc in a function), and only the one-line hook goes into <code>wealth.py</code>.</p>
+
+<h2>Open questions</h2>
+<ul>
+<li>Where does C001's $2,890/mo go? The demo should have the agent ask instead of assume.</li>
+<li>If Nemotron can't pass the eval soon, how long do we wait before switching to PR 1?</li>
+<li>Voice for PR 4: browser speech-to-text is enough for a demo.</li>
+</ul>
+</main>
+</body>
+</html>
