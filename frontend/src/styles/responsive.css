@@ -1,0 +1,120 @@
+/* Phones (<=640px) and half-screen windows (641-960px). Loaded after index.css; layout only, same tokens. */
+
+/* Closed chat drawer: out of view and out of the tab order. */
+.drawer { visibility: hidden; transition: transform .22s ease, visibility 0s linear .22s; }
+.drawer.open { visibility: visible; transition: transform .22s ease, visibility 0s; }
+@media (prefers-reduced-motion: reduce) { .drawer, .drawer.open { transition: none; } }
+
+/* Long words and numbers never push the page sideways. */
+.page { overflow-wrap: break-word; }
+.page h1, .page h2 { overflow-wrap: break-word; }
+.recharts-responsive-container { min-width: 0; }
+
+/* ---- half screen: 641-960 ---- */
+@media (max-width: 960px) {
+  .masthead-in, .page { padding-left: 20px; padding-right: 20px; }
+  .masthead-in { gap: 8px 14px; }
+  .dots button { padding-right: 8px; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .land-steps { grid-template-columns: 1fr 1fr; }
+  .drawer { width: min(400px, 92vw); }
+  /* Chat button in the corner; the sticky bottom nav leaves its right end clear for it,
+     and the page ends with room under the last row. */
+  .chat-fab { bottom: 14px; }
+  .flow-nav:has(.flow-actions) { position: static; background: none; }
+  .flow-nav:not(:has(.flow-actions)) { padding-right: 224px; }
+  .page { padding-bottom: 76px; }
+}
+
+/* ---- phones and narrow windows: <=760 ---- */
+@media (max-width: 760px) {
+  /* Masthead: brand and customer switch on one row, the steps under them. */
+  .masthead-in { padding-top: 8px; padding-bottom: 4px; row-gap: 2px; }
+  .masthead .who { order: 2; }
+  .masthead .dots { order: 3; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -6px; }
+  .masthead .dots::-webkit-scrollbar { display: none; }
+  .masthead .dots button { flex: none; }
+  .page { padding-top: 16px; }
+  .scrub { position: static; }
+}
+
+/* ---- phones: <=640 ---- */
+@media (max-width: 640px) {
+  :root, html[data-direction] { --gap: 14px; --hero-size: 34px; }
+  .masthead-in, .page, .page.flow { padding-left: 14px; padding-right: 14px; }
+  .brand { font-size: 17px; }
+  .dots button { font-size: 12px; gap: 4px; padding: 4px 8px 4px 4px; }
+  h2, .card h2 { font-size: 17px; }
+
+  /* Bottom bar: wraps instead of overflowing; only sticky when it is just Back/Next (Start, Done screens scroll with the page). */
+  .flow-nav { flex-wrap: wrap; padding: 10px 0 12px; }
+  .flow-nav:not(:has(.flow-actions)) { padding-right: 62px; }
+  .flow-actions { flex-wrap: wrap; justify-content: flex-end; flex: 1 1 auto; }
+  .flow-actions select { flex: 1 1 140px; max-width: none; }
+  .flow-nav:has(select) > button[style*="hidden"] { display: none; }
+  .page { padding-bottom: 72px; }
+  .flow-nav button, .flow button.big { padding: 9px 16px; }
+
+  /* Cards and rows */
+  .col-head { flex-wrap: wrap; row-gap: 4px; }
+  .col-head h2 { white-space: normal; }
+  .lrow { padding: 8px 2px; }
+  .hero { grid-template-columns: 1fr; }
+  .pr-head h1 { font-size: 22px; }
+  .kpis b { font-size: 18px; }
+  .outs { gap: 10px 20px; }
+  .outs .v { font-size: 20px; }
+  .outs.keyed .v { font-size: 18px; }
+  .ba { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .move { grid-template-columns: 20px minmax(0, 1fr) auto; }
+  .step { grid-template-columns: 24px minmax(0, 1fr) auto; }
+  .step .res { white-space: normal; text-align: right; }
+  .alert { grid-template-columns: auto minmax(0, 1fr); }
+  .alert > :nth-child(3) { grid-column: 2; justify-self: start; }
+  .pr-steps li { grid-template-columns: 26px minmax(0, 1fr); }
+  .pr-steps .runs { grid-column: 2; justify-self: start; }
+  .pr-steps .sub { grid-column: 2; }
+  .pr-table th:nth-child(4), .pr-table td.why { display: none; }
+  .pr-table td { white-space: normal !important; }
+  .act { grid-template-columns: minmax(0, 1fr) auto; }
+
+  /* Dashboard */
+  .dash-dates { gap: 12px 20px; }
+  .dash-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .dash-tiles > div { padding: 8px; }
+  .dash-tiles b { font-size: 14px; }
+  .demo-row > button, .demo-row > select { flex: 1 1 auto; }
+  .opt .big { font-size: 20px; }
+
+  /* Charts: every other x label on a phone, so month labels don't collide. */
+  .recharts-xAxis .recharts-cartesian-axis-tick:nth-child(even) { display: none; }
+
+  /* What if */
+  .scn-grid { grid-template-columns: 1fr; }
+
+  /* Landing */
+  .land-hero { padding-top: 24px; }
+  .land-coach { gap: 10px; }
+
+  /* Chat: round icon button, sheet from the bottom. */
+  .chat-fab { font-size: 0; gap: 0; width: 52px; height: 52px; padding: 0; justify-content: center; right: 14px; bottom: 10px; }
+  .drawer { height: 85dvh; width: 100vw; padding-bottom: env(safe-area-inset-bottom); }
+  .drawer-body form { flex-wrap: wrap; }
+}
+
+/* ---- touch: tap targets at least 40px ---- */
+@media (max-width: 640px), (pointer: coarse) {
+  button, select, input:not([type=checkbox]):not([type=radio]):not([type=range]) { min-height: 40px; }
+  .seg button { min-height: 36px; }
+  .seg { padding: 2px; }
+  .tag, .nessie-chip, .dots button .n { min-height: 0; }
+  /* 16px inputs: iOS Safari doesn't zoom the page on focus. */
+  input, select, textarea { font-size: 16px; }
+}
+
+/* ---- Nessie chip: one small size everywhere, sits on the text baseline ---- */
+.nessie-chip { gap: 3px; font-size: 10.5px; line-height: 14px; padding: 1px 7px 1px 5px; letter-spacing: .01em; vertical-align: baseline; position: relative; top: -1px; }
+.nessie-chip svg { width: 10px; height: 10px; }
+.col-title { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.col-head > .nessie-chip { margin-left: 8px; margin-right: auto; align-self: center; top: 0; }
+.act > .nessie-chip { top: 0; align-self: center; }

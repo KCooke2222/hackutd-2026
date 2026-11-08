@@ -4,7 +4,7 @@ import { Landmark } from 'lucide-react'
 export default function NessieChip({ label = 'Nessie', title }: { label?: string; title?: string }) {
   return (
     <span className="nessie-chip" title={title ?? 'Live in Nessie (Capital One sandbox)'}>
-      <Landmark size={12} strokeWidth={2.2} aria-hidden />{label}
+      <Landmark size={10} strokeWidth={2.4} aria-hidden />{label}
     </span>
   )
 }
