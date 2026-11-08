@@ -106,8 +106,8 @@ export function PlanSteps({ recorded = [], manual = [], agent = [] }: { recorded
   if (!recorded.length && !manual.length && !agent.length) return null
   return (
     <div className="quiet">
-      {agent.length > 0 && (<><h3>The agent watches these</h3><ul>{agent.map((s, i) => (
-        <li key={i}>{pretty(s.step)}{s.watch && <span className="muted"> · {s.watch}</span>}</li>
+      {agent.length > 0 && (<><h3>The agent checks these monthly</h3><ul>{agent.map((s, i) => (
+        <li key={i}>{pretty(s.step)}</li>
       ))}</ul></>)}
       {recorded.length > 0 && (<><h3>Recorded with the plan</h3><ul>{recorded.map((s, i) => <li key={i}>{pretty(s.step)}</li>)}</ul></>)}
       {manual.length > 0 && (<><h3>You do it</h3><ul>{manual.map((s, i) => (

@@ -250,7 +250,7 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
         stmt = round(float((sim or {}).get("monthly_card_spending") or 0), 2) if a == f"A-{customer_id}-CREDIT_CARD" else 0.0
         has_bill = any(x.get("kind") == "payment" and x.get("account_id") == a and x["runs"] == "nessie" for x in steps)
         if payoff:  # Paidway only pays balances down: at $0 its bill ends and the user pays their own purchases
-            step.update(step=f"{name} paid off{' (' + _month_name(payoff) + ')' if payoff else ''}: keep paying it in full",
+            step.update(step=f"{name}: pay in full from {_month_name(payoff)}",
                         watch="The monthly check-in reads its balance; any carried balance shows up there")
         elif False:
             first, day = _next_month(payoff)
