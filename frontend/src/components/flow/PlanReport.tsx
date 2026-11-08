@@ -233,13 +233,14 @@ function NetWorthCompare({ sim, base, noCuts }: { sim: SimV2; base: SimV2 | null
 }
 
 /** Screen 2: the plan as a short report. Figures from the saved proposal (code), words from the agent. */
-export default function PlanReport({ ai, baseline, noCuts, preview, schedule, underwater, children }: {
+export default function PlanReport({ ai, baseline, noCuts, preview, schedule, underwater, builtOn, children }: {
   ai: Proposal
   baseline: SimV2 | null
   noCuts: SimV2 | null
   preview: ApprovePreview | null
   schedule: Schedule | null
-  underwater?: ReactNode // RealityCheck + option cards, in place of the KPIs
+  underwater?: ReactNode // the gap and the options that close it; replaces the plan until it's feasible
+  builtOn?: ReactNode // options the customer chose that this plan depends on
   children?: ReactNode // "What the agent will do on approve" + Approve
 }) {
   const sim = ai.simulation, ex = sim.explain
@@ -250,32 +251,37 @@ export default function PlanReport({ ai, baseline, noCuts, preview, schedule, un
     <>
       <div className="card pr-head">
         <h1>{ex?.headline ?? 'Your plan'}</h1>
-        {ex?.summary && <p>{ex.summary}</p>}
+        {ex?.summary && !underwater && <p>{ex.summary}</p>}
         {ex?.driver && <p className="small"><b>What's driving it:</b> {ex.driver}</p>}
         {!underwater && <Kpis sim={sim} base={baseline} />}
         {!underwater && <PaydownBar sim={sim} />}
       </div>
       {underwater}
-      <div className="card">
-        <h2 style={{ margin: '0 0 4px' }}>What it would do</h2>
-        <ol className="pr-steps">
-          {list.map((s, i) => (
-            <li key={i}><span>{s.text}</span><span className="runs"><RunsTag r={s.runs} label={s.label} /></span>{s.sub && <span className="sub">{s.sub}</span>}</li>
-          ))}
-        </ol>
-      </div>
-      <Cuts ai={ai} />
-      <div className="pr-charts">
-        <DebtChart sim={sim} base={baseline} />
-        <NetWorthCompare sim={sim} base={baseline} noCuts={noCuts} />
-      </div>
-      {(ex?.downsides?.length ?? 0) > 0 && (
-        <div className="card">
-          <h2 style={{ margin: '0 0 6px' }}>Downsides</h2>
-          <ul className="pr-down">{ex!.downsides!.map((d) => <li key={d}>{d}</li>)}</ul>
-        </div>
+      {!underwater && builtOn}
+      {!underwater && (
+        <>
+          <div className="card">
+            <h2 style={{ margin: '0 0 4px' }}>What it would do</h2>
+            <ol className="pr-steps">
+              {list.map((s, i) => (
+                <li key={i}><span>{s.text}</span><span className="runs"><RunsTag r={s.runs} label={s.label} /></span>{s.sub && <span className="sub">{s.sub}</span>}</li>
+              ))}
+            </ol>
+          </div>
+          <Cuts ai={ai} />
+          <div className="pr-charts">
+            <DebtChart sim={sim} base={baseline} />
+            <NetWorthCompare sim={sim} base={baseline} noCuts={noCuts} />
+          </div>
+          {(ex?.downsides?.length ?? 0) > 0 && (
+            <div className="card">
+              <h2 style={{ margin: '0 0 6px' }}>Downsides</h2>
+              <ul className="pr-down">{ex!.downsides!.map((d) => <li key={d}>{d}</li>)}</ul>
+            </div>
+          )}
+          {children}
+        </>
       )}
-      {children}
     </>
   )
 }

@@ -120,6 +120,32 @@ def customer_options_check(cid: str, body: OptionsIn) -> dict:
     return options.check(cid, body.keys, body.extra_income)
 
 
+@app.get("/api/customers/{cid}/options/applied")
+def customer_options_applied(cid: str) -> dict:
+    """The options this customer chose to plan with (the plan assumes them; the customer does each one)."""
+    _need_customer(cid)
+    from ..planning import options
+
+    return {"options": options.applied_cards(cid)}
+
+
+@app.post("/api/customers/{cid}/options/apply")
+def customer_options_apply(cid: str, body: OptionsIn) -> dict:
+    """Plan with these options: saved only when, together, they close the gap. Empty keys = plan without any."""
+    _need_customer(cid)
+    from ..planning import options
+
+    keys = [k for k in body.keys if k in options.APPLYABLE]
+    if not keys:
+        options.save_applied(cid, [])
+        return {"options": [], "check": None}
+    r = options.check(cid, keys)
+    if not r["closes"]:
+        raise HTTPException(422, f"Those still leave ${r['gap_after']:,.0f}/mo short")
+    options.save_applied(cid, keys)
+    return {"options": options.applied_cards(cid), "check": r}
+
+
 # ---------- agent-facing numbers ----------
 
 @app.get("/api/customers/{cid}/summary")

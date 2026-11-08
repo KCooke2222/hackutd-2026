@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import { api, fmtDuration } from '../lib/api'
-import type { ApprovePreview, BalanceSheet, Proposal, RealityCheck as RC, ReplayMeta, ReplayRun, SimV2, Tracking } from '../lib/api'
+import type { AppliedOption, ApprovePreview, BalanceSheet, Proposal, RealityCheck as RC, ReplayMeta, ReplayRun, SimV2, Tracking } from '../lib/api'
 import { isV2, knobsFrom, planFrom } from '../lib/flow'
 import type { Knobs, Preview, Schedule } from '../lib/flow'
 import Snapshot from '../components/flow/Snapshot'
@@ -74,6 +74,12 @@ export default function Home() {
     return on
   }
   const [reality, setReality] = useState<RC | null>(null)
+  // Options the customer chose to close an underwater gap; the agent plans with them.
+  const [applied, setApplied] = useState<AppliedOption[]>([])
+  function loadReality(c: string) {
+    api<RC>(`/customers/${c}/reality-check`).then(setReality).catch(() => setReality(null))
+    api<{ options: AppliedOption[] }>(`/customers/${c}/options/applied`).then((r) => setApplied(r.options)).catch(() => setApplied([]))
+  }
   const [planTab, setPlanTab] = useState<'plan' | 'whatif'>('plan')
   // For the plan page: approve's exact Nessie calls, and the same plan without its suggested cuts (net worth chart).
   const [pv, setPv] = useState<ApprovePreview | null>(null)
@@ -128,7 +134,7 @@ export default function Home() {
       })
     }
     api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch((e) => setErr(e.message))
-    api<RC>(`/customers/${cid}/reality-check`).then(setReality).catch(() => setReality(null))
+    setApplied([]); loadReality(cid)
     api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => {
       const v2 = ps.filter((p) => isV2(p)).sort((a, b) => b.created_at.localeCompare(a.created_at))
       setPast(v2)
@@ -292,23 +298,30 @@ export default function Home() {
       {screen === 2 && ai && knobs && planTab === 'plan' && (
         <PlanReport ai={ai} baseline={outlook?.baseline ?? null} noCuts={extras?.no_cuts ?? null} preview={pv} schedule={extras?.schedule ?? null}
           underwater={reality && !reality.realistic ? (
-            <>
-              <RealityCheck rc={reality} />
-              <UnderwaterOptions key={cid} cid={cid} cards={ai.simulation.explain?.underwater_options} noHelp={ai.simulation.explain?.underwater_not_helping} />
-            </>
+            <UnderwaterOptions key={cid} cid={cid} gap={reality.gap_per_month} cards={ai.simulation.explain?.underwater_options} noHelp={ai.simulation.explain?.underwater_not_helping}
+              onApplied={() => { loadReality(cid); findPlan() }} />
+          ) : undefined}
+          builtOn={applied.length ? (
+            <div className="card">
+              <h2 style={{ margin: '0 0 4px' }}>Built on what you'll do</h2>
+              <ol className="pr-steps">
+                {applied.map((o) => (
+                  <li key={o.key}><span><b>{o.title}</b></span><span className="runs"><span className="tag warn">You do it</span></span>
+                    <span className="sub">{o.how}{o.link && <> · <a href={o.link} target="_blank" rel="noreferrer">where</a></>}</span></li>
+                ))}
+              </ol>
+            </div>
           ) : undefined}>
           <AgentActions title={ai.status === 'pending' ? 'What the agent will do on approve' : 'What approve does'} {...callsFor(pv, extras?.schedule)}
             note={pv && (!pv.nessie_enabled || !pv.seeded) ? "This customer isn't set up in Nessie yet: approve records these calls without sending them." : undefined}>
             {outlook && !outlook.valid && <div className="error">{outlook.reasons.join('; ')}</div>}
             {err && <div className="error">{err}</div>}
-            {ai.status === 'pending'
-              ? (
-                <div className="actions" style={{ marginTop: 14 }}>
-                  <button className="primary big" onClick={approve} disabled={busy || (outlook != null && !outlook.valid)}>{busy ? 'Approving…' : 'Approve'}</button>
-                  <button className="big" onClick={reject} disabled={busy}>Reject</button>
-                </div>
-              )
-              : <div className="small muted" style={{ marginTop: 10 }}>This plan is {ai.status}; only a pending plan can be approved.</div>}
+            {ai.status === 'pending' && (
+              <div className="actions" style={{ marginTop: 14 }}>
+                <button className="primary big" onClick={approve} disabled={busy || (outlook != null && !outlook.valid)}>{busy ? 'Approving…' : 'Approve'}</button>
+                <button className="big" onClick={reject} disabled={busy}>Reject</button>
+              </div>
+            )}
           </AgentActions>
         </PlanReport>
       )}

@@ -12,6 +12,9 @@ are all from here.
 from __future__ import annotations
 
 import copy
+import json
+import sqlite3
+from datetime import datetime, timezone
 
 from . import wealth
 
@@ -115,8 +118,59 @@ NO_HELP = {
 }
 
 
+APPLYABLE = {k for k, (_, fn, _) in OPTIONS.items() if callable(fn)}  # options a plan can be built on
+
+
+# ---- options the customer said they'll do: the planner builds on them (wealth.context applies them) ----
+
+def _db() -> sqlite3.Connection:
+    from ..data import store
+
+    c = sqlite3.connect(store.DB_PATH)
+    c.execute("create table if not exists applied_options (customer_id text primary key, keys json not null, at text not null)")
+    return c
+
+
+def applied(customer_id: str) -> list[str]:
+    """The modelled options this customer chose to plan with (e.g. IDR, a hardship rate), else []."""
+    try:
+        with _db() as c:
+            r = c.execute("select keys from applied_options where customer_id=?", (customer_id,)).fetchone()
+    except sqlite3.Error:
+        return []
+    return [k for k in json.loads(r[0]) if k in APPLYABLE] if r else []
+
+
+def save_applied(customer_id: str, keys: list[str]) -> list[str]:
+    keys = [k for k in dict.fromkeys(keys) if k in APPLYABLE]
+    with _db() as c:
+        if keys:
+            c.execute("insert or replace into applied_options values (?, ?, ?)",
+                      (customer_id, json.dumps(keys), datetime.now(timezone.utc).isoformat(timespec="seconds")))
+        else:
+            c.execute("delete from applied_options where customer_id=?", (customer_id,))
+    return keys
+
+
+def apply_saved(ctx: dict, customer_id: str) -> None:
+    """Apply the saved options to a fresh planning context (called by wealth.context)."""
+    keys = applied(customer_id)
+    for k in keys:
+        OPTIONS[k][1](ctx, None)
+    ctx["applied_options"] = keys
+
+
+def applied_cards(customer_id: str) -> list[dict]:
+    return [{"key": k, "title": OPTIONS[k][0], "how": HOW.get(k, (None, None))[0], "link": HOW.get(k, (None, None))[1]}
+            for k in applied(customer_id)]
+
+
+def _raw(customer_id: str, keep_months: float | None = None) -> dict:
+    return wealth.context(customer_id, keep_months=keep_months, with_options=False)
+
+
 def _ctx_with(customer_id: str, keys: list[str], extra_income: float | None, base: dict | None = None) -> dict:
-    ctx = wealth.context(customer_id, keep_months=SMALL_CUSHION_MONTHS) if "smaller_cushion" in keys else copy.deepcopy(base or wealth.context(customer_id))
+    ctx = _raw(customer_id, SMALL_CUSHION_MONTHS) if "smaller_cushion" in keys else copy.deepcopy(base or _raw(customer_id))
     for k in keys:
         fn = OPTIONS.get(k, (None, None, None))[1]
         if callable(fn):
@@ -130,19 +184,28 @@ def _gap(rc: dict) -> float:
 
 def check(customer_id: str, keys: list[str], extra_income: float | None = None) -> dict:
     """The reality check with the picked options applied together: does the gap close?"""
-    base_ctx = wealth.context(customer_id)
+    base_ctx = _raw(customer_id)
     before = wealth.reality_check(customer_id, ctx=copy.deepcopy(base_ctx))
-    keys = [k for k in keys if k in OPTIONS]
-    after = wealth.reality_check(customer_id, ctx=_ctx_with(customer_id, keys, extra_income, base_ctx))
-    gb, ga = _gap(before), _gap(after)
-    return {"picked": keys, "extra_income": extra_income, "gap_before": round(gb, 2), "gap_after": round(ga, 2),
+    keys = [k for k in dict.fromkeys(keys) if k in OPTIONS]
+    gb = _gap(before)
+    # One option at a time, in the order given: what each adds on top of the ones before it (the gap bar).
+    steps, prev, acc, after = [], gb, [], before
+    for k in keys:
+        acc.append(k)
+        if OPTIONS[k][1]:
+            after = wealth.reality_check(customer_id, ctx=_ctx_with(customer_id, acc, extra_income, base_ctx))
+        g = _gap(after)
+        steps.append({"key": k, "title": OPTIONS[k][0], "closes": round(max(prev - g, 0.0), 2), "gap_after": round(g, 2)})
+        prev = g
+    ga = _gap(after)
+    return {"picked": keys, "extra_income": extra_income, "gap_before": round(gb, 2), "gap_after": round(ga, 2), "steps": steps,
             "closes": bool(after.get("realistic")), "cash_runs_out": after.get("cash_runs_out"),
             "principal_paydown": (after.get("monthly") or {}).get("principal_paydown"),
             "message": after.get("message"), "not_modelled": [k for k in keys if not OPTIONS[k][1]]}
 
 
 def underwater_options(customer_id: str) -> dict:
-    base_ctx = wealth.context(customer_id)
+    base_ctx = _raw(customer_id)
     before = wealth.reality_check(customer_id, ctx=copy.deepcopy(base_ctx))
     gap = _gap(before)
     ok = _applies(base_ctx)

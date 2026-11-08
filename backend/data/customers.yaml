@@ -1190,19 +1190,19 @@ customers:
       - {summer: 6, trip2: 3, weekend: [9, 8], birthdays: [2, 11, 5], home_big: [10, 6], car_big: 12, oil: 2, medical: [6, 9, 2], family: [12, 3]}
       - {summer: 7, trip2: 3, weekend: [3, 7], birthdays: [3, 6, 1], home_big: [5, 3], car_big: 2, oil: 1, medical: [9, 12, 8], family: [6, 12]}
   C027:
-    income: 3578.18
-    spending: 3324.91
+    income: 4660.00
+    spending: 2950.00
     credit_limit: 8189.38
     accounts:
       checking: {balance: 8567.16}
       savings: {balance: 9766.18}
       ira: {balance: 78140.62}
       credit_card: {balance: 6362.53, monthly_payment: 190.88, apr_pct: 22.5}
-      mortgage: {balance: 307829.42, monthly_payment: 2000.89, apr_pct: 6.5}
+      mortgage: {balance: 245000.00, monthly_payment: 1549.00, apr_pct: 6.5}
     linked:
-    - {id: L-C027-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 389000.0, secures: A-C027-MORTGAGE}
+    - {id: L-C027-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 310000.0, secures: A-C027-MORTGAGE}
     - {id: L-C027-PROPERTY-2, type: property, kind: vehicle, name: Car (owned), institution: Estimated value, balance: 9300.0}
-    - {id: L-C027-STUDENT_LOAN-1, type: student_loan, kind: federal, name: Federal Direct Loan, institution: Dept. of Education (servicer), balance: 34460.0, apr_pct: 4.53, min_payment: 357.64}
+    - {id: L-C027-STUDENT_LOAN-1, type: student_loan, kind: federal, name: Federal Direct Loan, institution: Dept. of Education (servicer), balance: 45000.0, apr_pct: 4.53, min_payment: 466.00}
     - {id: L-C027-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 1030.89, apr_pct: 27.59, min_payment: 35.0}
     bills:
       housing:

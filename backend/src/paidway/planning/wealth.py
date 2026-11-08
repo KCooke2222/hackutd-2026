@@ -158,8 +158,9 @@ def _label(i: int) -> str:
     return f"{k // 12}-{k % 12 + 1:02d}"
 
 
-def context(customer_id: str, keep_months: float | None = None, live: bool = True) -> dict:
-    """Everything the simulator and validator need, computed once."""
+def context(customer_id: str, keep_months: float | None = None, live: bool = True, with_options: bool = True) -> dict:
+    """Everything the simulator and validator need, computed once. `with_options`: apply the underwater options
+    the customer chose to plan with (options.applied: e.g. an IDR payment, a hardship rate); False = as the data is."""
     keep = A.get("default_emergency_months") if keep_months is None else float(keep_months)
     prof = pnc_data.profile(customer_id) or {}
     rows = balance_sheet.accounts(customer_id, live=live)
@@ -228,7 +229,12 @@ def context(customer_id: str, keep_months: float | None = None, live: bool = Tru
         # Lump-sum limit: cash above the buffer.
         "lump_available": {"cash": round(min(cash, cash_avail), 2), "cash_total": round(cash_avail, 2)},
         "hurdle_pct": hurdle,
+        "applied_options": [],
     }
+    if with_options:
+        from . import options
+
+        options.apply_saved(ctx, customer_id)
     ctx["movable_flows"] = movable_flows(ctx)
     ctx["flexible_monthly"] = flexible_monthly(ctx)
     return ctx

@@ -96,7 +96,10 @@ export type OptionCard = {
 export type OptionsCheck = {
   picked: string[]; gap_before: number; gap_after: number; closes: boolean
   cash_runs_out: string | null; principal_paydown: number | null; message: string; not_modelled: string[]
+  steps?: { key: string; title: string; closes: number; gap_after: number }[]
 }
+/** An option the customer chose to plan with (saved server-side); the plan is built on it. */
+export type AppliedOption = { key: string; title: string; how: string; link: string | null }
 
 // ---------- talk to the plan (PR 4) ----------
 

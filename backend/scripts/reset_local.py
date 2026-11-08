@@ -24,8 +24,10 @@ def reset_local(customer_id: str) -> dict:
                              f"where customer_id=? and id in ({marks}) and status!='pending'", (customer_id, *keep)).rowcount
         has_months = c.execute("select 1 from sqlite_master where type='table' and name='demo_months'").fetchone()
         months = c.execute("delete from demo_months where customer_id=?", (customer_id,)).rowcount if has_months else 0
+        has_opts = c.execute("select 1 from sqlite_master where type='table' and name='applied_options'").fetchone()
+        opts = c.execute("delete from applied_options where customer_id=?", (customer_id,)).rowcount if has_opts else 0
     return {"customer": customer_id, "proposals_deleted": deleted, "replay_proposals_kept": len(keep),
-            "reopened": reopened, "demo_months_deleted": months}
+            "reopened": reopened, "demo_months_deleted": months, "applied_options_cleared": opts}
 
 
 if __name__ == "__main__":
