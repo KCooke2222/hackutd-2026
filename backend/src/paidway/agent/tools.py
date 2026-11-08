@@ -291,8 +291,9 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
             st["cap_notes"] += [n for n in notes if n not in st["cap_notes"]]
             keep = given["keep_emergency_months"]
             parent_plan = _parent_plan(st)
-            if parent_plan:  # a chat edit: the previous plan's cushion holds unless a rule moves it
-                keep = float(parent_plan.get("keep_emergency_months") or keep)
+            if parent_plan:  # a chat edit: the previous plan's cushion holds unless a rule sets it
+                m = (cons or {}).get("min_emergency_months")  # "keep 2 months" lowers it too (What if tab)
+                keep = float(m) if m is not None else float(parent_plan.get("keep_emergency_months") or keep)
             inputs = solver_inputs(cons, keep, given["spending_targets"], spend if cons else None)
             declined = _declined(kwargs, inputs)
             inputs["declined_cuts"] = declined

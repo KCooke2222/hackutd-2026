@@ -326,7 +326,11 @@ def _run_shock(ctx: dict, plan: dict | None, shock: dict | None = None) -> dict:
     first_pay: dict[str, float] = {}  # month-1 payment per debt, as wealth._run reports it
     high_free = 0 if months[0]["high_cost_debt"] <= 0.01 else None
     short_reported = False
-    for i in range(1, H + 1):
+    # Past the horizon, keep stepping (up to wealth.PAYOFF_SEARCH_MONTHS) only to find when high-cost debt
+    # reaches $0, as wealth._run does; the reported months, net worth, interest and problems stay within it.
+    for i in range(1, max(H, wealth.PAYOFF_SEARCH_MONTHS) + 1):
+        if i > H and high_free is not None:
+            break
         cash *= 1 + a["cash_yield_pct"] / 1200
         for k in inv:
             inv[k] *= 1 + (rets[k] or 0) / 1200
@@ -335,7 +339,8 @@ def _run_shock(ctx: dict, plan: dict | None, shock: dict | None = None) -> dict:
         for d in debts.values():
             it = d["bal"] * d["apr_pct"] / 1200
             d["bal"] += it
-            d["interest"] += it
+            if i <= H:
+                d["interest"] += it
             if d["is_pnc_card"]:
                 d["bal"] += charges
         left = 0.0
@@ -347,7 +352,7 @@ def _run_shock(ctx: dict, plan: dict | None, shock: dict | None = None) -> dict:
             for k, d in debts.items():  # autopay statement in full, then minimums
                 due = d["bal"] if (k in autopay and k in was_zero) else min(d["min_payment"], d["bal"])
                 pay = min(due, left)
-                if pay + 0.005 < due and not short_reported:
+                if pay + 0.005 < due and not short_reported and i <= H:
                     problems.append(f"{wealth._label(i)}: budget can't cover {d['name']}'s payment")
                     short_reported = True
                 d["bal"] -= pay
@@ -366,9 +371,10 @@ def _run_shock(ctx: dict, plan: dict | None, shock: dict | None = None) -> dict:
             cash += s_delta[i] if i < len(s_delta) else 0.0
             if cash < 0 and borrow_to is not None:
                 debts[borrow_to]["bal"] += -cash
-                borrowed += -cash
+                if i <= H:
+                    borrowed += -cash
                 cash = 0.0
-        if cash < min_cash:
+        if cash < min_cash and i <= H:
             min_cash, min_cash_i = cash, i
         for d in debts.values():
             if d["bal"] <= 0.005:
@@ -377,6 +383,10 @@ def _run_shock(ctx: dict, plan: dict | None, shock: dict | None = None) -> dict:
                     d["payoff"] = i
             elif d["payoff"] is not None and d["is_card"]:
                 d["payoff"] = None  # card refilled
+        if i > H:
+            if sum(d["bal"] for d in debts.values() if d["high_cost"]) <= 0.01:
+                high_free = i
+            continue
         # A plan may not take cash below the buffer.
         if plan is not None and cash < floor and not cash_problem:
             problems.append(f"{wealth._label(i)}: cash ${cash:,.0f} falls below the {ctx['keep_months']:g}-month buffer "
@@ -409,3 +419,72 @@ def _run_shock(ctx: dict, plan: dict | None, shock: dict | None = None) -> dict:
         "min_cash_month": wealth._label(min_cash_i),
         "borrowed_on_card": round(borrowed, 2),
     }
+
+
+# ---------------- the cushion picker (What if tab) ----------------
+
+CUSHION_CHOICES = (2.0, 3.0, 4.0)
+CASH_SOURCES = ("cash", "outside_savings")  # lump sums paid from savings (solver.CASH_POOLS)
+
+
+def _cushion_plan(customer_id: str, plan: dict, months: float, live: bool) -> tuple[dict, dict]:
+    """`plan` re-solved for a different cushion: same monthly budget, redirects and cuts, so only
+    how much savings goes to debt today (and so the payoff dates) changes."""
+    from . import solver
+
+    budget = float(plan.get("monthly_debt_budget") or 0)
+    inp = {"keep_emergency_months": months,
+           "spending_targets": [{k: v for k, v in t.items() if k not in ("source", "buys", "lumpy")}
+                                for t in plan.get("spending_targets") or []],
+           "redirect_flows": {r["flow"]: r["amount_per_month"] for r in plan.get("redirects") or []},
+           "min_debt_budget": budget, "max_debt_budget": budget}
+    return solver.build_plan(customer_id, inp, live=live)
+
+
+def _series(sim: dict) -> list[dict]:
+    return [{"month": m["month"], "cash": round(m["cash"]), "debt": round(m["high_cost_debt"])} for m in sim["months"]]
+
+
+def cushion_options(customer_id: str, plan: dict, *, live: bool = True) -> dict:
+    """For a 2 / 3 / 4-month cushion (plus the plan's own, if different): what it pays from savings now, when
+    high-cost debt hits $0, net worth in 2 years vs this plan, lowest savings, the month-by-month savings and
+    high-cost debt with and without a 3-month job loss, and how much each preset shock puts on the card.
+    The plan's own cushion uses `plan` as given; the others re-solve it (see _cushion_plan). Read-only."""
+    cur = float(plan.get("keep_emergency_months") or A.get("default_emergency_months"))
+    choices = sorted({*CUSHION_CHOICES, cur})
+    job = next(p for p in PRESETS if p["id"] == "job_loss_3m")
+    out, errors = [], {}
+    for n in choices:
+        try:
+            if n == cur:
+                p, ctx = plan, wealth.context(customer_id, keep_months=n, live=live)
+            else:
+                p, ctx = _cushion_plan(customer_id, plan, n, live)
+        except Exception as e:  # noqa: BLE001 - a cushion the data can't support is just not offered
+            errors[f"{n:g}"] = str(e)
+            continue
+        plain = _run_shock(ctx, p)
+        shocks = {sc["id"]: _run_shock(ctx, p, build_shock(ctx, sc["events"])) for sc in PRESETS}
+        lumps = p.get("lump_sums") or []
+        out.append({
+            "months": n,
+            "current": n == cur,
+            "emergency_buffer": round(ctx["emergency_buffer"], 2),
+            "pay_from_savings": round(sum(float(l["amount"]) for l in lumps if l.get("source") in CASH_SOURCES), 2),
+            "sell_investments": round(sum(float(l["amount"]) for l in lumps if l.get("source") not in CASH_SOURCES), 2),
+            "high_cost_debt_free": plain["high_cost_debt_free"],
+            "net_worth_24m": plain["net_worth_24m"],
+            "min_cash": plain["min_cash"],
+            "min_cash_month": plain["min_cash_month"],
+            "below_buffer": plain["min_cash"] < ctx["emergency_buffer"] - 1,
+            "series": _series(plain),
+            "job_loss_series": _series(shocks[job["id"]]),
+            "shocks": [{"id": sc["id"], "label": sc["label"], "borrowed_on_card": shocks[sc["id"]]["borrowed_on_card"],
+                        "min_cash": shocks[sc["id"]]["min_cash"]} for sc in PRESETS],
+        })
+    base = next((o for o in out if o["current"]), None)
+    for o in out:
+        o["net_worth_delta"] = round(o["net_worth_24m"] - base["net_worth_24m"], 2) if base else None
+    same = len({(o["pay_from_savings"], o["sell_investments"]) for o in out}) <= 1
+    return {"current_months": cur, "monthly_expenses": round(base["emergency_buffer"] / cur, 2) if base and cur else None,
+            "options": out, "same_plan": same, "errors": errors}

@@ -83,3 +83,16 @@ def test_monte_carlo_range():
     for m in a["months"]:
         assert m["p10"] <= m["p50"] <= m["p90"]
     assert 0 <= a["p_high_cost_free"] <= 1
+
+
+def test_cushion_options_trade_cash_for_safety():
+    r = S.cushion_options(CID, REFERENCE, live=False)
+    by = {o["months"]: o for o in r["options"]}
+    assert {2.0, 3.0, 4.0} <= set(by) and by[REFERENCE["keep_emergency_months"]]["current"]
+    assert by[REFERENCE["keep_emergency_months"]]["net_worth_delta"] == 0
+    # More cushion: less paid from savings now, and a 3-month job loss puts no more on the card.
+    assert by[2.0]["pay_from_savings"] >= by[4.0]["pay_from_savings"]
+    job = {n: next(s for s in o["shocks"] if s["id"] == "job_loss_3m")["borrowed_on_card"] for n, o in by.items()}
+    assert job[4.0] <= job[2.0]
+    o = by[2.0]
+    assert len(o["series"]) == len(o["job_loss_series"]) == 25 and {"month", "cash", "debt"} <= set(o["series"][0])
