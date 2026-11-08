@@ -54,16 +54,17 @@ def _idr(ctx: dict, _amt=None):
     _lower_min(ctx, lambda d: d["account_type"] == "student_loan", lambda d: pay)
 
 
+def _card_min(balance: float, apr_pct: float) -> float:
+    """The usual card minimum: the month's interest plus 1% of the balance (at least $25)."""
+    return round(max(balance * apr_pct / 1200 + 0.01 * balance, min(25.0, balance)), 2)
+
+
 def _hardship(ctx: dict, _amt=None):
-    for d in ctx["debts"]:
-        if d["is_card"] and d["apr_pct"] > HARDSHIP_APR_PCT:
-            d["apr_pct"] = HARDSHIP_APR_PCT
-
-
-def _income(ctx: dict, amt=None):
-    f = ctx["flows"]
-    f["income"] += float(amt or 0)
-    f["residual"] += float(amt or 0)
+    """A hardship rate cuts the interest and, with it, the minimum the card asks for each month."""
+    cards = [d for d in ctx["debts"] if d["is_card"] and d["apr_pct"] > HARDSHIP_APR_PCT]
+    for d in cards:
+        d["apr_pct"] = HARDSHIP_APR_PCT
+    _lower_min(ctx, lambda d: d in cards, lambda d: _card_min(d["balance"], HARDSHIP_APR_PCT))
 
 
 def _applies(ctx: dict) -> dict[str, bool]:
@@ -85,17 +86,26 @@ OPTIONS: dict[str, tuple[str, object, str]] = {
     "idr_student_loan": ("Income-driven repayment", _idr, "Ask the federal loan servicer for an income-driven plan."),
     "card_hardship": ("Card hardship program", _hardship, f"Ask each card issuer for a hardship rate (often about {HARDSHIP_APR_PCT}%)."),
     "smaller_cushion": ("Smaller cash cushion", "cushion", f"Keep {SMALL_CUSHION_MONTHS:g} month of expenses as cash and put the rest on the cards."),
-    "extra_income": ("Earn more each month", _income, "A room rental, extra hours or side work."),
+    "extra_income": ("Earn more each month", None, "A room rental, extra hours or side work; hard to count on, so not modelled."),
     "mortgage_help": ("Ask the mortgage lender for help", None, "A loan modification, forbearance or refinance can lower the payment; the lender decides."),
     "downsize": ("Sell or downsize the home", None, "Frees the largest payment; a big life decision with selling costs."),
     "ira_withdrawal": ("Withdraw from the IRA", None, "Last resort: taxes plus a 10% penalty before 59½, and lost retirement growth."),
 }
 
 
+NEVER_RECOMMEND = {"extra_income", "ira_withdrawal", "downsize"}  # the customer's call, never pre-ticked
+TAIL = ["mortgage_help", "downsize", "extra_income", "ira_withdrawal"]  # stated-plainly cards, in this order
+NO_HELP = {
+    "pause_ira": "the gap already assumes contributions are paused",
+    "smaller_cushion": "cash is already draining each month, so there's none spare to put on the debt",
+    "card_hardship": "the cards' minimums are already small next to the gap",
+}
+
+
 def _ctx_with(customer_id: str, keys: list[str], extra_income: float | None, base: dict | None = None) -> dict:
     ctx = wealth.context(customer_id, keep_months=SMALL_CUSHION_MONTHS) if "smaller_cushion" in keys else copy.deepcopy(base or wealth.context(customer_id))
     for k in keys:
-        fn = OPTIONS.get(k, (None, None))[1]
+        fn = OPTIONS.get(k, (None, None, None))[1]
         if callable(fn):
             fn(ctx, extra_income)
     return ctx
@@ -123,23 +133,23 @@ def underwater_options(customer_id: str) -> dict:
     before = wealth.reality_check(customer_id, ctx=copy.deepcopy(base_ctx))
     gap = _gap(before)
     ok = _applies(base_ctx)
-    cards = []
+    cards, not_helping = [], []
     for k, (title, fn, detail) in OPTIONS.items():
         if not ok.get(k):
             continue
         card = {"key": k, "title": title, "detail": detail, "modelled": bool(fn), "closes_per_month": None,
-                "cash_runs_out": None}
+                "cash_runs_out": None, "never_recommend": k in NEVER_RECOMMEND}
         if fn:
-            amt = None
-            if k == "extra_income":  # the income that alone would close it, rounded up to $50
-                amt = float(-(-(gap or 0) // 50) * 50) or 100.0
-                card["amount"] = amt
-            rc = wealth.reality_check(customer_id, ctx=_ctx_with(customer_id, [k], amt, base_ctx))
+            rc = wealth.reality_check(customer_id, ctx=_ctx_with(customer_id, [k], None, base_ctx))
             card["closes_per_month"] = round(gap - _gap(rc), 2)
             card["closes_gap"] = bool(rc.get("realistic"))
             card["cash_runs_out"] = rc.get("cash_runs_out")
+            if card["closes_per_month"] < 1:  # helps nothing on its own: one line why, not a card
+                not_helping.append({"key": k, "title": title, "why": NO_HELP.get(k, "closes none of the gap")})
+                continue
         if k == "idr_student_loan":
             card["new_payment"] = _idr_payment(base_ctx)
         cards.append(card)
+    cards.sort(key=lambda c: (not c["modelled"], TAIL.index(c["key"]) if c["key"] in TAIL else -1))
     return {"realistic": bool(before.get("realistic")), "gap_per_month": round(gap, 2),
-            "cash_runs_out": before.get("cash_runs_out"), "options": cards}
+            "cash_runs_out": before.get("cash_runs_out"), "options": cards, "not_helping": not_helping}

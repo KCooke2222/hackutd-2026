@@ -4,22 +4,20 @@ import { api, usd } from '../../lib/api'
 import type { OptionCard, OptionsCheck } from '../../lib/api'
 
 /** "Which of these would you do?": tick options, re-check whether the monthly gap closes. */
-export default function UnderwaterOptions({ cid, cards: given }: { cid: string; cards?: OptionCard[] }) {
+type NoHelp = { key: string; title: string; why: string }
+
+export default function UnderwaterOptions({ cid, cards: given, noHelp: givenNo }: { cid: string; cards?: OptionCard[]; noHelp?: NoHelp[] }) {
   const [cards, setCards] = useState<OptionCard[]>(given ?? [])
-  const [picked, setPicked] = useState<string[]>(() => (given ?? []).filter((c) => c.recommended).map((c) => c.key))
-  const [income, setIncome] = useState<number | ''>('')
+  const [noHelp, setNoHelp] = useState<NoHelp[]>(givenNo ?? [])
+  const [picked, setPicked] = useState<string[]>(() => (given ?? []).filter((c) => c.recommended && !c.never_recommend).map((c) => c.key))
   const [res, setRes] = useState<OptionsCheck | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
   useEffect(() => {
     if (given?.length) return
-    api<{ options: OptionCard[] }>(`/customers/${cid}/options`).then((o) => setCards(o.options)).catch((e) => setErr(String(e)))
+    api<{ options: OptionCard[]; not_helping: NoHelp[] }>(`/customers/${cid}/options`).then((o) => { setCards(o.options); setNoHelp(o.not_helping ?? []) }).catch((e) => setErr(String(e)))
   }, [cid, given])
-  useEffect(() => {
-    const inc = cards.find((c) => c.key === 'extra_income')
-    if (inc?.amount && income === '') setIncome(inc.amount)
-  }, [cards, income])
 
   if (!cards.length) return null
   const toggle = (k: string) => setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]))
@@ -27,7 +25,7 @@ export default function UnderwaterOptions({ cid, cards: given }: { cid: string; 
     setBusy(true); setErr('')
     try {
       setRes(await api<OptionsCheck>(`/customers/${cid}/options/check`, {
-        method: 'POST', body: JSON.stringify({ keys: picked, extra_income: income === '' ? null : income }),
+        method: 'POST', body: JSON.stringify({ keys: picked }),
       }))
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
@@ -45,21 +43,20 @@ export default function UnderwaterOptions({ cid, cards: given }: { cid: string; 
               {c.modelled
                 ? c.closes_per_month && c.closes_per_month > 0.5
                   ? <>Closes {usd(c.closes_per_month)}/mo of the gap{c.closes_gap ? ' (all of it)' : ''}.</>
-                  : <>Closes none of the gap on its own{c.cash_runs_out ? `; cash still runs out ${c.cash_runs_out}` : ''}.</>
+                  : <>Closes none of the gap on its own.</>
                 : <>Can't be modelled: depends on a lender or a decision.</>}
               {c.new_payment != null && <> New payment about {usd(c.new_payment)}/mo.</>}
               {' '}{c.why || c.detail}
             </div>
             {c.downside && <div className="small muted">Downside: {c.downside}</div>}
-            {c.key === 'extra_income' && picked.includes(c.key) && (
-              <div className="small" style={{ marginTop: 4 }}>
-                $/mo <input type="number" value={income} min={0} step={50} style={{ width: 90 }}
-                  onChange={(e) => setIncome(e.target.value === '' ? '' : Number(e.target.value))} />
-              </div>
-            )}
           </div>
         </label>
       ))}
+      {!!noHelp.length && (
+        <p className="small muted" style={{ margin: '8px 0 0' }}>
+          Not listed: {noHelp.map((n) => `${n.title.toLowerCase()} (${n.why})`).join('; ')}.
+        </p>
+      )}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 10 }}>
         <button className="primary" disabled={busy || !picked.length} onClick={check}>{busy ? 'Checking…' : 'Does it close the gap?'}</button>
         {err && <span className="small" style={{ color: 'var(--bad-ink)' }}>{err}</span>}

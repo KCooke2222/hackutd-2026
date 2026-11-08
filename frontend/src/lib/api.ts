@@ -71,6 +71,7 @@ export type Explain = {
   underwater?: string
   underwater_options?: OptionCard[]
   underwater_gap?: number
+  underwater_not_helping?: { key: string; title: string; why: string }[]
   warning?: string | null // talk to the plan: the cost of a worse change, written in code
   request?: string
   options?: { category: string; label: string; buys: string }[]
@@ -81,7 +82,7 @@ export type OptionCard = {
   key: string; title: string; detail: string; modelled: boolean
   closes_per_month: number | null; closes_gap?: boolean; cash_runs_out: string | null
   amount?: number; new_payment?: number
-  why?: string; downside?: string; recommended?: boolean; agent_skipped?: boolean
+  why?: string; downside?: string; recommended?: boolean; agent_skipped?: boolean; never_recommend?: boolean
 }
 export type OptionsCheck = {
   picked: string[]; gap_before: number; gap_after: number; closes: boolean

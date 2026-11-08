@@ -377,8 +377,10 @@ def _option_cards(under: dict | None, d: dict) -> list[dict]:
         return []
     by = {o["key"]: o for o in under["options"]}
     words = {o.get("key"): o for o in d.get("options") or [] if isinstance(o, dict) and o.get("key") in by}
-    rec = {k for k in d.get("recommend") or [] if k in by}
-    order = [*words, *[k for k in by if k not in words]]
+    rec = {k for k in d.get("recommend") or [] if k in by and not by[k].get("never_recommend")}
+    modelled = [k for k in by if by[k]["modelled"]]
+    order = [*[k for k in words if k in modelled], *[k for k in modelled if k not in words],
+             *[k for k in by if not by[k]["modelled"]]]  # plain ones keep code's order: earn more / IRA last
     return [{**by[k], "why": _words((words.get(k) or {}).get("why"), 140), "downside": _words((words.get(k) or {}).get("downside"), 140),
              "recommended": k in rec, "agent_skipped": k not in words} for k in order]
 
@@ -392,8 +394,9 @@ def _explain_v3(p: dict, d: dict, under: dict | None = None) -> dict:
     gain = round(sim["net_worth_24m"] - sim["baseline_net_worth_24m"])
     headline = f"High-cost debt $0 by {_month(sim.get('high_cost_debt_free'))}, {'+' if gain >= 0 else '-'}${abs(gain):,} net worth in 2 years"
     rc = sim.get("reality_check") or {}
-    if rc.get("realistic") is False:
-        headline = f"${rc.get('gap_per_month') or 0:,.0f}/mo short: {headline}"
+    if rc.get("realistic") is False:  # underwater: the gap leads, alone (a payoff date would contradict it)
+        runs = rc.get("cash_runs_out")
+        headline = f"${rc.get('gap_per_month') or 0:,.0f}/mo short" + (f", cash runs out {_month(runs)}" if runs else ": the debt keeps growing")
     net, gross, cur = b.get("net_paydown_per_month"), b.get("monthly_debt_budget"), b.get("current_net_paydown_per_month")
     summary = (f"You'd pay {_usd(gross)}/mo to debt; {_usd(net)} of it actually shrinks the balance (was {_usd(cur)}),"
                f" the rest covers new card purchases.") if net is not None else ""
@@ -418,7 +421,8 @@ def _explain_v3(p: dict, d: dict, under: dict | None = None) -> dict:
             "lumps_why": _words(d.get("lumps_why")), "downsides": [w for w in (_words(x, 140) for x in d.get("downsides") or []) if w][:3],
             "underwater": _words(d.get("underwater"), 300), "levers": levers, "cuts": cuts, "options": [],
             "underwater_options": _option_cards(under, d),
-            "underwater_gap": (under or {}).get("gap_per_month")}
+            "underwater_gap": (under or {}).get("gap_per_month"),
+            "underwater_not_helping": (under or {}).get("not_helping") or []}
 
 
 def build_graph(customer_id: str):

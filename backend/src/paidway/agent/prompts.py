@@ -223,8 +223,9 @@ Decide:
    Then work the `underwater` options (computed by code: closes_per_month is how much of the monthly
    gap each one closes on its own, solver-checked; null means it can't be modelled). For each option
    you'd put in front of this person, write why it fits them and its downside (<=15 words each),
-   ordered best first, and list in `recommend` the keys you'd pick together. Skip options that make
-   no sense for them. Note when one closes nothing because the gap already assumes it.
+   ordered best first, and list in `recommend` the keys you'd pick together. Never recommend
+   earning more, withdrawing from the IRA or selling the home: those are the customer's call. Skip
+   options that make no sense for them.
 
 Hard rule: write NO dollar amounts, percentages or dates anywhere. The app inserts every figure from
 the solver itself. Words only (category names, merchant names, account names are fine).

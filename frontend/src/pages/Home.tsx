@@ -266,7 +266,7 @@ export default function Home() {
       )}
       {screen === 1 && thinkingDone && !ai && reality && !reality.realistic && <RealityCheck rc={reality} />}
       {screen === 2 && reality && !reality.realistic && <RealityCheck rc={reality} />}
-      {screen === 2 && reality && !reality.realistic && <UnderwaterOptions key={cid} cid={cid} cards={ai?.simulation.explain?.underwater_options} />}
+      {screen === 2 && reality && !reality.realistic && <UnderwaterOptions key={cid} cid={cid} cards={ai?.simulation.explain?.underwater_options} noHelp={ai?.simulation.explain?.underwater_not_helping} />}
       {screen === 2 && ai && <WhyPlan ex={ai.simulation.explain} />}
       {screen === 2 && ai && knobs && (
         <PlanEditor ai={ai} knobs={knobs} setKnobs={setKnobs}
