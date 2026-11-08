@@ -9,8 +9,14 @@ every payment), and proposes one plan to reach $0. **The agent can't move money.
 a pending proposal; a human approves, edits or rejects it, and only the approve endpoint can call
 Nessie's write API.
 
-- `backend/`: FastAPI (uv). PNC CSVs in `backend/data/pnc/`, Nessie client (`nessie/read.py`,
-  `nessie/write.py`), LangGraph ReAct agent on Nemotron (`agent/`), SQLite for proposals.
+- `backend/`: FastAPI (uv), package `backend/src/paidway/`:
+  - `api/`: the FastAPI app (`main.py`) and its routers (insights, scenarios, timeline, tracking).
+  - `data/`: PNC CSVs, linked accounts, customer specs, Nessie seeding, our SQLite store.
+  - `planning/`: deterministic math: finance, balance sheet, wealth simulator, solver, insights,
+    timeline, scenarios, tracking, assumptions.
+  - `agent/`: LangGraph agent on Nemotron, tools, validator, execute (approve only), background runs, replays.
+  - `nessie/`: Nessie client (`read.py`, `write.py`).
+  - `config.py`: settings from `.env`.
 - `frontend/`: React + Vite + TS. One page: snapshot → agent thinking → plan (sliders, month by month) → done.
   `/?plan=last` (or `/?plan=<id>`) opens a saved run without calling the model.
 
@@ -101,7 +107,7 @@ empty `PNC <id>` customers.
 
 Nessie only has Checking / Savings / Credit Card accounts (plus home/auto/small-business loans), and
 PNC's data has no student loans, brokerage or property. Those are **linked external accounts**:
-deterministic synthetic rows (each customer's `linked:` list in `backend/data/customers.yaml`, read by `zeroday/linked.py`) stored in the
+deterministic synthetic rows (each customer's `linked:` list in `backend/data/customers.yaml`, read by `paidway/data/linked.py`) stored in the
 SQLite `linked_accounts` table. `balance_sheet.py` merges PNC (with live Nessie balances where seeded)
 and linked accounts, then computes:
 

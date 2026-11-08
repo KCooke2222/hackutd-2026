@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import argparse
 
-from zeroday import solver, wealth
+from paidway.planning import solver, wealth
 
 
 def money(x: float | None) -> str:

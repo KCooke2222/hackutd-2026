@@ -4,8 +4,13 @@ import copy
 
 import pytest
 
-from zeroday import wealth
-from zeroday.agent.validator import PlanRejected, missing_lumps, validate_plan, validate_plan_v2
+from paidway.agent.validator import (
+    PlanRejected,
+    missing_lumps,
+    validate_plan,
+    validate_plan_v2,
+)
+from paidway.planning import wealth
 
 CID = "C001"
 STORE, PNC_CARD, LOAN, STUDENT = "L-C001-CREDIT_CARD-2", "A-C001-CREDIT_CARD", "A-C001-PERSONAL_LOAN", "L-C001-STUDENT_LOAN-1"
@@ -108,7 +113,7 @@ def test_reference_plan_feasible_and_better(reference, baseline):
 
 def test_net_worth_is_honest(reference, baseline):
     """Month 0 matches the balance sheet, and the gain is no more than interest saved + cuts (+ a little yield)."""
-    from zeroday import balance_sheet
+    from paidway.planning import balance_sheet
 
     assert reference["months"][0]["net_worth"] == pytest.approx(balance_sheet.balance_sheet(CID)["totals"]["net_worth"], abs=1)
     gain = reference["net_worth_24m"] - baseline["net_worth_24m"]

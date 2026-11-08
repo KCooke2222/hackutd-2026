@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from zeroday import linked
+from paidway.data import linked
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 

@@ -1,10 +1,10 @@
 """PR 6 scenarios on C001: shocks through the wealth month loop, adjusted plan, verdicts, Monte Carlo range."""
 
 import pytest
-
 from test_wealth import CID, REFERENCE
-from zeroday import scenarios as S
-from zeroday import wealth
+
+from paidway.planning import scenarios as S
+from paidway.planning import wealth
 
 
 @pytest.fixture(scope="module")

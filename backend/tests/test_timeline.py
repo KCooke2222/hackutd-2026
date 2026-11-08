@@ -1,11 +1,10 @@
 """Plan over time (timeline.py) on C001: per-account series, payments that match the simulation, change list."""
 
 from fastapi.testclient import TestClient
-
-from zeroday import timeline, wealth
-from zeroday.api import app
-
 from test_wealth import LOAN, PNC_CARD, REFERENCE, STORE, STUDENT
+
+from paidway.api.main import app
+from paidway.planning import timeline, wealth
 
 CID = "C001"
 

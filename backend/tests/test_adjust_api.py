@@ -5,7 +5,6 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
-
 from test_wealth import CID, REFERENCE
 
 
@@ -32,8 +31,10 @@ class FakeLLM:
 
 @pytest.fixture()
 def env(tmp_path, monkeypatch):
-    from zeroday import api, balances, store, wealth
-    from zeroday.agent import graph
+    from paidway.agent import graph
+    from paidway.api import main as api
+    from paidway.data import balances, store
+    from paidway.planning import wealth
 
     monkeypatch.setattr(store, "DB_PATH", tmp_path / "t.sqlite3")
     monkeypatch.setattr(balances.read, "enabled", lambda: False)

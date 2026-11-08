@@ -237,9 +237,9 @@ def spec_from_original(src=ORIGINAL):
 def generate(spec, out_dir=OUT, *, seeded_linked=False):
     """Write every CSV in `out_dir` plus the manifest from `spec`. Returns (manifest, knobs used per customer).
 
-    seeded_linked: draw linked accounts with zeroday.linked's seeded generator instead of the spec's (--init-spec).
+    seeded_linked: draw linked accounts with paidway.data.linked's seeded generator instead of the spec's (--init-spec).
     """
-    from zeroday import linked
+    from paidway.data import linked
 
     out_dir = Path(out_dir)
     history = spec.get('history') or {}
@@ -682,7 +682,7 @@ def aggregates(data_dir):
     """{(customer, month, metric): dollars} from a data/pnc-style directory. Metrics: income, essentials,
     discretionary, debt_payments (all payments to debts from cash), savings_invest, and the closing balance of
     each account type (balance:<type>)."""
-    from zeroday.finance import ESSENTIAL_CATEGORIES
+    from paidway.planning.finance import ESSENTIAL_CATEGORIES
 
     data_dir = Path(data_dir)
     out = defaultdict(float)
@@ -752,7 +752,7 @@ def main(argv=None):
     manifest, _ = generate(spec, args.out)
     print(json.dumps(manifest, indent=2))
     if not args.no_db and args.spec == SPEC:
-        from zeroday import linked
+        from paidway.data import linked
         print(f'loaded {linked.load()} linked accounts into SQLite')
     return 0
 

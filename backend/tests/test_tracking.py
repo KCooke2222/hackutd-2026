@@ -3,10 +3,11 @@
 import copy
 
 import pytest
-
-from zeroday import store, tracking as T, wealth
-
 from test_wealth import LOAN, PNC_CARD, REFERENCE, STORE
+
+from paidway.data import store
+from paidway.planning import tracking as T
+from paidway.planning import wealth
 
 CID, PID = "C001", "test-plan"
 
@@ -201,7 +202,7 @@ def test_lock_in_needs_extra_when_late(setup):
 # ---------------- storage + choose (temp DB) ----------------
 
 def test_step_reset_choose_pending(setup, tmp_path, monkeypatch):
-    from zeroday import balances
+    from paidway.data import balances
 
     monkeypatch.setattr(store, "DB_PATH", tmp_path / "t.sqlite3")
     monkeypatch.setattr(balances, "snapshot", lambda cid: {"pnc": {}, "nessie": None})
