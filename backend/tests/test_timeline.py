@@ -44,15 +44,17 @@ def test_changes_and_non_changes():
     assert "minimum" in student["text"]
     assert by[("Spending", "Dining")]["changed"] and "→" in by[("Spending", "Dining")]["text"]
     assert not by[("Spending", "Groceries")]["changed"] and "no change" in by[("Spending", "Groceries")]["text"]
-    assert by[("Money out", "External cash management")]["changed"]  # generic over the redirect's flow name
+    assert by[("Saving", "Brokerage auto-invest")]["changed"] and "$225 → $0" in by[("Saving", "Brokerage auto-invest")]["text"]
+    assert by[("Saving", "Investing")]["changed"]
     assert not by[("Income", "Income")]["changed"]
 
 
-def test_redirect_flow_name_is_generic():
-    p = dict(REFERENCE, redirects=[{"flow": "rent_to_landlord", "amount_per_month": 1000}])
-    t = timeline.timeline(CID, p, live=False)
-    assert any(c["label"] == "Rent to landlord" for c in t["changes"])
-    assert t["cashflow"]["transfers_out_name"] == "Rent to landlord"
+def test_paused_contribution_moves_from_invested_to_debt():
+    t = timeline.timeline(CID, REFERENCE, live=False)
+    b, p = t["cashflow"]["before"][0], t["cashflow"]["plan"][0]
+    assert abs((b["savings_invest"] - p["savings_invest"]) - 225) < 0.5
+    assert p["debt_payments"] > b["debt_payments"]
+    assert "transfers_out" not in p
 
 
 def test_endpoint(monkeypatch):

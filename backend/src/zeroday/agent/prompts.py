@@ -12,11 +12,14 @@ Rules:
 - Use only numbers from the snapshot. Never do arithmetic beyond picking values.
 - Return the top 3 causes, largest $/mo first. Each: label (≤6 words), amount_per_month,
   evidence (the snapshot field it comes from).
-- If money leaves to an unknown destination, list it as a cause and set needs_customer_input=true.
-- Also return: monthly_surplus, high_cost_debts (APR above 8%).
+- Every outflow is named and flagged (spending_by_category, named_flows). Items flagged "ask"
+  (childcare, healthcare, money to family, IRA) are never causes to cut: put each one in
+  questions_for_customer as one short question (≤15 words) instead.
+- monthly_surplus is saved_per_month. If it is 0 or negative, say so: there is no monthly slack.
+- Also return: high_cost_debts (APR above 8%).
 
 Return JSON only: {"causes": [{"label", "amount_per_month", "evidence"}], "monthly_surplus",
-"high_cost_debts": [{"account_id", "name", "apr_pct", "balance"}], "needs_customer_input"}
+"high_cost_debts": [{"account_id", "name", "apr_pct", "balance"}], "questions_for_customer": []}
 
 {snapshot}"""
 
@@ -32,18 +35,34 @@ Rules:
 - Use tools for every number. Never do arithmetic yourself.
 - Cover every debt. Every debt gets its minimum. Extra money goes to the highest APR first;
   when one hits $0, its payment rolls to the next.
-- Money sources: call compare_sources before using any. Use a source only if its net-worth
-  gain at 24 months is positive. Prefer, in order: monthly surplus, cash above the emergency
-  buffer, CD, brokerage. Never IRA or property; you may mention them.
-- Keep at least {keep_emergency_months} months of expenses in cash.
-- Spending cuts must be realistic:
-  - Essentials stay whole.
-  - Each cut lists 1-2 concrete actions in how (≤8 words each) and a proof_month where the
-    customer already spent at or below the target.
-  - At most 30% off a category, unless you are cancelling a recurring charge.
+- Only real money. Every category and flow has a flag (cash_flow lists them):
+  - fixed (rent, utilities, insurance, groceries, gas, car repairs, annual bills, debt minimums):
+    never move.
+  - ask (childcare, healthcare/medical, family support, IRA): never move; ask the customer.
+  - trim / cancel (dining, shopping, travel, gifts, home, subscriptions...): the customer's
+    choice, not the plan's. Put NO spending_targets in the plan unless the instruction asks for
+    cuts. The server prices the biggest optional cuts after you propose; they are offered as
+    tradeoffs.
+  - redirect/pause: monthly_surplus (only if saved_per_month > 0), brokerage_auto_invest,
+    cd_contribution.
+- If saved_per_month is 0 or negative there is no monthly slack: say so, do not invent it.
+  Use cash above the buffer and paused contributions only. If that leaves little, propose it
+  anyway: an honest small plan beats invented money.
+- Money sources: call compare_sources (amount = all high-cost debt) before using any. Use a
+  source only if use=true. Lump sums may come from PNC cash, CD or brokerage.
+  Never IRA or property; you may mention them.
+- Cash above the buffer that only earns a few % should pay off 20%+ debt today: if cash has
+  use=true, lump-sum the high-cost debts from it (highest APR first, up to what is available)
+  before redirecting monthly money.
+- Always simulate at least two options: (a) lump sums from the best cash source, (b) redirects
+  and pauses (or both). Propose the one with the higher 24-month net worth.
+- Keep at least {keep_emergency_months} months of expenses in cash (PNC checking + savings).
+- If the instruction asks for cuts, each must be realistic:
+  - Each cut lists 1-2 concrete actions in how (≤8 words each), naming the merchant when you
+    can (e.g. "Cancel Hulu and Peacock"), and a proof_month where the customer already spent at
+    or below the target.
 - Use sql when the tools don't answer a question. Explore, but put only tool-computed numbers
   in the plan.
-- Compare 2-3 options with simulate_plan. Pick the one with the highest 24-month net worth.
 - Call propose_plan exactly once. If it is rejected, fix the listed reasons and call it again.
   You cannot move money; the customer approves.
 - Then reply with ONE sentence of at most 12 words: the main lever and the result.
@@ -60,13 +79,18 @@ EXPLAIN = """Turn this approved-for-review plan into short UI labels.
 Rules:
 - One label per lever (debt payment, source, cut, redirect), ≤6 words, with its $ amount.
 - One headline, ≤10 words: the outcome (e.g. "Both cards $0 by Feb, +$3,900 net worth").
-- For each spending cut, one "how" line, ≤8 words.
-- No advice language, no hedging, no numbers that aren't in the plan.
+- For each spending cut in the plan, one "how" line, ≤8 words.
+- options: the 2-3 biggest optional cuts from cut_options, as the customer's choice (not part of
+  the plan). Each: category, label ≤8 words naming the merchants and $/mo, buys ≤10 words using
+  only its numbers (high_cost_debt_free / months_sooner / net_worth_24m_gain).
+- No advice language, no hedging, no numbers that aren't in the plan, simulation or cut_options.
 
-Return JSON only: {"headline", "levers": [{"kind", "label", "amount"}], "cuts": [{"category", "how"}]}
+Return JSON only: {"headline", "levers": [{"kind", "label", "amount"}], "cuts": [{"category", "how"}],
+"options": [{"category", "label", "buys"}]}
 
-{plan}
-{simulation}"""
+Plan: {plan}
+Simulation: {simulation}
+cut_options: {cut_options}"""
 
 # ---------- talk to the plan (PR 4) ----------
 

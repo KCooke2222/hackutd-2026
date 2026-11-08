@@ -95,7 +95,8 @@ def _card(cid: str, rng: random.Random, balance: float | None = None, apr: float
     return _row(cid, 2, "credit_card", "store", "Store card", "Other bank", balance, apr_pct=apr, min_payment=minimum)
 
 
-def generate_customer(cid: str) -> list[dict]:
+def base_rows(cid: str) -> list[dict]:
+    """Linked rows that don't depend on the ledger (the history generator reads these for loan minimums)."""
     rng = random.Random(f"zeroday-linked-{cid}")
     accs = {a["account_type"]: a for a in pnc_data.customer_accounts(cid)}
     rows: list[dict] = []
@@ -126,6 +127,10 @@ def generate_customer(cid: str) -> list[dict]:
     if rng.random() < 0.35:
         rows.append(_card(cid, rng))
     return rows
+
+
+def generate_customer(cid: str) -> list[dict]:
+    return base_rows(cid)
 
 
 def generate() -> list[dict]:

@@ -70,7 +70,7 @@ export default function PlanEditor({ ai, headline, knobs, setKnobs, preview, bus
       meta: b ? `min ${usd(minimums)} · room ${usd(b.max_monthly_debt_budget)}` : '', onChange: (v) => setKnobs({ ...knobs, budget: v }) },
   ]
   if (aiK.redirect > 0 || knobs.redirect > 0)
-    sliders.push({ label: 'Redirect unknown transfers', min: 0, max: redirectMax, step: 50, value: knobs.redirect, ai: aiK.redirect, meta: '',
+    sliders.push({ label: 'Savings & investing to debt', min: 0, max: redirectMax, step: 50, value: knobs.redirect, ai: aiK.redirect, meta: '',
       onChange: (v) => setKnobs({ ...knobs, redirect: v }) })
 
   const reasons = preview ? [...preview.reasons, ...(preview.sim.problems ?? [])] : []

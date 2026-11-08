@@ -9,19 +9,22 @@ from typing import Literal
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from .. import balance_sheet, balances, store
+from .. import balance_sheet, balances, categories, store
 
 
 # ---------- plan v2 arguments (shared by simulate_plan and propose_plan) ----------
 
 class LumpSum(BaseModel):
-    source: Literal["cash", "cd", "brokerage"]
+    source: Literal["cash", "cd", "brokerage"] = Field(
+        description="cash = PNC checking+savings above the emergency buffer; cd / brokerage = break or sell")
     amount: float
     to_debt: str = Field(description="account_id of the debt it pays")
 
 
 class Redirect(BaseModel):
-    flow: str = Field("external_cash_management", description="the outflow to redirect, e.g. external_cash_management")
+    flow: Literal[categories.MOVABLE_FLOWS] = Field(  # type: ignore[valid-type]
+        description="a movable named flow: monthly_surplus (redirect the surplus left in checking to debt) or "
+                    "brokerage_auto_invest / cd_contribution (pause the contribution). Never fixed or ask items.")
     amount_per_month: float
 
 
@@ -113,8 +116,11 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
 
     @tool
     def cash_flow(months: int = 12) -> dict:
-        """Monthly income, essentials, discretionary, debt payments, savings/investing, unknown transfers out and
-        surplus, per month and averaged. unknown_outflow_per_month is money leaving to an unknown destination."""
+        """Monthly income, essentials, discretionary, debt payments, savings/investing and surplus (the change in
+        PNC cash), per month and averaged. Also every spending
+        category and named flow with its flag (fixed/ask: never move; trim: max_cut_pct; cancel: only named
+        subscriptions; redirect/pause: may go to debt). saved_per_month is the real monthly slack; if it is
+        <= 0 there is no monthly money to redirect."""
         from .. import insights
 
         return _try(lambda: insights.cash_flow(customer_id, months))
@@ -129,16 +135,18 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
 
     @tool
     def find_recurring() -> list[dict]:
-        """Recurring charges (subscriptions, bills) with amount, cadence, account and category."""
+        """Recurring charges (subscriptions, bills) with merchant, amount, cadence, account, category and flag.
+        A subscriptions cut must name the merchants it cancels."""
         from .. import insights
 
         return _try(lambda: insights.find_recurring(customer_id))
 
     @tool
     def compare_sources(amount: float, target_debt: str) -> dict:
-        """Rank every money source (surplus, cash above buffer, CD, brokerage, IRA) for paying `amount` into
+        """Rank every money source (surplus, PNC cash, CD, brokerage, IRA) for paying `amount` into
         `target_debt` (account_id) by 24-month net-worth gain vs leaving the money where it is, with upfront tax
-        and penalty. Use a source only if use=true."""
+        and penalty. Use a source only if use=true. lump_plan (when present) is the ready split of cash above
+        the buffer across all high-cost debts: simulate it as lump_sums."""
         from .. import wealth
 
         return _try(lambda: wealth.compare_sources(customer_id, amount, target_debt))
@@ -199,6 +207,12 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
                     cap = min(cap, cons["max_debt_budget"])
                 plan["monthly_debt_budget"] = max(float(plan.get("monthly_debt_budget") or 0), round(cap, 2))
             sim = validate_plan_v2(customer_id, plan, constraints=cons or None)
+            # Idle cash above the buffer next to high-cost debt only costs interest: when paying it in today
+            # (fitted to keep the buffer) raises 24-month net worth, the server adds it, as it fills the budget.
+            from .validator import missing_lumps
+            added = missing_lumps(customer_id, plan, sim)
+            if added:
+                plan, sim = added["plan"], added["sim"]
         except (PlanRejected, ValueError, KeyError, TypeError, AttributeError) as e:
             st["rejections"] += 1
             reasons = list(getattr(e, "reasons", None) or [str(e)])
@@ -209,6 +223,11 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
             return {"saved": False, "reasons": reasons, "hint": "fix every reason and call propose_plan again",
                     "attempts_left": MAX_REJECTIONS + 1 - st["rejections"]}
         sim = dict(sim)
+        try:  # optional cuts, priced on top of this plan: the customer's tradeoffs, never required
+            from ..wealth import cut_options
+            sim["cut_options"] = cut_options(customer_id, plan, sim=sim)
+        except Exception:  # noqa: BLE001
+            sim["cut_options"] = []
         sim["balances_snapshot"] = balances.snapshot(customer_id)
         try:
             p = store.create_proposal(customer_id, plan, sim, str(kwargs.get("rationale") or ""),
@@ -217,7 +236,10 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
             st["stop"], st["last_reasons"] = True, [str(e)]
             return {"saved": False, "stop": str(e)}
         st["proposal_id"] = p["id"]
-        return {"saved": True, "proposal_id": p["id"], **{k: v for k, v in sim_brief(sim).items() if k != "debts"}}
+        out = {"saved": True, "proposal_id": p["id"], **{k: v for k, v in sim_brief(sim).items() if k != "debts"}}
+        if added:
+            out["server_added_lump_sums"] = added["lump_sums"]
+        return out
 
     return [sql, cash_flow, spending_detail, find_recurring, compare_sources, debt_priority, liquidity_ladder,
             simulate_plan, propose_plan]

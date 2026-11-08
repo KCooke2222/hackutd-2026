@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .. import balance_sheet, balances, finance, pnc_data
+from .. import balance_sheet, balances, categories, finance, pnc_data
 
 MIN_EMERGENCY_MONTHS = 3.0
 
@@ -201,7 +201,7 @@ def validate_plan_v2(customer_id: str, plan: dict, *, live: bool = True, constra
     eligible = [d["account_id"] for d in ctx["debts"] if d["extra_eligible"] and d["balance"] > 0]
 
     # Lump sums: source tier, availability, target debt.
-    gross = {"cash": 0.0, "cd": 0.0, "brokerage": 0.0}
+    gross = {k: 0.0 for k in wealth.LUMP_SOURCES}
     per_debt: dict[str, float] = {}
     for ls in plan.get("lump_sums") or []:
         src, amt, to = str(ls.get("source", "")).lower(), float(ls.get("amount") or 0), ls.get("to_debt")
@@ -209,7 +209,7 @@ def validate_plan_v2(customer_id: str, plan: dict, *, live: bool = True, constra
             reasons.append(f"lump sum from {src}: retirement and property are never a source")
             continue
         if src not in wealth.LUMP_SOURCES:
-            reasons.append(f"lump sum source {src!r} unknown (cash, cd or brokerage)")
+            reasons.append(f"lump sum source {src!r} unknown ({', '.join(wealth.LUMP_SOURCES)})")
             continue
         if amt <= 0:
             reasons.append("lump sum amount must be positive")
@@ -225,22 +225,40 @@ def validate_plan_v2(customer_id: str, plan: dict, *, live: bool = True, constra
     for to, amt in per_debt.items():
         if amt > debts[to]["balance"] + 0.005:
             reasons.append(f"lump sums ${amt:,.0f} exceed {debts[to]['name']} balance ${debts[to]['balance']:,.0f}")
+    buffer_note = f"above the {keep:g}-month buffer (${ctx['emergency_buffer']:,.0f})"
     for key, g in gross.items():
-        avail = ctx["ladder"][key]["available"]
-        if g > avail + 0.5:
-            what = f"above the {keep:g}-month buffer (${ctx['emergency_buffer']:,.0f})" if key == "cash" else "available"
-            reasons.append(f"{key}: needs ${g:,.0f} but only ${avail:,.0f} {what}")
+        if key == "cash":
+            avail = ctx["lump_available"]["cash"]
+            if g > avail + 0.5:
+                reasons.append(f"cash: needs ${g:,.0f} but only ${avail:,.0f} in PNC checking + savings {buffer_note}")
+        else:
+            avail = ctx["ladder"][key]["available"]
+            if g > avail + 0.5:
+                reasons.append(f"{key}: needs ${g:,.0f} but only ${avail:,.0f} available")
 
-    # Redirects.
+    # Redirects: only named flows flagged redirect or pause (categories.FLOWS), up to what each one is.
+    movable = ctx["movable_flows"]
+    per_flow: dict[str, float] = {}
     for r in plan.get("redirects") or []:
-        if r.get("flow") != wealth.FLOW_KEY:
-            reasons.append(f"redirect flow {r.get('flow')!r} unknown; only {wealth.FLOW_KEY}")
-        if float(r.get("amount_per_month") or 0) <= 0:
+        flow, amt = r.get("flow"), float(r.get("amount_per_month") or 0)
+        meta = categories.flow_flag(str(flow))
+        if meta is None:
+            reasons.append(f"redirect flow {flow!r} unknown; movable flows: {', '.join(movable)}")
+            continue
+        if meta["flag"] not in (categories.REDIRECT, categories.PAUSE):
+            reasons.append(f"redirect flow {flow}: {meta['label']} is {meta['flag']}"
+                           + ("; ask the customer instead of moving it" if meta["flag"] == categories.ASK else "; never moved"))
+            continue
+        if amt <= 0:
             reasons.append("redirect amount_per_month must be positive")
-    redirect = sum(float(r.get("amount_per_month") or 0) for r in plan.get("redirects") or [])
-    if redirect > ctx["redirectable_outflow"] + 0.5:
-        reasons.append(f"redirects ${redirect:,.0f}/mo exceed the ${ctx['redirectable_outflow']:,.0f}/mo unexplained outflow "
-                       f"left after linked minimums")
+            continue
+        per_flow[flow] = per_flow.get(flow, 0.0) + amt
+    for flow, amt in per_flow.items():
+        lim = movable[flow]["max_per_month"]
+        if amt > lim + 0.5:
+            why = ("surplus left in checking each month (income - spending - payments - contributions)"
+                   if flow == wealth.SURPLUS else "the contribution made today")
+            reasons.append(f"redirect {flow} ${amt:,.0f}/mo exceeds the ${lim:,.0f}/mo of {why}")
 
     # Spending targets.
     seen = set()
@@ -255,7 +273,7 @@ def validate_plan_v2(customer_id: str, plan: dict, *, live: bool = True, constra
                        f"(every debt gets at least its minimum)")
     if budget > lim["max_monthly_debt_budget"] + 0.5:
         reasons.append(f"monthly_debt_budget ${budget:,.0f} is over its sources: ${lim['current_debt_payments']:,.0f} current "
-                       f"payments + ${lim['redirects']:,.0f} redirects + ${lim['checking_cuts']:,.0f} checking cuts = "
+                       f"payments + ${lim['redirects']:,.0f} redirects/pauses + ${lim['checking_cuts']:,.0f} checking cuts = "
                        f"${lim['max_monthly_debt_budget']:,.0f} (card cuts lower card charges, they don't add budget)")
 
     # Extra order: exactly the debts above the hurdle, highest APR first.
@@ -305,8 +323,12 @@ def _check_target(customer_id: str, ctx: dict, t: dict, seen: set) -> list[str]:
     if cat in seen:
         return [f"spending target for {cat} given twice"]
     seen.add(cat)
-    if cat in finance.ESSENTIAL_CATEGORIES or c["essential"]:
-        return [f"{cat} is essential; essentials are never cut"]
+    flag = categories.spending_flag(cat)
+    kind = flag["flag"]
+    if kind == categories.ASK:
+        return [f"{cat} ({flag['label']}) is ask: never cut in a plan; raise it as a question for the customer"]
+    if kind == categories.FIXED or c["essential"]:
+        return [f"{cat} ({flag['label']}) is fixed; essentials are never cut"]
     try:
         target = float(t.get("target"))
     except (TypeError, ValueError):
@@ -322,9 +344,18 @@ def _check_target(customer_id: str, ctx: dict, t: dict, seen: set) -> list[str]:
     cancelled = [r for r in meta["recurring"] if "cancel" in how_text and str(r.get("name", "")).lower() in how_text]
     cancel_amt = sum(float(r.get("amount") or 0) for r in cancelled)
     cut_pct = (cur - target) / cur * 100 if cur else 0
-    if cut_pct > A.get("max_cut_pct") + 0.01 and not cancelled:
-        out.append(f"{cat}: cut {cut_pct:.0f}% is over {A.get('max_cut_pct'):g}% (allowed only when `how` cancels a "
-                   f"recurring charge)")
+    if kind == categories.CANCEL:
+        if not cancelled:
+            names = ", ".join(r["name"] for r in meta["recurring"]) or "none found"
+            return out + [f"{cat}: only cut by cancelling named recurring charges; `how` must say 'Cancel <name>' "
+                          f"({names})"]
+        if cur - target > cancel_amt + 0.5:
+            out.append(f"{cat}: cut ${cur - target:,.0f}/mo is more than the ${cancel_amt:,.0f}/mo cancelled")
+    else:
+        max_pct = flag.get("max_pct") or A.get("max_cut_pct")
+        if cut_pct > max_pct + 0.01 and not cancelled:
+            out.append(f"{cat}: cut {cut_pct:.0f}% is over its {max_pct:g}% limit (more only when `how` cancels a "
+                       f"recurring charge)")
     floor = c["min"] - (cancel_amt if cancelled else 0.0)
     if target < floor - 0.5:
         out.append(f"{cat}: target ${target:,.0f} is below the customer's own lowest month "
@@ -345,3 +376,64 @@ def _check_target(customer_id: str, ctx: dict, t: dict, seen: set) -> list[str]:
         if len(h.split()) > MAX_HOW_WORDS:
             out.append(f"{cat}: each `how` action must be at most {MAX_HOW_WORDS} words: {h[:60]!r}")
     return out
+
+
+def fit_lumps(customer_id: str, plan: dict, *, live: bool = True) -> dict:
+    """A household that spends more than it earns can't use all its cash above the buffer today: the monthly
+    shortfall would take it under later. Shrink the lump sums (largest share kept on the highest APR) until the
+    simulation keeps the buffer. Returns the plan unchanged when it already passes."""
+    import math
+
+    full = [dict(l) for l in plan.get("lump_sums") or []]
+    total = sum(float(l["amount"]) for l in full)
+
+    def with_total(t: float) -> dict:
+        p, left, lumps = dict(plan), t, []
+        for l in full:
+            take = round(min(float(l["amount"]), left), 2)
+            if take >= 1:
+                lumps.append({**l, "amount": take})
+            left -= take
+        p["lump_sums"] = lumps
+        return p
+
+    def ok(t: float) -> bool:
+        try:
+            validate_plan_v2(customer_id, with_total(t), live=live)
+            return True
+        except PlanRejected:
+            return False
+
+    if not full or ok(total):
+        return plan
+    lo, hi = 0.0, total
+    for _ in range(14):
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if ok(mid) else (lo, mid)
+    return with_total(math.floor(lo))
+
+
+def missing_lumps(customer_id: str, plan: dict, sim: dict, min_gain: float = 250.0, *, live: bool = True) -> dict | None:
+    """Cash above the buffer that the plan leaves idle while high-cost debt charges interest. When paying it in
+    today (fitted to keep the buffer) beats the plan's 24-month net worth by `min_gain`, return the lump sums
+    and the gain; otherwise None. Uses only PNC cash: money that exists today."""
+    from .. import wealth
+
+    if any(float(l.get("amount") or 0) > 0 for l in plan.get("lump_sums") or []):
+        return None
+    ctx = wealth.context(customer_id, keep_months=plan.get("keep_emergency_months"), live=live)
+    lumps = wealth.lump_plan(ctx, ["cash"])
+    if not lumps:
+        return None
+    cand = {**plan, "lump_sums": lumps}
+    if cand.get("extra_order"):
+        cand["monthly_debt_budget"] = round(wealth.budget_limit(ctx, cand)["max_monthly_debt_budget"], 2)
+    cand = fit_lumps(customer_id, cand, live=live)
+    try:
+        csim = validate_plan_v2(customer_id, cand, live=live)
+    except PlanRejected:
+        return None
+    gain = float(csim.get("net_worth_24m") or 0) - float(sim.get("net_worth_24m") or 0)
+    if not cand["lump_sums"] or gain < min_gain:
+        return None
+    return {"plan": cand, "sim": csim, "lump_sums": cand["lump_sums"], "net_worth_gain": round(gain, 2)}

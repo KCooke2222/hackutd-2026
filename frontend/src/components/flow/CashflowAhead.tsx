@@ -4,7 +4,7 @@ import { api, usd } from '../../lib/api'
 import type { FlowMonth, Timeline } from '../../lib/api'
 import { ym, ymShort } from '../../lib/flow'
 
-type Past = { months: (Omit<FlowMonth, 'transfers_out'> & { transfers_out_unknown: number })[] }
+type Past = { months: FlowMonth[] }
 
 const short = (v: number) => (Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`)
 
@@ -15,17 +15,15 @@ export default function CashflowAhead({ cid, t, at }: { cid: string; t: Timeline
   useEffect(() => {
     api<Past>(`/customers/${cid}/cashflow?months=12`).then(setPast).catch(() => setPast(null))
   }, [cid])
-  const out = t.cashflow.transfers_out_name
   const SERIES = [
     { key: 'essentials', name: 'Essentials', color: 'var(--muted)' },
     { key: 'discretionary', name: 'Discretionary', color: 'var(--c-disc)' },
     { key: 'debt_payments', name: 'Debt payoff', color: 'var(--c-debt)' },
-    { key: 'savings_invest', name: 'Saved', color: 'var(--c-save)' },
-    { key: 'transfers_out', name: out, color: 'var(--c-out)' },
+    { key: 'savings_invest', name: 'Invested', color: 'var(--c-save)' },
   ] as const
   const ahead = t.cashflow[view]
   const data = [
-    ...(past?.months ?? []).map((m) => ({ ...m, transfers_out: m.transfers_out_unknown, debt_payments: Math.max(0, m.debt_payments), past: true })),
+    ...(past?.months ?? []).map((m) => ({ ...m, debt_payments: Math.max(0, m.debt_payments), past: true })),
     ...ahead.map((m) => ({ ...m, past: false })),
   ]
   const i = Math.max(at, 1) - 1
@@ -34,9 +32,8 @@ export default function CashflowAhead({ cid, t, at }: { cid: string; t: Timeline
   const cells = [
     { k: 'Income', from: b.income, to: p.income },
     { k: 'Spending', from: spend(b), to: spend(p) },
-    { k: out, from: b.transfers_out, to: p.transfers_out },
     { k: 'Debt payoff', from: b.debt_payments, to: p.debt_payments },
-    { k: 'Saved', from: b.savings_invest, to: p.savings_invest },
+    { k: 'Invested', from: b.savings_invest, to: p.savings_invest },
     { k: 'Left over', from: b.surplus, to: p.surplus },
   ]
   return (

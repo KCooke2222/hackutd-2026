@@ -63,6 +63,7 @@ export type Explain = {
   cuts?: { category: string; how: string }[]
   warning?: string | null // talk to the plan: the cost of a worse change, written in code
   request?: string
+  options?: { category: string; label: string; buys: string }[]
 }
 
 // ---------- talk to the plan (PR 4) ----------
@@ -197,7 +198,7 @@ export type TimelinePayment = {
 }
 export type FlowMonth = {
   month: string; income: number; essentials: number; discretionary: number; debt_payments: number
-  savings_invest: number; transfers_out: number; surplus: number
+  savings_invest: number; surplus: number
 }
 export type TimelineChange = { group: string; label: string; text: string; changed: boolean; sub: string; before: number | null; after: number | null }
 export type Timeline = {
@@ -205,7 +206,7 @@ export type Timeline = {
   months: string[]
   accounts: TimelineAccount[]
   payments: TimelinePayment[]
-  cashflow: { before: FlowMonth[]; plan: FlowMonth[]; transfers_out_name: string }
+  cashflow: { before: FlowMonth[]; plan: FlowMonth[] }
   changes: TimelineChange[]
   totals: { debt_payments: { before: number; plan: number }; net_worth: { before: number[]; plan: number[] } }
   feasible: boolean

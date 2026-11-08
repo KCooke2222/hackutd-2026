@@ -5,10 +5,11 @@ from __future__ import annotations
 from collections import defaultdict
 
 from . import pnc_data
+from .categories import ESSENTIAL
 
 MAX_MONTHS = 600
-# Card spending categories a plan never cuts; everything else is discretionary.
-ESSENTIAL_CATEGORIES = {"groceries", "transport", "gas", "utilities", "healthcare", "health", "insurance", "rent", "housing", "childcare"}
+# Spending a plan never cuts (fixed + ask in categories.py); everything else is discretionary.
+ESSENTIAL_CATEGORIES = ESSENTIAL | {"gas", "health", "rent"}
 
 
 def simulate_payoff(
