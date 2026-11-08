@@ -351,7 +351,9 @@ export default function Home() {
         <button disabled={screen === 0} style={{ visibility: screen === 0 ? 'hidden' : 'visible' }} onClick={() => go(screen - 1)}>Back</button>
         {screen === 0 && (
           <span className="flow-actions">
-            <button className="primary" onClick={() => { const r = demoOn() ? replays[0] : null; findPlan(r ? { id: r.id, speed: 8, duration_ms: r.duration_ms } : null) }} disabled={!health?.nvidia && !(demoOn() && replays.length)}>Find a plan</button>
+            {/* Demo mode: a real agent run whose model calls come from the recordings (pw_demo cookie, agent/demo.py), so it
+                fits whatever state the customer is in. Replaying the newest whole run picked up replans and option runs. */}
+            <button className="primary" onClick={() => findPlan()} disabled={!health?.nvidia && !demoOn()}>Find a plan</button>
           </span>
         )}
         {screen === 1 && <button className="primary" disabled={!thinkingDone || !ai} onClick={() => go(2)}>See plan</button>}

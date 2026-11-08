@@ -181,6 +181,8 @@ def do(c: httpx.Client, cid: str, step: dict, st: dict) -> None:
         r = c.post(f"/api/proposals/{st['pid']}/approve", json={})
         r.raise_for_status()
         st["approved"] = r.json()
+    elif k == "step":  # the dashboard's "Fast-forward a month" (no model call; sets up the replan's state)
+        c.post(f"/api/customers/{cid}/tracking/step", json={"scenario": step["scenario"]}).raise_for_status()
     elif k == "checkin":
         r = c.post(f"/api/customers/{cid}/tracking/checkin", json={"scenario": step["scenario"]})
         r.raise_for_status()
@@ -231,7 +233,7 @@ def children(c: httpx.Client, cid: str, st: dict, path: list) -> list[list]:
     if last == "approve":
         tr = c.get(f"/api/customers/{cid}/tracking").json()
         return [path + [{"do": "checkin", "scenario": s["key"]}] for s in tr.get("scenarios") or []]
-    if last == "checkin" and path[-1]["scenario"] in REPLAN_AFTER:
+    if last in ("checkin", "step") and path[-1]["scenario"] in REPLAN_AFTER:
         return [path + [{"do": "replan"}]]
     return []
 
@@ -305,9 +307,11 @@ class Recorder:
                     w, cid = running.pop(f)
                     free.append(w)
                     done += 1
-                    _, kids = f.result()
+                    fin_path, kids = f.result()
                     if self.a.smoke:
                         kids = smoke_pick(kids)
+                    elif self.a.main:
+                        kids = main_pick(cid, fin_path, kids)
                     queue += [(cid, k) for k in kids]
         for w in self.workers:
             w.stop()
@@ -324,10 +328,33 @@ def smoke_pick(kids: list[list]) -> list[list]:
     return want
 
 
-def roots_for(customers: list[str], smoke: bool) -> list[tuple[str, list]]:
+def main_pick(cid: str, path: list, kids: list[list]) -> list[list]:
+    """--main: only the presenting flow. C001: plan > approve > income drop (check-in, or fast-forward) > Replan.
+    C027: the think run > each option pick's planning run > approve the main pick's plan."""
+    last = path[-1]["do"]
+    if last == "run":
+        opts = [k for k in kids if k[len(path)]["do"] == "options_apply"]
+        if opts:
+            return opts
+        if any(s["do"] == "options_apply" and not s.get("main") for s in path):
+            return []
+        return [k for k in kids if k[-1]["do"] == "approve"]
+    if last == "approve":
+        if cid != "C001":
+            return []
+        return [k for k in kids if k[-1]["do"] == "checkin" and k[-1]["scenario"] == "income_drop"] \
+            + [path + [{"do": "step", "scenario": "income_drop"}]]
+    if last in ("checkin", "step"):
+        return [k for k in kids if k[-1]["do"] == "replan"]
+    return []
+
+
+def roots_for(customers: list[str], smoke: bool, main: bool = False) -> list[tuple[str, list]]:
     out = []
     for cid in customers:
         out.append((cid, [{"do": "run"}]))
+        if main:
+            continue
         out += [(cid, [{"do": "ask", "q": q}]) for q in (QUESTIONS[:1] if smoke else QUESTIONS)]
     return out
 
@@ -377,6 +404,7 @@ def main() -> int:
     ap.add_argument("--port-base", type=int, default=8761, help="worker i listens on port-base + i (127.0.0.1)")
     ap.add_argument("--depth", type=int, default=6, help="longest path, in steps")
     ap.add_argument("--limit", type=int, default=None, help="stop after this many paths")
+    ap.add_argument("--main", action="store_true", help="only the presenting flow (see main_pick)")
     ap.add_argument("--smoke", action="store_true", help=f"C001 only, {SMOKE} paths")
     ap.add_argument("--db", default=str(DB_PATH), help="DB to copy (default: the app's)")
     ap.add_argument("--ids", default=str(NESSIE_IDS_PATH), help="Nessie id map to copy")
@@ -400,7 +428,7 @@ def main() -> int:
     rec = Recorder(a, env, root, pristine)
     t0 = time.monotonic()
     try:
-        rec.run(roots_for(a.customers, a.smoke))
+        rec.run(roots_for(a.customers, a.smoke, a.main))
     finally:
         for w in rec.workers:
             w.stop()
