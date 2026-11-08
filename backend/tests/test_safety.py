@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-SRC = Path(__file__).resolve().parents[1] / "src" / "zeroday"
+SRC = Path(__file__).resolve().parents[1] / "src" / "paidway"
 APPROVE_ONLY = {"execute.py"}  # called from the approve route, never from the graph or tools
 
 
@@ -36,7 +36,7 @@ def test_agent_never_imports_execute():
 
 
 def test_agent_tools_are_read_only_plus_propose():
-    from zeroday.agent.tools import make_tools
+    from paidway.agent.tools import make_tools
 
     names = {t.name for t in make_tools("C001")}
     assert names == {
@@ -62,12 +62,12 @@ READ_CALLS = {
 @pytest.fixture()
 def no_writes(tmp_path, monkeypatch):
     """Every store write and the Nessie write client raise; reads still work."""
-    from zeroday import balances, store
-    from zeroday.nessie import write
+    from paidway.data import balances, store
+    from paidway.nessie import write
 
     monkeypatch.setattr(store, "DB_PATH", tmp_path / "t.sqlite3")
     monkeypatch.setattr(balances.read, "enabled", lambda: False)
-    from zeroday import linked
+    from paidway.data import linked
 
     linked.load()  # seed the linked-accounts cache table before writes are blocked
 
@@ -89,7 +89,7 @@ def no_writes(tmp_path, monkeypatch):
 
 
 def test_read_tools_never_write(no_writes):
-    from zeroday.agent.tools import make_tools
+    from paidway.agent.tools import make_tools
 
     tools = {t.name: t for t in make_tools("C001")}
     assert set(READ_CALLS) == set(tools) - {"propose_plan"}
@@ -100,9 +100,22 @@ def test_read_tools_never_write(no_writes):
 
 
 def test_sql_tool_refuses_writes():
-    from zeroday.agent.tools import make_tools
+    from paidway.agent.tools import make_tools
 
     sql = next(t for t in make_tools("C001") if t.name == "sql")
     for q in ("delete from v_accounts", "drop view v_accounts", "update v_accounts set balance = 0",
               "insert into v_accounts values (1)", "select 1; delete from v_accounts", "attach database 'x' as y"):
         assert "error" in sql.invoke({"query": q}), q
+
+
+def test_only_execute_and_seed_cli_import_nessie_write():
+    """Money moves via agent/execute.py (approve route); data/seed.py is the offline `make seed` CLI."""
+    allowed = {SRC / "agent" / "execute.py", SRC / "data" / "seed.py", SRC / "nessie" / "write.py"}
+    for f in SRC.rglob("*.py"):
+        if f in allowed:
+            continue
+        for imp in _imports(f):
+            mod, _, names = imp.partition(":")
+            assert not (mod.endswith("nessie") and "write" in names.split(",")) and not mod.endswith("nessie.write"), (
+                f"{f.relative_to(SRC)} imports {imp}"
+            )

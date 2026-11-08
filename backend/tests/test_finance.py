@@ -1,6 +1,6 @@
 import pytest
 
-from zeroday import finance
+from paidway.planning import finance
 
 
 def test_stuck_balance_never_pays_off():
@@ -41,7 +41,7 @@ def test_refill_breakdown_c001_shows_refill():
 
 
 def test_refill_breakdown_no_card():
-    from zeroday import pnc_data
+    from paidway.data import pnc_data
 
     no_card = [c for c in pnc_data.customer_ids() if not pnc_data.card_account(c)]
     if not no_card:

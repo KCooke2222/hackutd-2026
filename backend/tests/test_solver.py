@@ -15,9 +15,10 @@ import pytest
 from scipy.optimize import Bounds, LinearConstraint, milp
 from scipy.sparse import lil_matrix
 
-from zeroday import assumptions as A
-from zeroday import categories, solver, wealth
-from zeroday.agent.validator import validate_plan_v2
+from paidway.agent.validator import validate_plan_v2
+from paidway.data import categories
+from paidway.planning import assumptions as A
+from paidway.planning import solver, wealth
 
 CUSTOMERS = ["C001", "C002", "C003"]
 TOL = 50.0

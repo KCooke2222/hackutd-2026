@@ -1,6 +1,6 @@
 """Offline parts of the agent graph: JSON parsing of model output and the gather snapshot."""
 
-from zeroday.agent.graph import gather_snapshot, parse_json
+from paidway.agent.graph import gather_snapshot, parse_json
 
 
 def test_parse_json_handles_think_fences_and_prose():

@@ -114,7 +114,7 @@ ul{padding-left:20px}li{margin:4px 0}
 <tr><td>IRA / 401k</td><td>7%</td><td>10% penalty + 22% income tax</td></tr>
 <tr><td>Property</td><td>—</td><td>mention only</td></tr>
 </tbody></table></div>
-<p class="sub" style="margin-top:8px">All in <code>backend/src/zeroday/assumptions.py</code>.</p>
+<p class="sub" style="margin-top:8px">All in <code>backend/src/paidway/planning/assumptions.py</code>.</p>
 
 <h2>Safety</h2>
 <ul>
@@ -126,27 +126,36 @@ ul{padding-left:20px}li{margin:4px 0}
 
 <h2>Repo map</h2>
 <div class="tree"><span class="c"># backend: Python, FastAPI, run with `make backend` (port 8710)</span>
-backend/src/zeroday/
-  api.py              <span class="c">all /api routes the UI calls</span>
-  <span class="n">api_insights.py</span>     <span class="c">/cashflow route</span>
+backend/src/paidway/
   config.py           <span class="c">reads .env (NVIDIA + Nessie keys, model)</span>
-  pnc_data.py         <span class="c">loads the PNC CSVs</span>
-  linked.py           <span class="c">extra accounts PNC/Nessie lack: student loan, brokerage, store card, car</span>
-  store.py            <span class="c">SQLite: proposals, run logs, linked accounts, Nessie id map</span>
-  balance_sheet.py    <span class="c">have vs owe, liquidity ladder, debt order</span>
-  finance.py          <span class="c">card refill breakdown, single-card payoff math (v1)</span>
-  <span class="n">insights.py</span>         <span class="c">cash flow, spending detail, recurring charges</span>
-  <span class="n">assumptions.py</span>      <span class="c">returns, taxes, penalties, limits</span>
-  <span class="n">wealth.py</span>           <span class="c">all-debt simulator + net worth, compare_sources</span>
-  seed.py             <span class="c">puts demo customers into Nessie (`make seed` / `make reseed`)</span>
+  api/
+    main.py           <span class="c">the FastAPI app: all /api routes the UI calls</span>
+    insights.py, scenarios.py, timeline.py, tracking.py  <span class="c">routers</span>
+  data/
+    pnc_data.py       <span class="c">loads the PNC CSVs</span>
+    customer_spec.py  <span class="c">data/customers.yaml, one spec per customer</span>
+    linked.py         <span class="c">extra accounts PNC/Nessie lack: student loan, brokerage, store card, car</span>
+    categories.py     <span class="c">what a plan may move, per category</span>
+    balances.py       <span class="c">balance snapshot so approve refuses stale plans</span>
+    store.py          <span class="c">SQLite: proposals, run logs, linked accounts, demo months</span>
+    seed.py           <span class="c">puts demo customers into Nessie (`make seed` / `make reseed`)</span>
+  planning/
+    assumptions.py    <span class="c">returns, taxes, penalties, limits</span>
+    finance.py        <span class="c">card refill breakdown, payoff math</span>
+    balance_sheet.py  <span class="c">have vs owe, liquidity ladder, debt order</span>
+    insights.py       <span class="c">cash flow, spending detail, recurring charges</span>
+    wealth.py         <span class="c">all-debt simulator + net worth, compare_sources</span>
+    solver.py         <span class="c">deterministic plan solver</span>
+    timeline.py, scenarios.py, tracking.py  <span class="c">plan over time, what-ifs, goal tracking</span>
   nessie/             <span class="c">Nessie HTTP client: read.py, write.py</span>
   agent/
     graph.py          <span class="c">the agent graph above</span>
-    <span class="n">prompts.py</span>        <span class="c">diagnose / plan / explain prompts</span>
+    prompts.py        <span class="c">diagnose / plan / explain prompts</span>
     tools.py          <span class="c">the tools table above</span>
-    <span class="n">sql_tool.py</span>       <span class="c">read-only SQL sandbox</span>
+    sql_tool.py       <span class="c">read-only SQL sandbox</span>
     validator.py      <span class="c">safety rules for plans</span>
-    <span class="n">execute.py</span>        <span class="c">what happens on approve</span>
+    execute.py        <span class="c">what happens on approve</span>
+    runs.py, replays.py  <span class="c">background runs, recorded replays</span>
 backend/tests/        <span class="c">`make test`</span>
 backend/scripts/
   <span class="n">eval_agent.py</span>       <span class="c">grades a live agent plan vs our reference plan</span>

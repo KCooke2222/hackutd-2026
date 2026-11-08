@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import sys
 
-from zeroday import store
+from paidway.data import store
 
 
 def reset_local(customer_id: str) -> dict:

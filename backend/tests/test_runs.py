@@ -6,7 +6,9 @@ import threading
 import pytest
 from fastapi.testclient import TestClient
 
-from zeroday import api, runs, store
+from paidway.agent import runs
+from paidway.api import main as api
+from paidway.data import store
 
 
 @pytest.fixture
@@ -50,7 +52,7 @@ def test_tail_buffered_then_live():
 
 
 def test_run_survives_dropped_client_and_reattaches(client, monkeypatch):
-    import zeroday.agent.graph as graph
+    import paidway.agent.graph as graph
 
     gate = threading.Event()
     steps = gated(gate)

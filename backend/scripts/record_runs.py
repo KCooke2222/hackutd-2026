@@ -13,8 +13,9 @@ from __future__ import annotations
 import argparse
 import sys
 
-from zeroday import replays, store
-from zeroday.config import NEMOTRON_MODEL, NVIDIA_API_KEY
+from paidway.agent import replays
+from paidway.config import NEMOTRON_MODEL, NVIDIA_API_KEY
+from paidway.data import store
 
 
 def main() -> int:

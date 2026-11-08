@@ -6,8 +6,8 @@ import copy
 import pytest
 from fastapi.testclient import TestClient
 
-from zeroday import solver, wealth
-from zeroday.api import app
+from paidway.api.main import app
+from paidway.planning import solver, wealth
 
 CID = "C003"
 

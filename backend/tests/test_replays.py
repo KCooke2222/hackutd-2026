@@ -6,7 +6,9 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from zeroday import api, replays, store
+from paidway.agent import replays
+from paidway.api import main as api
+from paidway.data import store
 
 
 @pytest.fixture
@@ -40,7 +42,7 @@ def sse(text):
 
 
 def test_record_then_replay_roundtrip(client, monkeypatch):
-    import zeroday.agent.graph as graph
+    import paidway.agent.graph as graph
 
     monkeypatch.setattr(graph, "stream_run", fake_stream)
     live = sse(client.get("/api/agent/stream", params={"customer_id": "C001"}).text)
@@ -61,7 +63,7 @@ def test_record_then_replay_roundtrip(client, monkeypatch):
 
 
 def test_failed_run_not_recorded(client, monkeypatch):
-    import zeroday.agent.graph as graph
+    import paidway.agent.graph as graph
 
     monkeypatch.setattr(graph, "stream_run", lambda cid, i=None: iter([{"type": "call", "id": "1", "name": "sql"},
                                                                           {"type": "error", "error": "429"}]))
@@ -87,7 +89,7 @@ def test_speed_scaling(client):
 
 
 def test_fixture_export_import_restores_proposal(client, tmp_path, monkeypatch):
-    import zeroday.agent.graph as graph
+    import paidway.agent.graph as graph
 
     monkeypatch.setattr(graph, "stream_run", fake_stream)
     client.get("/api/agent/stream", params={"customer_id": "C001"})
