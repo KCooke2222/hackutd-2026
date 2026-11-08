@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-from collections import Counter, defaultdict
 from functools import lru_cache
 from typing import Any
 
@@ -50,11 +49,6 @@ def transactions() -> list[dict]:
 @lru_cache(maxsize=None)
 def statements() -> list[dict]:
     return _read("monthly_statements.csv")
-
-
-@lru_cache(maxsize=None)
-def readme() -> str:
-    return (PNC_DATA_DIR / "README.md").read_text()
 
 
 def customer_ids() -> list[str]:
@@ -131,83 +125,4 @@ def customer_summary(customer_id: str) -> dict:
             "card_apr_pct": card["apr_pct"] if card else 0.0,
             "card_interest_last_12m": round(card_interest_year, 2),
         },
-    }
-
-
-@lru_cache(maxsize=None)
-def overview() -> dict:
-    accs = accounts()
-    txs = transactions()
-    by_type: dict[str, dict] = defaultdict(lambda: {"count": 0, "total_balance": 0.0, "aprs": Counter(), "yields": Counter()})
-    for a in accs:
-        b = by_type[a["account_type"]]
-        b["count"] += 1
-        b["total_balance"] += a["balance"]
-        if a["apr_pct"]:
-            b["aprs"][a["apr_pct"]] += 1
-        if a["annual_yield_pct"]:
-            b["yields"][a["annual_yield_pct"]] += 1
-    account_types = [
-        {
-            "account_type": k,
-            "count": v["count"],
-            "total_balance": round(v["total_balance"], 2),
-            "avg_balance": round(v["total_balance"] / v["count"], 2),
-            "apr_pct_values": dict(v["aprs"]),
-            "yield_pct_values": dict(v["yields"]),
-        }
-        for k, v in sorted(by_type.items(), key=lambda kv: -kv[1]["count"])
-    ]
-
-    cat_totals: dict[tuple, float] = defaultdict(float)
-    type_counts = Counter()
-    flow_counts = Counter()
-    for t in txs:
-        cat_totals[(t["category"], t["flow_class"])] += t["amount"]
-        type_counts[t["transaction_type"]] += 1
-        flow_counts[t["flow_class"]] += 1
-    categories = sorted(
-        ({"category": c, "flow_class": f, "total": round(v, 2)} for (c, f), v in cat_totals.items()),
-        key=lambda r: -r["total"],
-    )
-
-    # The 360° pattern: card debt at high APR while savings sit idle.
-    pattern = []
-    for cid in customer_ids():
-        accs_c = customer_accounts(cid)
-        card = next((a for a in accs_c if a["account_type"] == "credit_card"), None)
-        sav = next((a for a in accs_c if a["account_type"] == "savings"), None)
-        prof = profile(cid)
-        if not card:
-            continue
-        interest = sum(
-            t["amount"]
-            for t in customer_transactions(cid, account_id=card["account_id"], transaction_type="interest_accrual")
-            if t["posted_date"] >= "2025-11-01"
-        )
-        pattern.append({
-            "customer_id": cid,
-            "card_balance": card["balance"],
-            "card_apr_pct": card["apr_pct"],
-            "savings_balance": sav["balance"] if sav else 0.0,
-            "savings_yield_pct": sav["annual_yield_pct"] if sav else 0.0,
-            "monthly_expenses": prof["monthly_non_debt_expenses"] if prof else 0.0,
-            "card_interest_last_12m": round(interest, 2),
-            "could_pay_off_card_from_savings": bool(sav and sav["balance"] >= card["balance"]),
-        })
-
-    dates = [t["posted_date"] for t in txs]
-    return {
-        "counts": {
-            "customers": len(profiles()),
-            "accounts": len(accs),
-            "transactions": len(txs),
-            "statements": len(statements()),
-        },
-        "date_range": {"from": min(dates), "to": max(dates)},
-        "account_types": account_types,
-        "transaction_types": dict(type_counts),
-        "flow_classes": dict(flow_counts),
-        "categories": categories,
-        "card_vs_savings": pattern,
     }

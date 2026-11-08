@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paidway styles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?display=swap&family=Outfit:wght@300;600;800&family=Archivo+Narrow:wght@700&family=Archivo:wght@600" rel="stylesheet">
+<style>
+:root{color-scheme:light dark;--bg:#f5f5f7;--panel:#fff;--ink:#1d1d1f;--muted:#6e6e73;--line:#e5e5ea;--link:#0066cc}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--panel:#1c1c1e;--ink:#f5f5f7;--muted:#98989d;--line:#2c2c2e;--link:#4ea1ff}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+main{max-width:1280px;margin:0 auto;padding:32px 16px 64px}
+h1{font:700 30px/1.1 Inter,sans-serif;letter-spacing:-.02em;margin:0 0 6px}
+h2{font:650 20px/1.2 Inter,sans-serif;letter-spacing:-.01em;margin:44px 0 4px}
+.sub{color:var(--muted);margin:0}
+.sub code,h3 code{font:12px ui-monospace,monospace;color:var(--muted);font-weight:400}
+nav.toc{display:flex;flex-wrap:wrap;gap:6px 14px;margin:14px 0 0;font-size:13px}
+a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
+h3{font-size:15px;font-weight:600;margin:0}
+.grid-logos{display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:14px;margin-top:16px}
+@media (max-width:600px){.grid-logos{grid-template-columns:1fr}}
+.logo{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.logo p{color:var(--muted);margin:2px 0 0;font-size:13px}
+.meta{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:10px}
+.meta a{font-size:13px;white-space:nowrap}
+.kind{font-size:12px;font-weight:500;color:var(--muted);margin-left:4px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.lp{border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
+.lp.light{color-scheme:light;background:#fff;color:#1d1d1f;box-shadow:inset 0 0 0 1px #e5e5ea;--bar:rgba(0,0,0,.035);--line2:#e5e5ea;--mut:#8e8e93}
+.lp.dark{color-scheme:dark;background:#161618;color:#f2f2f4;--bar:rgba(255,255,255,.04);--line2:#2c2c2e;--mut:#8e8e93}
+.big{flex:1;display:flex;align-items:center;justify-content:center;gap:18px;min-height:120px;padding:16px 10px;font-size:38px}
+.icon{display:block;line-height:0}
+.hdr{display:flex;align-items:center;gap:14px;padding:9px 12px;background:var(--bar);border-top:1px solid var(--line2);font-size:19px}
+.steps{display:flex;gap:2px;font:12px Inter,sans-serif;color:var(--mut)}
+.steps i{font-style:normal;padding:3px 7px;border-radius:6px}
+.steps i.on{background:var(--line2);color:inherit}
+.lg-legacy{font-family:Fraunces,serif;font-weight:600;letter-spacing:-.02em}
+details{margin-top:40px}
+summary{cursor:pointer;font:600 15px Inter,sans-serif}
+.grid-old{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-top:12px}
+.old{display:grid;gap:4px}.old code{font-size:12px;color:var(--muted)}
+.old .lp{--accent:#e8590c;--on-accent:#fff}
+.grid-dirs{display:grid;gap:18px;margin-top:16px}
+.dir{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.dir header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.dir p{color:var(--muted);margin:2px 0 12px}
+.n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--line);font-size:12px;margin-right:8px}
+.shots{display:grid;grid-template-columns:2fr 2fr 1.2fr;gap:10px;align-items:start}
+.shots a{display:block;color:var(--muted);font-size:12px}
+.shots img{display:block;width:100%;height:auto;aspect-ratio:1440/1000;object-fit:cover;object-position:top;border-radius:8px;border:1px solid var(--line)}
+.shots span{display:block;margin-top:4px}
+@media (max-width:720px){.shots{grid-template-columns:1fr}}
+/* Paidway logo lockups (see logos.ts). Colours follow the element's color-scheme via light-dark(). */
+.lg { display: inline-flex; align-items: center; gap: .38em; line-height: 1; color: inherit; white-space: nowrap; }
+.lg .mark { display: block; flex: none; }
+.lg:not(.lg-legacy) .w { font-family: Outfit, var(--font-ui, system-ui), sans-serif; font-weight: 600; letter-spacing: -.02em; }
+
+.tone-green { --lc: light-dark(#0f7a4a, #3fd08f); }
+.tone-deep  { --lc: light-dark(#14532d, #7ee2a8); }
+.tone-teal  { --lc: light-dark(#0f766e, #2dd4bf); }
+.tone-navy  { --lc: light-dark(#1e3a8a, #9db8ff); }
+.tone-ink   { --lc: currentColor; }
+.lg { --lc-on: light-dark(#ffffff, #0b1211); }
+html[data-logotone="style"] .lg { --lc: var(--accent); --lc-on: var(--on-accent, #fff); }
+
+/* PAID stamp */
+.lg-stamp .w { font-family: Archivo, sans-serif; font-weight: 600; letter-spacing: -.01em; }
+.lg-stamp .st { display: inline-block; margin-right: .16em; padding: .16em .24em .1em; color: var(--lc);
+  font: 700 .8em/1 'Archivo Narrow', sans-serif; letter-spacing: .08em;
+  border: .1em solid var(--lc); border-radius: .14em; outline: .045em solid var(--lc); outline-offset: -.24em;
+  transform: rotate(-6deg) translateY(-.02em); }
+
+/* Paid + way */
+.lg-paidbold .w { letter-spacing: -.035em; }
+.lg-paidbold b { font-weight: 800; color: var(--lc); }
+.lg-paidbold i { font-style: normal; font-weight: 300; }
+
+/* Way underline: the y's tail becomes a line back to a start dot */
+.lg-ytail .w { position: relative; display: inline-block; padding: 0 .04em .2em .2em; }
+.lg-ytail .y { color: var(--lc); }
+.lg-ytail .w::after { content: ''; position: absolute; left: .2em; right: .2em; bottom: 0; height: .085em; border-radius: .05em; background: var(--lc); }
+.lg-ytail .w::before { content: ''; position: absolute; left: 0; bottom: -.07em; width: .23em; height: .23em; border-radius: 50%; background: var(--lc); }
+
+/* Check dot */
+.lg-checkdot .w { font-weight: 600; letter-spacing: -.03em; }
+.lg-checkdot .i { position: relative; display: inline-block; }
+.lg-checkdot .i svg { position: absolute; left: 50%; top: -.06em; width: .46em; height: .37em; transform: translateX(-42%);
+  fill: none; stroke: var(--lc); stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+
+</style></head><body><main>
+<h1>Paidway styles</h1>
+<p class="sub">12 logo options and 15 style directions, all on the real app. Live: <code>:15750/?plan=last&amp;style=&lt;slug&gt;&amp;logo=&lt;slug&gt;</code>. A switcher appears bottom-right.</p>
+<nav class="toc"><a href="#logos">Logos</a><a href="#mac">Mac</a><a href="#more">More directions</a></nav>
+<h2 id="logos">Logos</h2>
+<p class="sub">Large and in a 24px header, on light and dark. Colours are their own; add <code>&amp;logotone=style</code> (or the switcher's Own/Accent button) to take the style's accent instead.</p>
+<div class="grid-logos">
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-stamp tone-green"><span class="w"><span class="st">PAID</span>way</span></span><span class="icon lg tone-green"><svg class="mark" width="44" height="44" viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-8 12 12)"><rect x="2.6" y="5.2" width="18.8" height="13.6" rx="2" fill="none" stroke="var(--lc)" stroke-width="2"/><rect x="5" y="7.6" width="14" height="8.8" rx=".8" fill="none" stroke="var(--lc)" stroke-width=".9"/></g><path d="M8.6 12.3l2.3 2.3 4.6-4.7" fill="none" stroke="var(--lc)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+    <div class="hdr"><span class="lg lg-stamp tone-green"><span class="w"><span class="st">PAID</span>way</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-stamp tone-green"><span class="w"><span class="st">PAID</span>way</span></span><span class="icon lg tone-green"><svg class="mark" width="44" height="44" viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-8 12 12)"><rect x="2.6" y="5.2" width="18.8" height="13.6" rx="2" fill="none" stroke="var(--lc)" stroke-width="2"/><rect x="5" y="7.6" width="14" height="8.8" rx=".8" fill="none" stroke="var(--lc)" stroke-width=".9"/></g><path d="M8.6 12.3l2.3 2.3 4.6-4.7" fill="none" stroke="var(--lc)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+    <div class="hdr"><span class="lg lg-stamp tone-green"><span class="w"><span class="st">PAID</span>way</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>PAID stamp <code>stamp</code> <span class="kind">Stamp wordmark</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=stamp">In header ↗</a></div>
+  <p>The word reads as a rubber stamp: PAID, inked, then "way".</p>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-paidbold tone-green"><span class="w"><b>Paid</b><i>way</i></span></span></div>
+    <div class="hdr"><span class="lg lg-paidbold tone-green"><span class="w"><b>Paid</b><i>way</i></span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-paidbold tone-green"><span class="w"><b>Paid</b><i>way</i></span></span></div>
+    <div class="hdr"><span class="lg lg-paidbold tone-green"><span class="w"><b>Paid</b><i>way</i></span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>Paid + way <code>paidbold</code> <span class="kind">Wordmark</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=paidbold">In header ↗</a></div>
+  <p>Pure type: heavy green "Paid", light "way". The name does the work.</p>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-ytail tone-teal"><span class="w">Paidwa<span class="y">y</span></span></span></div>
+    <div class="hdr"><span class="lg lg-ytail tone-teal"><span class="w">Paidwa<span class="y">y</span></span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-ytail tone-teal"><span class="w">Paidwa<span class="y">y</span></span></span></div>
+    <div class="hdr"><span class="lg lg-ytail tone-teal"><span class="w">Paidwa<span class="y">y</span></span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>Way underline <code>ytail</code> <span class="kind">Wordmark</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=ytail">In header ↗</a></div>
+  <p>The y drops into a line that runs back under the word: the way, from start dot to paid.</p>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-checkdot tone-deep"><span class="w">pa<span class="i">ı<svg viewBox="0 0 10 8" aria-hidden="true"><path d="M1.3 4.3l2.4 2.3L8.7 1.4"/></svg></span>dway</span></span></div>
+    <div class="hdr"><span class="lg lg-checkdot tone-deep"><span class="w">pa<span class="i">ı<svg viewBox="0 0 10 8" aria-hidden="true"><path d="M1.3 4.3l2.4 2.3L8.7 1.4"/></svg></span>dway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-checkdot tone-deep"><span class="w">pa<span class="i">ı<svg viewBox="0 0 10 8" aria-hidden="true"><path d="M1.3 4.3l2.4 2.3L8.7 1.4"/></svg></span>dway</span></span></div>
+    <div class="hdr"><span class="lg lg-checkdot tone-deep"><span class="w">pa<span class="i">ı<svg viewBox="0 0 10 8" aria-hidden="true"><path d="M1.3 4.3l2.4 2.3L8.7 1.4"/></svg></span>dway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>Check dot <code>checkdot</code> <span class="kind">Wordmark</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=checkdot">In header ↗</a></div>
+  <p>Lowercase, with the i dotted by a check. Quiet, friendly, very ownable.</p>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-proad tone-green"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.9 22V5.2h5.6a5 5 0 0 1 0 10H6.9" fill="none" stroke="var(--lc)" stroke-width="5" stroke-linejoin="round"/><path d="M6.9 21.5V5.2h5.6a5 5 0 0 1 0 10H6.9" fill="none" stroke="var(--lc-on)" stroke-width="1" stroke-dasharray="1.7 1.7"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-proad tone-green"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.9 22V5.2h5.6a5 5 0 0 1 0 10H6.9" fill="none" stroke="var(--lc)" stroke-width="5" stroke-linejoin="round"/><path d="M6.9 21.5V5.2h5.6a5 5 0 0 1 0 10H6.9" fill="none" stroke="var(--lc-on)" stroke-width="1" stroke-dasharray="1.7 1.7"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-proad tone-green"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.9 22V5.2h5.6a5 5 0 0 1 0 10H6.9" fill="none" stroke="var(--lc)" stroke-width="5" stroke-linejoin="round"/><path d="M6.9 21.5V5.2h5.6a5 5 0 0 1 0 10H6.9" fill="none" stroke="var(--lc-on)" stroke-width="1" stroke-dasharray="1.7 1.7"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-proad tone-green"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.9 22V5.2h5.6a5 5 0 0 1 0 10H6.9" fill="none" stroke="var(--lc)" stroke-width="5" stroke-linejoin="round"/><path d="M6.9 21.5V5.2h5.6a5 5 0 0 1 0 10H6.9" fill="none" stroke="var(--lc-on)" stroke-width="1" stroke-dasharray="1.7 1.7"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>P road <code>proad</code> <span class="kind">Monogram</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=proad">In header ↗</a></div>
+  <p>A P built as a road, centre line and all: the way, in the initial.</p>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-pw tone-ink"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 20V5.5h5.9L12.6 15 15 8.3l2.4 6.7 2.4-9.5" fill="none" stroke="var(--lc)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.6 15H4.5" fill="none" stroke="var(--lc)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-pw tone-ink"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 20V5.5h5.9L12.6 15 15 8.3l2.4 6.7 2.4-9.5" fill="none" stroke="var(--lc)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.6 15H4.5" fill="none" stroke="var(--lc)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-pw tone-ink"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 20V5.5h5.9L12.6 15 15 8.3l2.4 6.7 2.4-9.5" fill="none" stroke="var(--lc)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.6 15H4.5" fill="none" stroke="var(--lc)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-pw tone-ink"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 20V5.5h5.9L12.6 15 15 8.3l2.4 6.7 2.4-9.5" fill="none" stroke="var(--lc)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M12.6 15H4.5" fill="none" stroke="var(--lc)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>pw ligature <code>pw</code> <span class="kind">Monogram</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=pw">In header ↗</a></div>
+  <p>Geometric p and w sharing one stroke: the bowl of the p is the first leg of the w.</p>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-finish tone-teal"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.2 20.4H11a3.2 3.2 0 0 0 0-6.4H8.6a3.2 3.2 0 0 1 0-6.4h9.6" fill="none" stroke="var(--lc)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="4.2" cy="20.4" r="2" fill="var(--lc)"/><path d="M19 8.2V1.8" fill="none" stroke="var(--lc)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 1.8h3.6l-1 1.8 1 1.8H19z" fill="var(--lc)"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-finish tone-teal"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.2 20.4H11a3.2 3.2 0 0 0 0-6.4H8.6a3.2 3.2 0 0 1 0-6.4h9.6" fill="none" stroke="var(--lc)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="4.2" cy="20.4" r="2" fill="var(--lc)"/><path d="M19 8.2V1.8" fill="none" stroke="var(--lc)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 1.8h3.6l-1 1.8 1 1.8H19z" fill="var(--lc)"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-finish tone-teal"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.2 20.4H11a3.2 3.2 0 0 0 0-6.4H8.6a3.2 3.2 0 0 1 0-6.4h9.6" fill="none" stroke="var(--lc)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="4.2" cy="20.4" r="2" fill="var(--lc)"/><path d="M19 8.2V1.8" fill="none" stroke="var(--lc)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 1.8h3.6l-1 1.8 1 1.8H19z" fill="var(--lc)"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-finish tone-teal"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.2 20.4H11a3.2 3.2 0 0 0 0-6.4H8.6a3.2 3.2 0 0 1 0-6.4h9.6" fill="none" stroke="var(--lc)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="4.2" cy="20.4" r="2" fill="var(--lc)"/><path d="M19 8.2V1.8" fill="none" stroke="var(--lc)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 1.8h3.6l-1 1.8 1 1.8H19z" fill="var(--lc)"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>Switchback <code>finish</code> <span class="kind">Line mark</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=finish">In header ↗</a></div>
+  <p>A switchback road from a start dot up to a finish flag.</p>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-wzero tone-navy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 3.8l4 15.2 3.8-9.4L14 19l3-4.8 2.4 4.8h2" fill="none" stroke="var(--lc)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-wzero tone-navy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 3.8l4 15.2 3.8-9.4L14 19l3-4.8 2.4 4.8h2" fill="none" stroke="var(--lc)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-wzero tone-navy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 3.8l4 15.2 3.8-9.4L14 19l3-4.8 2.4 4.8h2" fill="none" stroke="var(--lc)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-wzero tone-navy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 3.8l4 15.2 3.8-9.4L14 19l3-4.8 2.4 4.8h2" fill="none" stroke="var(--lc)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>W to zero <code>wzero</code> <span class="kind">Line mark</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=wzero">In header ↗</a></div>
+  <p>A W whose peaks keep dropping until the line settles on zero.</p>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-signpost tone-deep"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect x="10.8" y="2.5" width="2.4" height="20" rx="1" fill="var(--lc)"/><path d="M4.5 4.6h12.2l3.2 3.2-3.2 3.2H4.5z" fill="var(--lc)"/><path d="M19.2 13.4H8.4l-2.7 2.7 2.7 2.7h10.8z" fill="none" stroke="var(--lc)" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-signpost tone-deep"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect x="10.8" y="2.5" width="2.4" height="20" rx="1" fill="var(--lc)"/><path d="M4.5 4.6h12.2l3.2 3.2-3.2 3.2H4.5z" fill="var(--lc)"/><path d="M19.2 13.4H8.4l-2.7 2.7 2.7 2.7h10.8z" fill="none" stroke="var(--lc)" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-signpost tone-deep"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect x="10.8" y="2.5" width="2.4" height="20" rx="1" fill="var(--lc)"/><path d="M4.5 4.6h12.2l3.2 3.2-3.2 3.2H4.5z" fill="var(--lc)"/><path d="M19.2 13.4H8.4l-2.7 2.7 2.7 2.7h10.8z" fill="none" stroke="var(--lc)" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-signpost tone-deep"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect x="10.8" y="2.5" width="2.4" height="20" rx="1" fill="var(--lc)"/><path d="M4.5 4.6h12.2l3.2 3.2-3.2 3.2H4.5z" fill="var(--lc)"/><path d="M19.2 13.4H8.4l-2.7 2.7 2.7 2.7h10.8z" fill="none" stroke="var(--lc)" stroke-width="1.6" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>Signpost <code>signpost</code> <span class="kind">Emblem</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=signpost">In header ↗</a></div>
+  <p>A fingerpost pointing the way: one sign filled, one outlined.</p>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-milestone tone-navy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 20.5V10a6.5 6.5 0 0 1 13 0v10.5z" fill="var(--lc)"/><ellipse cx="12" cy="12.6" rx="2.5" ry="3.5" fill="none" stroke="var(--lc-on)" stroke-width="2"/><path d="M3.2 21.6h17.6" fill="none" stroke="var(--lc)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-milestone tone-navy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 20.5V10a6.5 6.5 0 0 1 13 0v10.5z" fill="var(--lc)"/><ellipse cx="12" cy="12.6" rx="2.5" ry="3.5" fill="none" stroke="var(--lc-on)" stroke-width="2"/><path d="M3.2 21.6h17.6" fill="none" stroke="var(--lc)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-milestone tone-navy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 20.5V10a6.5 6.5 0 0 1 13 0v10.5z" fill="var(--lc)"/><ellipse cx="12" cy="12.6" rx="2.5" ry="3.5" fill="none" stroke="var(--lc-on)" stroke-width="2"/><path d="M3.2 21.6h17.6" fill="none" stroke="var(--lc)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-milestone tone-navy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 20.5V10a6.5 6.5 0 0 1 13 0v10.5z" fill="var(--lc)"/><ellipse cx="12" cy="12.6" rx="2.5" ry="3.5" fill="none" stroke="var(--lc-on)" stroke-width="2"/><path d="M3.2 21.6h17.6" fill="none" stroke="var(--lc)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>Mile zero <code>milestone</code> <span class="kind">Badge</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=milestone">In header ↗</a></div>
+  <p>A roadside milestone marked 0: the balance at the end of the road.</p>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-receipt tone-teal"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 2.5h13v19l-2.17-1.6-2.16 1.6-2.17-1.6-2.17 1.6-2.16-1.6-2.17 1.6z" fill="var(--lc)"/><path d="M8.6 6.4h6.8M8.6 9.4h4.2" fill="none" stroke="var(--lc-on)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.7 14.1l2.1 2.1 4.5-4.5" fill="none" stroke="var(--lc-on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-receipt tone-teal"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 2.5h13v19l-2.17-1.6-2.16 1.6-2.17-1.6-2.17 1.6-2.16-1.6-2.17 1.6z" fill="var(--lc)"/><path d="M8.6 6.4h6.8M8.6 9.4h4.2" fill="none" stroke="var(--lc-on)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.7 14.1l2.1 2.1 4.5-4.5" fill="none" stroke="var(--lc-on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-receipt tone-teal"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 2.5h13v19l-2.17-1.6-2.16 1.6-2.17-1.6-2.17 1.6-2.16-1.6-2.17 1.6z" fill="var(--lc)"/><path d="M8.6 6.4h6.8M8.6 9.4h4.2" fill="none" stroke="var(--lc-on)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.7 14.1l2.1 2.1 4.5-4.5" fill="none" stroke="var(--lc-on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-receipt tone-teal"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 2.5h13v19l-2.17-1.6-2.16 1.6-2.17-1.6-2.17 1.6-2.16-1.6-2.17 1.6z" fill="var(--lc)"/><path d="M8.6 6.4h6.8M8.6 9.4h4.2" fill="none" stroke="var(--lc-on)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.7 14.1l2.1 2.1 4.5-4.5" fill="none" stroke="var(--lc-on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>Receipt <code>receipt</code> <span class="kind">Geometric</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=receipt">In header ↗</a></div>
+  <p>A torn-edge receipt, ticked off. Literal, but clearly money and clearly done.</p>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><span class="lg lg-tag tone-deep"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.6 2.5H20a1.5 1.5 0 0 1 1.5 1.5v7.4a1.6 1.6 0 0 1-.47 1.13l-8.6 8.6a1.6 1.6 0 0 1-2.26 0l-6.8-6.8a1.6 1.6 0 0 1 0-2.26l8.6-8.6A1.6 1.6 0 0 1 12.6 2.5z" fill="var(--lc)"/><circle cx="17.3" cy="6.7" r="1.6" fill="var(--lc-on)"/><path d="M7.9 12.9l2.4 2.4 4.4-4.4" fill="none" stroke="var(--lc-on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-tag tone-deep"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.6 2.5H20a1.5 1.5 0 0 1 1.5 1.5v7.4a1.6 1.6 0 0 1-.47 1.13l-8.6 8.6a1.6 1.6 0 0 1-2.26 0l-6.8-6.8a1.6 1.6 0 0 1 0-2.26l8.6-8.6A1.6 1.6 0 0 1 12.6 2.5z" fill="var(--lc)"/><circle cx="17.3" cy="6.7" r="1.6" fill="var(--lc-on)"/><path d="M7.9 12.9l2.4 2.4 4.4-4.4" fill="none" stroke="var(--lc-on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><span class="lg lg-tag tone-deep"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.6 2.5H20a1.5 1.5 0 0 1 1.5 1.5v7.4a1.6 1.6 0 0 1-.47 1.13l-8.6 8.6a1.6 1.6 0 0 1-2.26 0l-6.8-6.8a1.6 1.6 0 0 1 0-2.26l8.6-8.6A1.6 1.6 0 0 1 12.6 2.5z" fill="var(--lc)"/><circle cx="17.3" cy="6.7" r="1.6" fill="var(--lc-on)"/><path d="M7.9 12.9l2.4 2.4 4.4-4.4" fill="none" stroke="var(--lc-on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span></div>
+    <div class="hdr"><span class="lg lg-tag tone-deep"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.6 2.5H20a1.5 1.5 0 0 1 1.5 1.5v7.4a1.6 1.6 0 0 1-.47 1.13l-8.6 8.6a1.6 1.6 0 0 1-2.26 0l-6.8-6.8a1.6 1.6 0 0 1 0-2.26l8.6-8.6A1.6 1.6 0 0 1 12.6 2.5z" fill="var(--lc)"/><circle cx="17.3" cy="6.7" r="1.6" fill="var(--lc-on)"/><path d="M7.9 12.9l2.4 2.4 4.4-4.4" fill="none" stroke="var(--lc-on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div>
+  </div></div>
+  <div class="meta"><h3>Paid tag <code>tag</code> <span class="kind">Badge</span></h3>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=tag">In header ↗</a></div>
+  <p>A price tag with a check: the bill, settled.</p>
+</article></div>
+<h2 id="mac">Mac</h2>
+<p class="sub">System font, neutral greys, hairlines, small radius, one quiet accent. Snapshot and Plan at 1440, plus Plan in dark.</p>
+<div class="grid-dirs">
+<article class="dir" id="mac-light">
+  <header>
+    <h3><span class="n">1</span>Mac light <code>mac-light</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=mac-light">Open live ↗</a>
+  </header>
+  <p>Settings-style grouped lists: inset white groups on light grey.</p>
+  <div class="shots">
+    <a href="shots/mac-light-home.jpg"><img loading="lazy" src="shots/mac-light-home.jpg" alt="Mac light snapshot"><span>Snapshot</span></a>
+    <a href="shots/mac-light-plan.jpg"><img loading="lazy" src="shots/mac-light-plan.jpg" alt="Mac light plan"><span>Plan</span></a>
+    <a href="shots/mac-light-plan-dark.jpg"><img loading="lazy" src="shots/mac-light-plan-dark.jpg" alt="Mac light plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="mac-plain">
+  <header>
+    <h3><span class="n">2</span>Mac plain <code>mac-plain</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=mac-plain">Open live ↗</a>
+  </header>
+  <p>White page, hairline rules, almost no cards.</p>
+  <div class="shots">
+    <a href="shots/mac-plain-home.jpg"><img loading="lazy" src="shots/mac-plain-home.jpg" alt="Mac plain snapshot"><span>Snapshot</span></a>
+    <a href="shots/mac-plain-plan.jpg"><img loading="lazy" src="shots/mac-plain-plan.jpg" alt="Mac plain plan"><span>Plan</span></a>
+    <a href="shots/mac-plain-plan-dark.jpg"><img loading="lazy" src="shots/mac-plain-plan-dark.jpg" alt="Mac plain plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="mac-sidebar-tone">
+  <header>
+    <h3><span class="n">3</span>Mac sidebar tone <code>mac-sidebar-tone</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=mac-sidebar-tone">Open live ↗</a>
+  </header>
+  <p>Tinted window background with white content cards, like Finder or Notes.</p>
+  <div class="shots">
+    <a href="shots/mac-sidebar-tone-home.jpg"><img loading="lazy" src="shots/mac-sidebar-tone-home.jpg" alt="Mac sidebar tone snapshot"><span>Snapshot</span></a>
+    <a href="shots/mac-sidebar-tone-plan.jpg"><img loading="lazy" src="shots/mac-sidebar-tone-plan.jpg" alt="Mac sidebar tone plan"><span>Plan</span></a>
+    <a href="shots/mac-sidebar-tone-plan-dark.jpg"><img loading="lazy" src="shots/mac-sidebar-tone-plan-dark.jpg" alt="Mac sidebar tone plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="mac-dark">
+  <header>
+    <h3><span class="n">4</span>Mac dark <code>mac-dark</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=mac-dark">Open live ↗</a>
+  </header>
+  <p>Dark-first macOS: translucent surfaces over a soft dark window.</p>
+  <div class="shots">
+    <a href="shots/mac-dark-home.jpg"><img loading="lazy" src="shots/mac-dark-home.jpg" alt="Mac dark snapshot"><span>Snapshot</span></a>
+    <a href="shots/mac-dark-plan.jpg"><img loading="lazy" src="shots/mac-dark-plan.jpg" alt="Mac dark plan"><span>Plan</span></a>
+    <a href="shots/mac-dark-plan-dark.jpg"><img loading="lazy" src="shots/mac-dark-plan-dark.jpg" alt="Mac dark plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="mac-graphite">
+  <header>
+    <h3><span class="n">5</span>Mac graphite <code>mac-graphite</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=mac-graphite">Open live ↗</a>
+  </header>
+  <p>Graphite instead of blue, greyscale charts: maximum restraint.</p>
+  <div class="shots">
+    <a href="shots/mac-graphite-home.jpg"><img loading="lazy" src="shots/mac-graphite-home.jpg" alt="Mac graphite snapshot"><span>Snapshot</span></a>
+    <a href="shots/mac-graphite-plan.jpg"><img loading="lazy" src="shots/mac-graphite-plan.jpg" alt="Mac graphite plan"><span>Plan</span></a>
+    <a href="shots/mac-graphite-plan-dark.jpg"><img loading="lazy" src="shots/mac-graphite-plan-dark.jpg" alt="Mac graphite plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article></div>
+<h2 id="more">More directions</h2>
+<div class="grid-dirs">
+<article class="dir" id="warm">
+  <header>
+    <h3><span class="n">1</span>Paidway warm <code>warm</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm">Open live ↗</a>
+  </header>
+  <p>The current restyle: warm neutrals, one vermilion accent, Fraunces numbers.</p>
+  <div class="shots">
+    <a href="shots/warm-home.jpg"><img loading="lazy" src="shots/warm-home.jpg" alt="Paidway warm snapshot"><span>Snapshot</span></a>
+    <a href="shots/warm-plan.jpg"><img loading="lazy" src="shots/warm-plan.jpg" alt="Paidway warm plan"><span>Plan</span></a>
+    <a href="shots/warm-plan-dark.jpg"><img loading="lazy" src="shots/warm-plan-dark.jpg" alt="Paidway warm plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="swiss">
+  <header>
+    <h3><span class="n">2</span>Swiss mono <code>swiss</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=swiss">Open live ↗</a>
+  </header>
+  <p>Black, white and one red. Square corners, hairline rules, Inter Tight caps.</p>
+  <div class="shots">
+    <a href="shots/swiss-home.jpg"><img loading="lazy" src="shots/swiss-home.jpg" alt="Swiss mono snapshot"><span>Snapshot</span></a>
+    <a href="shots/swiss-plan.jpg"><img loading="lazy" src="shots/swiss-plan.jpg" alt="Swiss mono plan"><span>Plan</span></a>
+    <a href="shots/swiss-plan-dark.jpg"><img loading="lazy" src="shots/swiss-plan-dark.jpg" alt="Swiss mono plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="navy">
+  <header>
+    <h3><span class="n">3</span>Fintech navy <code>navy</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=navy">Open live ↗</a>
+  </header>
+  <p>Banking-app trust: navy header bar, cool greys, electric blue, Manrope.</p>
+  <div class="shots">
+    <a href="shots/navy-home.jpg"><img loading="lazy" src="shots/navy-home.jpg" alt="Fintech navy snapshot"><span>Snapshot</span></a>
+    <a href="shots/navy-plan.jpg"><img loading="lazy" src="shots/navy-plan.jpg" alt="Fintech navy plan"><span>Plan</span></a>
+    <a href="shots/navy-plan-dark.jpg"><img loading="lazy" src="shots/navy-plan-dark.jpg" alt="Fintech navy plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="pastel">
+  <header>
+    <h3><span class="n">4</span>Soft pastel cards <code>pastel</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=pastel">Open live ↗</a>
+  </header>
+  <p>Airy lavender canvas, borderless floating cards, violet accent, Plus Jakarta.</p>
+  <div class="shots">
+    <a href="shots/pastel-home.jpg"><img loading="lazy" src="shots/pastel-home.jpg" alt="Soft pastel cards snapshot"><span>Snapshot</span></a>
+    <a href="shots/pastel-plan.jpg"><img loading="lazy" src="shots/pastel-plan.jpg" alt="Soft pastel cards plan"><span>Plan</span></a>
+    <a href="shots/pastel-plan-dark.jpg"><img loading="lazy" src="shots/pastel-plan-dark.jpg" alt="Soft pastel cards plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="terminal">
+  <header>
+    <h3><span class="n">5</span>Terminal green <code>terminal</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=terminal">Open live ↗</a>
+  </header>
+  <p>Dark-first, monospace numbers, phosphor green on near-black. Dense.</p>
+  <div class="shots">
+    <a href="shots/terminal-home.jpg"><img loading="lazy" src="shots/terminal-home.jpg" alt="Terminal green snapshot"><span>Snapshot</span></a>
+    <a href="shots/terminal-plan.jpg"><img loading="lazy" src="shots/terminal-plan.jpg" alt="Terminal green plan"><span>Plan</span></a>
+    <a href="shots/terminal-plan-dark.jpg"><img loading="lazy" src="shots/terminal-plan-dark.jpg" alt="Terminal green plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="editorial">
+  <header>
+    <h3><span class="n">6</span>Editorial serif <code>editorial</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=editorial">Open live ↗</a>
+  </header>
+  <p>A financial-paper page: big Newsreader headlines, rules instead of boxes.</p>
+  <div class="shots">
+    <a href="shots/editorial-home.jpg"><img loading="lazy" src="shots/editorial-home.jpg" alt="Editorial serif snapshot"><span>Snapshot</span></a>
+    <a href="shots/editorial-plan.jpg"><img loading="lazy" src="shots/editorial-plan.jpg" alt="Editorial serif plan"><span>Plan</span></a>
+    <a href="shots/editorial-plan-dark.jpg"><img loading="lazy" src="shots/editorial-plan-dark.jpg" alt="Editorial serif plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="glass">
+  <header>
+    <h3><span class="n">7</span>Glassy gradient <code>glass</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=glass">Open live ↗</a>
+  </header>
+  <p>Frosted cards over a soft colour mesh, gradient buttons, Sora.</p>
+  <div class="shots">
+    <a href="shots/glass-home.jpg"><img loading="lazy" src="shots/glass-home.jpg" alt="Glassy gradient snapshot"><span>Snapshot</span></a>
+    <a href="shots/glass-plan.jpg"><img loading="lazy" src="shots/glass-plan.jpg" alt="Glassy gradient plan"><span>Plan</span></a>
+    <a href="shots/glass-plan-dark.jpg"><img loading="lazy" src="shots/glass-plan-dark.jpg" alt="Glassy gradient plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="brutal">
+  <header>
+    <h3><span class="n">8</span>Brutalist-lite <code>brutal</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=brutal">Open live ↗</a>
+  </header>
+  <p>Thick black borders, hard offset shadows, cobalt + yellow, Space Grotesk.</p>
+  <div class="shots">
+    <a href="shots/brutal-home.jpg"><img loading="lazy" src="shots/brutal-home.jpg" alt="Brutalist-lite snapshot"><span>Snapshot</span></a>
+    <a href="shots/brutal-plan.jpg"><img loading="lazy" src="shots/brutal-plan.jpg" alt="Brutalist-lite plan"><span>Plan</span></a>
+    <a href="shots/brutal-plan-dark.jpg"><img loading="lazy" src="shots/brutal-plan-dark.jpg" alt="Brutalist-lite plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="sage">
+  <header>
+    <h3><span class="n">9</span>Calm sage <code>sage</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=sage">Open live ↗</a>
+  </header>
+  <p>Quiet greens and clay, rounded and roomy, Figtree with Lora numbers.</p>
+  <div class="shots">
+    <a href="shots/sage-home.jpg"><img loading="lazy" src="shots/sage-home.jpg" alt="Calm sage snapshot"><span>Snapshot</span></a>
+    <a href="shots/sage-plan.jpg"><img loading="lazy" src="shots/sage-plan.jpg" alt="Calm sage plan"><span>Plan</span></a>
+    <a href="shots/sage-plan-dark.jpg"><img loading="lazy" src="shots/sage-plan-dark.jpg" alt="Calm sage plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="apple">
+  <header>
+    <h3><span class="n">10</span>Neutral (Apple-like) <code>apple</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=apple">Open live ↗</a>
+  </header>
+  <p>Grey canvas, white borderless cards, segmented steps, system blue.</p>
+  <div class="shots">
+    <a href="shots/apple-home.jpg"><img loading="lazy" src="shots/apple-home.jpg" alt="Neutral (Apple-like) snapshot"><span>Snapshot</span></a>
+    <a href="shots/apple-plan.jpg"><img loading="lazy" src="shots/apple-plan.jpg" alt="Neutral (Apple-like) plan"><span>Plan</span></a>
+    <a href="shots/apple-plan-dark.jpg"><img loading="lazy" src="shots/apple-plan-dark.jpg" alt="Neutral (Apple-like) plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article></div>
+<details><summary>Round 1 logos (superseded)</summary><div class="grid-old"><div class="old"><div class="lp light"><div class="hdr"><span class="lg lg-step tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M5.5 7H10v5h4v5h3" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="17" r="1.9" fill="var(--on-accent)"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><div class="lp dark"><div class="hdr"><span class="lg lg-step tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M5.5 7H10v5h4v5h3" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="17" r="1.9" fill="var(--on-accent)"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><code>step</code></div><div class="old"><div class="lp light"><div class="hdr"><span class="lg lg-ppath tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 19.5V4.5h5.6a4.75 4.75 0 0 1 0 9.5H7" fill="none" stroke="var(--accent)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="19.6" r="2.4" fill="var(--accent)"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><div class="lp dark"><div class="hdr"><span class="lg lg-ppath tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 19.5V4.5h5.6a4.75 4.75 0 0 1 0 9.5H7" fill="none" stroke="var(--accent)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="19.6" r="2.4" fill="var(--accent)"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><code>ppath</code></div><div class="old"><div class="lp light"><div class="hdr"><span class="lg lg-rise tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><path d="M6 15.5l3.6-3.6 3 2.6L17.6 9" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.2 9h3.4v3.4" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><div class="lp dark"><div class="hdr"><span class="lg lg-rise tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><path d="M6 15.5l3.6-3.6 3 2.6L17.6 9" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.2 9h3.4v3.4" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><code>rise</code></div><div class="old"><div class="lp light"><div class="hdr"><span class="lg lg-check tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="var(--accent)"/><path d="M6.5 12.6l3.6 3.6L17.8 6.5" fill="none" stroke="var(--on-accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17.8" cy="6.5" r="1.6" fill="var(--on-accent)"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><div class="lp dark"><div class="hdr"><span class="lg lg-check tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="var(--accent)"/><path d="M6.5 12.6l3.6 3.6L17.8 6.5" fill="none" stroke="var(--on-accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17.8" cy="6.5" r="1.6" fill="var(--on-accent)"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><code>check</code></div><div class="old"><div class="lp light"><div class="hdr"><span class="lg lg-coin tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><circle cx="12" cy="12" r="8.6" fill="none" stroke="var(--on-accent)" stroke-opacity=".35" stroke-width="1.2"/><path d="M10 16.6V7.4h3.1a2.7 2.7 0 0 1 0 5.4H10" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><div class="lp dark"><div class="hdr"><span class="lg lg-coin tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><circle cx="12" cy="12" r="8.6" fill="none" stroke="var(--on-accent)" stroke-opacity=".35" stroke-width="1.2"/><path d="M10 16.6V7.4h3.1a2.7 2.7 0 0 1 0 5.4H10" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><code>coin</code></div><div class="old"><div class="lp light"><div class="hdr"><span class="lg lg-road tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M6.5 20L10.6 5M17.5 20L13.4 5" fill="none" stroke="var(--on-accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 18.8V7" fill="none" stroke="var(--on-accent)" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="2.4 2.6"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><div class="lp dark"><div class="hdr"><span class="lg lg-road tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M6.5 20L10.6 5M17.5 20L13.4 5" fill="none" stroke="var(--on-accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 18.8V7" fill="none" stroke="var(--on-accent)" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="2.4 2.6"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><code>road</code></div><div class="old"><div class="lp light"><div class="hdr"><span class="lg lg-monogram tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="currentColor"/><path d="M4.6 8.2V19.5M4.6 8.2h3a3 3 0 0 1 0 6h-3" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.9 8.2l1.9 7 2.1-5.4 2.1 5.4 1.9-7" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><div class="lp dark"><div class="hdr"><span class="lg lg-monogram tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="currentColor"/><path d="M4.6 8.2V19.5M4.6 8.2h3a3 3 0 0 1 0 6h-3" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.9 8.2l1.9 7 2.1-5.4 2.1 5.4 1.9-7" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><code>monogram</code></div><div class="old"><div class="lp light"><div class="hdr"><span class="lg lg-tozero tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5h15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5l4.8 5.6 3.2-2.6 4.7 9.4" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="19.4" r="2.4" fill="var(--accent)"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><div class="lp dark"><div class="hdr"><span class="lg lg-tozero tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5h15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5l4.8 5.6 3.2-2.6 4.7 9.4" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="19.4" r="2.4" fill="var(--accent)"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><code>tozero</code></div><div class="old"><div class="lp light"><div class="hdr"><span class="lg lg-bars tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="4.2" height="15" rx="1.4" fill="var(--accent)"/><rect x="9.9" y="10" width="4.2" height="10" rx="1.4" fill="var(--accent)" fill-opacity=".7"/><circle cx="18.4" cy="17.6" r="2.3" fill="none" stroke="var(--accent)" stroke-width="2"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><div class="lp dark"><div class="hdr"><span class="lg lg-bars tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="4.2" height="15" rx="1.4" fill="var(--accent)"/><rect x="9.9" y="10" width="4.2" height="10" rx="1.4" fill="var(--accent)" fill-opacity=".7"/><circle cx="18.4" cy="17.6" r="2.3" fill="none" stroke="var(--accent)" stroke-width="2"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><code>bars</code></div><div class="old"><div class="lp light"><div class="hdr"><span class="lg lg-waypoint tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 23s-8-6.8-8-13.2a8 8 0 0 1 16 0C20 16.2 12 23 12 23z" fill="var(--accent)"/><path d="M8.6 10.1l2.4 2.4 4.5-4.6" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><div class="lp dark"><div class="hdr"><span class="lg lg-waypoint tone-accent lg-legacy"><svg class="mark" width="1.25em" height="1.25em" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 23s-8-6.8-8-13.2a8 8 0 0 1 16 0C20 16.2 12 23 12 23z" fill="var(--accent)"/><path d="M8.6 10.1l2.4 2.4 4.5-4.6" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="w">Paidway</span></span><span class="steps"><i class="on">Snapshot</i><i>Thinking</i><i>Plan</i></span></div></div><code>waypoint</code></div></div></details>
+</main></body></html>

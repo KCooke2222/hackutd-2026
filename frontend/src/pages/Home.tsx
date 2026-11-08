@@ -10,6 +10,7 @@ import PlanEditor from '../components/flow/PlanEditor'
 import Outcome from '../components/flow/Outcome'
 import PlanTimeline from '../components/flow/PlanTimeline'
 import IncomeExpense from '../components/IncomeExpense'
+import Brand from '../components/Brand'
 
 type Health = { nessie: boolean; nvidia: boolean; model: string }
 const NAMES = ['Snapshot', 'Thinking', 'Plan', 'Done']
@@ -118,17 +119,26 @@ export default function Home() {
   const canGo = (j: number) => j <= reached && (j !== 3 || approved != null) && (j !== 2 || ai != null)
 
   return (
-    <div className="page flow">
-      <div className="row">
-        <div className="dots">
-          {NAMES.map((n, j) => (
-            <button key={n} className={j === screen ? 'on' : j < reached ? 'done' : ''} disabled={!canGo(j)} onClick={() => go(j)}>{j + 1} {n}</button>
-          ))}
+    <div className="app">
+      <header className="masthead">
+        <div className="masthead-in">
+          <Brand />
+          <nav className="dots" aria-label="Steps">
+            {NAMES.map((n, j) => (
+              <button key={n} className={j === screen ? 'on' : j < reached ? 'done' : ''} disabled={!canGo(j)} onClick={() => go(j)} aria-current={j === screen ? 'step' : undefined}>
+                <span className="n">{j < reached && j !== screen ? '✓' : j + 1}</span>{n}
+              </button>
+            ))}
+          </nav>
+          <label className="who">
+            <span>Customer</span>
+            <select value={cid} onChange={(e) => setCid(e.target.value)} aria-label="customer">
+              {(ids.length ? ids : [cid]).map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </label>
         </div>
-        <select value={cid} onChange={(e) => setCid(e.target.value)} aria-label="customer">
-          {(ids.length ? ids : [cid]).map((c) => <option key={c}>{c}</option>)}
-        </select>
-      </div>
+      </header>
+      <main className="page flow">
       {health && !health.nvidia && <div className="notice small">No NVIDIA_API_KEY: the agent can't run.</div>}
       {note && <div className="notice small">{note}</div>}
       {err && screen !== 2 && <div className="error">{err}</div>}
@@ -152,7 +162,7 @@ export default function Home() {
       <div className="flow-nav">
         <button disabled={screen === 0} style={{ visibility: screen === 0 ? 'hidden' : 'visible' }} onClick={() => go(screen - 1)}>Back</button>
         {screen === 0 && (
-          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span className="flow-actions">
             {past.length > 0 && (
               <select aria-label="Previous runs" value="" onChange={(e) => { const p = past.find((x) => x.id === e.target.value); if (p) openPlan(p, '') }}>
                 <option value="">Previous runs ({past.length})</option>
@@ -168,6 +178,7 @@ export default function Home() {
         {screen === 1 && <button className="primary" disabled={!thinkingDone || !ai} onClick={() => go(2)}>See plan</button>}
         {screen === 3 && <button onClick={() => { setNote(null); go(0) }}>Start over</button>}
       </div>
+      </main>
     </div>
   )
 }

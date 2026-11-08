@@ -6,8 +6,8 @@ import { ym, ymShort } from '../../lib/flow'
 import CashflowAhead from './CashflowAhead'
 import { GREY } from './NetWorth'
 
-const DEBT_COLORS = ['#dc2626', '#ea580c', '#d97706', '#7c3aed', '#db2777', '#9f1239']
-const ASSET_COLORS = ['#16a34a', '#0d9488', '#2563eb', '#0891b2', '#6b7280', '#65a30d']
+const DEBT_COLORS = ['var(--d1)', 'var(--d2)', 'var(--d3)', 'var(--d4)', 'var(--d5)', 'var(--d6)']
+const ASSET_COLORS = ['var(--a1)', 'var(--a2)', 'var(--a3)', 'var(--a4)', 'var(--muted)', 'var(--a6)']
 const short = (v: number) => (Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`)
 
 /** The home page again, but over time: accounts by month, payments, income vs spending, every change. */
@@ -94,11 +94,11 @@ function Col({ title, accounts, colors, t, at }: { title: string; accounts: Time
       })}
       <ResponsiveContainer width="100%" height={150}>
         <LineChart data={data} margin={{ top: 12, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="#e5e7eb" vertical={false} />
-          <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 10, fill: '#6b7280' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} />
-          <YAxis tickFormatter={short} tick={{ fontSize: 10, fill: '#6b7280' }} width={40} tickLine={false} axisLine={false} />
+          <CartesianGrid stroke="var(--line)" vertical={false} />
+          <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} axisLine={{ stroke: 'var(--line)' }} />
+          <YAxis tickFormatter={short} tick={{ fontSize: 10, fill: 'var(--muted)' }} width={40} tickLine={false} axisLine={false} />
           <Tooltip formatter={(v, n) => [usd(Number(v)), nameOf(accounts, String(n))]} labelFormatter={(mo) => ym(String(mo))} />
-          <ReferenceLine x={t.months[at]} stroke="#111827" strokeDasharray="2 3" />
+          <ReferenceLine x={t.months[at]} stroke="var(--text)" strokeDasharray="2 3" />
           {hover && <Line dataKey={`${hover}~`} stroke={GREY} strokeDasharray="5 4" strokeWidth={2} dot={false} isAnimationActive={false} />}
           {accounts.map((a, i) => (
             <Line key={a.id} dataKey={a.id} stroke={colors[i % colors.length]} strokeWidth={hover === a.id ? 3 : 2}
@@ -106,7 +106,7 @@ function Col({ title, accounts, colors, t, at }: { title: string; accounts: Time
           ))}
         </LineChart>
       </ResponsiveContainer>
-      <div className="legend"><span><i style={{ borderColor: '#111827' }} />Plan</span><span><i className="dash" style={{ borderColor: GREY }} />Without the plan (hover a row)</span></div>
+      <div className="legend"><span><i style={{ borderColor: 'var(--text)' }} />Plan</span><span><i className="dash" style={{ borderColor: GREY }} />Without the plan (hover a row)</span></div>
     </div>
   )
 }

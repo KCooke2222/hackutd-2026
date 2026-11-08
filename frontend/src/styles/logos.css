@@ -1,0 +1,36 @@
+/* Paidway logo lockups (see logos.ts). Colours follow the element's color-scheme via light-dark(). */
+.lg { display: inline-flex; align-items: center; gap: .38em; line-height: 1; color: inherit; white-space: nowrap; }
+.lg .mark { display: block; flex: none; }
+.lg:not(.lg-legacy) .w { font-family: Outfit, var(--font-ui, system-ui), sans-serif; font-weight: 600; letter-spacing: -.02em; }
+
+.tone-green { --lc: light-dark(#0f7a4a, #3fd08f); }
+.tone-deep  { --lc: light-dark(#14532d, #7ee2a8); }
+.tone-teal  { --lc: light-dark(#0f766e, #2dd4bf); }
+.tone-navy  { --lc: light-dark(#1e3a8a, #9db8ff); }
+.tone-ink   { --lc: currentColor; }
+.lg { --lc-on: light-dark(#ffffff, #0b1211); }
+html[data-logotone="style"] .lg { --lc: var(--accent); --lc-on: var(--on-accent, #fff); }
+
+/* PAID stamp */
+.lg-stamp .w { font-family: Archivo, sans-serif; font-weight: 600; letter-spacing: -.01em; }
+.lg-stamp .st { display: inline-block; margin-right: .16em; padding: .16em .24em .1em; color: var(--lc);
+  font: 700 .8em/1 'Archivo Narrow', sans-serif; letter-spacing: .08em;
+  border: .1em solid var(--lc); border-radius: .14em; outline: .045em solid var(--lc); outline-offset: -.24em;
+  transform: rotate(-6deg) translateY(-.02em); }
+
+/* Paid + way */
+.lg-paidbold .w { letter-spacing: -.035em; }
+.lg-paidbold b { font-weight: 800; color: var(--lc); }
+.lg-paidbold i { font-style: normal; font-weight: 300; }
+
+/* Way underline: the y's tail becomes a line back to a start dot */
+.lg-ytail .w { position: relative; display: inline-block; padding: 0 .04em .2em .2em; }
+.lg-ytail .y { color: var(--lc); }
+.lg-ytail .w::after { content: ''; position: absolute; left: .2em; right: .2em; bottom: 0; height: .085em; border-radius: .05em; background: var(--lc); }
+.lg-ytail .w::before { content: ''; position: absolute; left: 0; bottom: -.07em; width: .23em; height: .23em; border-radius: 50%; background: var(--lc); }
+
+/* Check dot */
+.lg-checkdot .w { font-weight: 600; letter-spacing: -.03em; }
+.lg-checkdot .i { position: relative; display: inline-block; }
+.lg-checkdot .i svg { position: absolute; left: 50%; top: -.06em; width: .46em; height: .37em; transform: translateX(-42%);
+  fill: none; stroke: var(--lc); stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }

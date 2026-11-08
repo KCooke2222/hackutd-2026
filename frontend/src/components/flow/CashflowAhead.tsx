@@ -17,11 +17,11 @@ export default function CashflowAhead({ cid, t, at }: { cid: string; t: Timeline
   }, [cid])
   const out = t.cashflow.transfers_out_name
   const SERIES = [
-    { key: 'essentials', name: 'Essentials', color: '#6b7280' },
-    { key: 'discretionary', name: 'Discretionary', color: '#fb923c' },
-    { key: 'debt_payments', name: 'Debt payoff', color: '#2563eb' },
-    { key: 'savings_invest', name: 'Saved', color: '#0d9488' },
-    { key: 'transfers_out', name: out, color: '#dc2626' },
+    { key: 'essentials', name: 'Essentials', color: 'var(--muted)' },
+    { key: 'discretionary', name: 'Discretionary', color: 'var(--c-disc)' },
+    { key: 'debt_payments', name: 'Debt payoff', color: 'var(--c-debt)' },
+    { key: 'savings_invest', name: 'Saved', color: 'var(--c-save)' },
+    { key: 'transfers_out', name: out, color: 'var(--c-out)' },
   ] as const
   const ahead = t.cashflow[view]
   const data = [
@@ -58,23 +58,23 @@ export default function CashflowAhead({ cid, t, at }: { cid: string; t: Timeline
         ))}
       </div>
       <div className="legend" style={{ marginTop: 10 }}>
-        <span><i style={{ borderColor: '#111827' }} />Income</span>
-        <span><i className="dash" style={{ borderColor: '#16a34a' }} />Left over</span>
+        <span><i style={{ borderColor: 'var(--text)' }} />Income</span>
+        <span><i className="dash" style={{ borderColor: 'var(--c-left)' }} />Left over</span>
         {SERIES.map((s) => <span key={s.key}><i style={{ borderColor: s.color }} />{s.name}</span>)}
       </div>
       <ResponsiveContainer width="100%" height={260}>
         <ComposedChart data={data} margin={{ top: 16, right: 16, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="#e5e7eb" vertical={false} />
-          <XAxis dataKey="month" tickFormatter={ymShort} interval={5} tick={{ fontSize: 11, fill: '#6b7280' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} />
-          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: '#6b7280' }} width={44} tickLine={false} axisLine={false} />
+          <CartesianGrid stroke="var(--line)" vertical={false} />
+          <XAxis dataKey="month" tickFormatter={ymShort} interval={5} tick={{ fontSize: 11, fill: 'var(--muted)' }} tickLine={false} axisLine={{ stroke: 'var(--line)' }} />
+          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: 'var(--muted)' }} width={44} tickLine={false} axisLine={false} />
           <Tooltip formatter={(v, name) => [usd(Number(v)), name]} labelFormatter={(mo) => ym(String(mo))} />
           {SERIES.map((s) => (
             <Bar key={s.key} dataKey={s.key} name={s.name} stackId="out" fill={s.color} isAnimationActive={false} />
           ))}
-          <Line dataKey="income" name="Income" stroke="#111827" strokeWidth={2.5} dot={false} type="linear" isAnimationActive={false} />
-          <Line dataKey="surplus" name="Left over" stroke="#16a34a" strokeDasharray="5 4" strokeWidth={2} dot={false} type="linear" isAnimationActive={false} />
-          {ahead[0] && <ReferenceLine x={ahead[0].month} stroke="#9ca3af" label={{ value: 'ahead →', position: 'insideTopLeft', fontSize: 11, fill: '#6b7280' }} />}
-          <ReferenceLine x={p.month} stroke="#111827" strokeDasharray="2 3" />
+          <Line dataKey="income" name="Income" stroke="var(--text)" strokeWidth={2.5} dot={false} type="linear" isAnimationActive={false} />
+          <Line dataKey="surplus" name="Left over" stroke="var(--c-left)" strokeDasharray="5 4" strokeWidth={2} dot={false} type="linear" isAnimationActive={false} />
+          {ahead[0] && <ReferenceLine x={ahead[0].month} stroke="var(--grey)" label={{ value: 'ahead →', position: 'insideTopLeft', fontSize: 11, fill: 'var(--muted)' }} />}
+          <ReferenceLine x={p.month} stroke="var(--text)" strokeDasharray="2 3" />
         </ComposedChart>
       </ResponsiveContainer>
       <div className="small muted">Left of the line: your last 12 months. Ahead: income and spending held at today’s averages. As on the home page, card payments that cover new card spending count as spending.</div>

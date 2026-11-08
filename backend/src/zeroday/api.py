@@ -1,4 +1,4 @@
-"""FastAPI app: PNC data explorer API + agent + proposals.
+"""FastAPI app (Paidway): customer data, agent, proposals.
 
 Safety: the Nessie write client is imported lazily, only inside agent/execute.approve() (approve route).
 """
@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from . import balance_sheet, finance, linked, pnc_data, store
 from .config import NESSIE_KEY, NVIDIA_API_KEY, NEMOTRON_MODEL
 
-app = FastAPI(title="Zeroday")
+app = FastAPI(title="Paidway")
 
 from .api_insights import router as _insights_router  # noqa: E402
 app.include_router(_insights_router)
@@ -32,17 +32,7 @@ def health() -> dict:
     return {"ok": True, "nessie": bool(NESSIE_KEY), "nvidia": bool(NVIDIA_API_KEY), "model": NEMOTRON_MODEL}
 
 
-# ---------- PNC data explorer ----------
-
-@app.get("/api/overview")
-def overview() -> dict:
-    return pnc_data.overview()
-
-
-@app.get("/api/readme")
-def readme() -> dict:
-    return {"markdown": pnc_data.readme()}
-
+# ---------- customers + balance sheet ----------
 
 @app.get("/api/customers")
 def customers() -> list[dict]:
@@ -57,86 +47,16 @@ def customers() -> list[dict]:
     return out
 
 
-@app.get("/api/customers/{cid}")
-def customer(cid: str) -> dict:
-    _need_customer(cid)
-    return {**pnc_data.customer_summary(cid), "statements": pnc_data.customer_statements(cid), "linked_accounts": linked.for_customer(cid)}
-
-
-# ---------- linked external accounts + balance sheet ----------
-
-@app.get("/api/linked")
-def linked_accounts(customer_id: str | None = None) -> dict:
-    """Accounts Nessie/PNC can't hold, from SQLite: student loans, brokerage, property, other banks' cards."""
-    rows = linked.for_customer(customer_id or None)
-    by_type: dict[str, dict] = {}
-    for r in rows:
-        k = f"{r['account_type']}:{r['kind']}"
-        b = by_type.setdefault(k, {"account_type": r["account_type"], "kind": r["kind"], "count": 0, "total_balance": 0.0, "aprs": []})
-        b["count"] += 1
-        b["total_balance"] = round(b["total_balance"] + r["balance"], 2)
-        if r["apr_pct"]:
-            b["aprs"].append(r["apr_pct"])
-    types = [
-        {**{k: v for k, v in b.items() if k != "aprs"}, "apr_min": min(b["aprs"], default=None), "apr_max": max(b["aprs"], default=None)}
-        for b in sorted(by_type.values(), key=lambda b: -b["count"])
-    ]
-    return {"count": len(rows), "types": types, "rows": rows}
-
-
 @app.get("/api/customers/{cid}/balance-sheet")
 def customer_balance_sheet(cid: str, keep_months: float = Query(3, ge=3, le=24)) -> dict:
     _need_customer(cid)
     return balance_sheet.balance_sheet(cid, keep_months=keep_months)
 
 
-@app.get("/api/customers/{cid}/ladder")
-def customer_ladder(cid: str, amount: float = Query(0, ge=0), keep_months: float = Query(3, ge=3, le=24)) -> dict:
-    _need_customer(cid)
-    lad = balance_sheet.balance_sheet(cid, keep_months=keep_months)["ladder"]
-    return {**lad, "tap": balance_sheet.tap(lad, amount) if amount else None}
-
-
 @app.get("/api/customers/{cid}/debts")
 def customer_debts(cid: str) -> dict:
     _need_customer(cid)
     return balance_sheet.balance_sheet(cid)["priority"]
-
-
-@app.get("/api/customers/{cid}/transactions")
-def customer_transactions(
-    cid: str,
-    account_id: str | None = None,
-    transaction_type: str | None = None,
-    category: str | None = None,
-    flow_class: str | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=500),
-    order: str = Query("desc", pattern="^(asc|desc)$"),
-) -> dict:
-    _need_customer(cid)
-    rows = pnc_data.customer_transactions(
-        cid, account_id=account_id or None, transaction_type=transaction_type or None, category=category or None,
-        flow_class=flow_class or None, date_from=date_from or None, date_to=date_to or None,
-    )
-    if order == "desc":
-        rows = rows[::-1]
-    start = (page - 1) * page_size
-    all_rows = pnc_data.customer_transactions(cid)
-    return {
-        "total": len(rows),
-        "page": page,
-        "page_size": page_size,
-        "rows": rows[start : start + page_size],
-        "facets": {
-            "account_id": sorted({t["account_id"] for t in all_rows}),
-            "transaction_type": sorted({t["transaction_type"] for t in all_rows}),
-            "category": sorted({t["category"] for t in all_rows}),
-            "flow_class": sorted({t["flow_class"] for t in all_rows}),
-        },
-    }
 
 
 # ---------- agent-facing numbers ----------
