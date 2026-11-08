@@ -118,6 +118,37 @@ def _declined(kwargs: dict, inputs: dict) -> list[str]:
 MAX_REJECTIONS = 2
 
 
+def _parent_plan(st: dict) -> dict | None:
+    """The plan a chat edit starts from (None on a first run)."""
+    pid = st.get("parent_id")
+    if not pid:
+        return None
+    try:
+        return (store.get_proposal(pid) or {}).get("plan")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _pin_parent_cuts(inputs: dict, parent_plan: dict, protect: set[str], cmax: dict, cmin: dict) -> None:
+    """A chat edit changes only what was asked: every cut of the previous plan that the request didn't touch
+    carries over as is (suggested ones keep their tag and `buys`), and the solver suggests no new ones."""
+    have = {str(t.get("category", "")).lower() for t in inputs.get("spending_targets") or []}
+    kept = []
+    for t in parent_plan.get("spending_targets") or []:
+        cat = str(t.get("category", "")).lower()
+        if cat in have or cat in protect:
+            continue
+        target = float(t["target"])
+        if cat in cmax:
+            target = min(target, float(cmax[cat]))
+        if cat in cmin:
+            target = max(target, float(cmin[cat]))
+        kept.append({**t, "category": cat, "target": round(target, 2), "source": "kept",
+                     "was": t.get("source") or "agreed"})
+    inputs["spending_targets"] = [*(inputs.get("spending_targets") or []), *kept]
+    inputs["suggest_cuts"] = False
+
+
 def _try(fn):
     """Run a read tool; any failure goes back to the model as {"error"} instead of killing the run."""
     try:
@@ -258,12 +289,24 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
                     t["target"] = clamped["category_max"][cat]
             st.setdefault("cap_notes", [])
             st["cap_notes"] += [n for n in notes if n not in st["cap_notes"]]
-            inputs = solver_inputs(cons, given["keep_emergency_months"], given["spending_targets"],
-                                   spend if cons else None)
+            keep = given["keep_emergency_months"]
+            parent_plan = _parent_plan(st)
+            if parent_plan:  # a chat edit: the previous plan's cushion holds unless a rule moves it
+                keep = float(parent_plan.get("keep_emergency_months") or keep)
+            inputs = solver_inputs(cons, keep, given["spending_targets"], spend if cons else None)
             declined = _declined(kwargs, inputs)
             inputs["declined_cuts"] = declined
+            if parent_plan:
+                _pin_parent_cuts(inputs, parent_plan, set(declined) | set((cons or {}).get("protect_categories") or []),
+                                 (cons or {}).get("category_max") or {}, (cons or {}).get("category_min") or {})
             solved = solver.solve(customer_id, inputs, with_tradeoffs=False)
             plan = solved["plan"]
+            if parent_plan:  # carried-over cuts keep the tag they had (suggested + buys, or agreed)
+                was = {t["category"]: t for t in inputs["spending_targets"] if t.get("source") == "kept"}
+                plan = {**plan, "spending_targets": [
+                    {**t, **{k: was[t["category"]][k] for k in ("lumpy", "buys") if k in was[t["category"]]},
+                     "source": was[t["category"]]["was"]} if t["category"] in was else t
+                    for t in plan["spending_targets"]]}
             sim = validate_plan_v2(customer_id, plan, constraints=cons) if cons else solved["sim"]
             if solved["sim"].get("no_cuts"):
                 sim = {**sim, "no_cuts": solved["sim"]["no_cuts"]}

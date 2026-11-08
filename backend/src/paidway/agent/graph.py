@@ -626,6 +626,32 @@ def _warning(cmp: dict) -> str | None:
     return ("Costs you: " + ", ".join(cmp["why"])) if cmp.get("worse") and cmp.get("why") else None
 
 
+def _direct_propose(tools: list, parent_plan: dict, s: dict, w, st: dict) -> str | None:
+    """A request the rules fully capture ("don't cut travel", "keep 4 months"): re-solve the previous plan under
+    the new rules in code, no agent loop. propose_plan carries every untouched cut and the cushion forward."""
+    prop = next((t for t in tools if t.name == "propose_plan"), None)
+    if prop is None:
+        return None
+    agreed = [{"category": t["category"], "current": float(t.get("current") or t["target"]), "target": float(t["target"]),
+               "proof_month": t.get("proof_month") or "", "how": list(t.get("how") or [])[:2], "source": "agreed"}
+              for t in parent_plan.get("spending_targets") or [] if t.get("source") != "suggested"]
+    args = {"monthly_debt_budget": float(parent_plan.get("monthly_debt_budget") or 0),
+            "extra_order": list(parent_plan.get("extra_order") or []), "spending_targets": agreed,
+            "keep_emergency_months": float(parent_plan.get("keep_emergency_months") or 3.0),
+            "rationale": str(s.get("summary") or "Your change")[:80]}
+    _phase(w, "propose", "Re-solving with your change")
+    try:
+        out = prop.invoke(args)
+    except Exception as e:  # noqa: BLE001
+        _phase(w, "propose", "", f"needs the agent: {str(e)[:60]}")
+        return None
+    if isinstance(out, dict) and out.get("saved"):
+        _phase(w, "propose", "", "saved")
+        return str(s.get("summary") or "")
+    _phase(w, "propose", "", "; ".join((out or {}).get("reasons") or [])[:80] if isinstance(out, dict) else "not saved")
+    return None
+
+
 def build_adjust_graph(pid: str, request: str):
     from langgraph.graph import END, START, StateGraph
 
@@ -706,7 +732,10 @@ def build_adjust_graph(pid: str, request: str):
                               sql_schema=SCHEMA_DOC, plan=parent["plan"], outcome=sim_brief(parent["simulation"]),
                               snapshot=snap, assumptions=snap.get("assumptions") or {})
         messages = list(s.get("messages") or [])
-        final = _react(llm, make_tools(cid, st, s.get("constraints")), system, request, w, st, messages, ADJUST_RECURSION_LIMIT)
+        tools = make_tools(cid, st, s.get("constraints"))
+        final = _direct_propose(tools, parent["plan"], s, w, st) if s.get("only_constraints") else None
+        if not st.get("proposal_id"):  # the request needs more than rules: the agent works it out with tools
+            final = _react(llm, tools, system, request, w, st, messages, ADJUST_RECURSION_LIMIT)
         if st.get("cap_notes"):
             w({"type": "notes", "notes": st["cap_notes"]})
         out: dict = {"messages": messages, "final": final, "proposal_id": st.get("proposal_id")}
