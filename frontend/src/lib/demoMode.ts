@@ -1,6 +1,6 @@
 // Demo mode: the backend replays recorded model calls (backend agent/demo.py), each at its recorded pace but at
 // most 5 s, so a run feels live without waiting on the model. A miss (something typed) calls the model for real.
-// Toggle: the small tab on the left edge, Shift+D (outside text fields), 5 quick taps in the bottom-left corner
+// Toggle: the pill hidden in the bottom-left corner (hover to reveal), Shift+D (outside text fields), 5 quick taps in the bottom-left corner
 // (phones), or ?demo=1 / ?demo=0. It sets the `pw_demo` cookie, which every request (fetch and EventSource) carries.
 // While on, the tab reads "demo".
 
@@ -23,7 +23,7 @@ function apply(on: boolean) {
     document.body.appendChild(tab)
   }
   tab.classList.toggle('on', on)
-  tab.textContent = on ? 'demo' : ''
+  tab.textContent = on ? 'demo on' : 'demo off'
   tab.title = on ? 'Demo mode on: recorded answers, at most 5 s each. Click to turn off.' : 'Demo mode'
   tab.setAttribute('aria-pressed', String(on))
   tab.setAttribute('aria-label', on ? 'Demo mode on' : 'Demo mode off')

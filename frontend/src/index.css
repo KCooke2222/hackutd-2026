@@ -323,13 +323,14 @@ button.primary:hover:not(:disabled) { background: var(--accent-ink); border-colo
 @media (min-width: 1700px) { html { zoom: 1.12; } }
 @media (min-width: 2300px) { html { zoom: 1.25; } }
 
-/* Demo-mode tab (lib/demoMode.ts): a sliver on the left edge; reads "demo" while replay is on. */
-.pw-demo-tab { position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 35; width: 6px; height: 40px; padding: 0;
-  border: 1px solid var(--line-strong); border-left: 0; border-radius: 0 6px 6px 0; background: var(--soft); opacity: .55; cursor: pointer;
-  transition: width .15s ease, opacity .15s ease; }
-.pw-demo-tab:hover, .pw-demo-tab:focus-visible { width: 12px; opacity: 1; }
-.pw-demo-tab.on { width: auto; height: auto; padding: 4px 8px 4px 6px; opacity: .8; color: var(--accent-ink); background: var(--accent-soft);
-  border-color: var(--accent-line); font: 600 11px/1 var(--font-ui); letter-spacing: .04em; text-transform: lowercase; }
-.pw-demo-tab.on::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: var(--accent); vertical-align: 1px; }
-.pw-demo-tab.on:hover { opacity: 1; }
+/* Demo-mode toggle (lib/demoMode.ts): hidden in the bottom-left corner; slides up when the mouse goes there. */
+.pw-demo-tab { position: fixed; left: 10px; bottom: 10px; z-index: 35; padding: 5px 10px 5px 8px; border-radius: 999px;
+  border: 1px solid var(--line-strong); background: var(--soft); color: var(--muted, inherit); font: 600 11px/1 var(--font-ui);
+  letter-spacing: .04em; text-transform: lowercase; cursor: pointer; opacity: 0; transform: translateY(calc(100% + 14px));
+  transition: transform .18s ease, opacity .18s ease; }
+.pw-demo-tab::after { content: ''; position: absolute; left: -10px; bottom: -10px; width: 90px; height: 60px; }
+.pw-demo-tab:hover, .pw-demo-tab:focus-visible { opacity: 1; transform: none; }
+.pw-demo-tab::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: var(--line-strong); vertical-align: 1px; }
+.pw-demo-tab.on { color: var(--accent-ink); background: var(--accent-soft); border-color: var(--accent-line); }
+.pw-demo-tab.on::before { background: var(--accent); }
 @media print { .pw-demo-tab { display: none; } }
