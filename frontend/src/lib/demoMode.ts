@@ -1,6 +1,8 @@
-// Hidden demo mode: the backend replays recorded model calls (backend agent/demo.py), so a run takes seconds.
-// Toggle: Shift+D (outside text fields), or 5 quick taps in the bottom-left corner (phones), or ?demo=1 / ?demo=0.
-// It sets the `pw_demo` cookie, which every request (fetch and EventSource) carries. The only sign is a 4px dot.
+// Demo mode: the backend replays recorded model calls (backend agent/demo.py), each at its recorded pace but at
+// most 5 s, so a run feels live without waiting on the model. A miss (something typed) calls the model for real.
+// Toggle: the small tab on the left edge, Shift+D (outside text fields), 5 quick taps in the bottom-left corner
+// (phones), or ?demo=1 / ?demo=0. It sets the `pw_demo` cookie, which every request (fetch and EventSource) carries.
+// While on, the tab reads "demo".
 
 const KEY = 'pw_demo'
 
@@ -8,20 +10,23 @@ function isOn(): boolean {
   try { return localStorage.getItem(KEY) === '1' } catch { return document.cookie.includes(`${KEY}=1`) }
 }
 
+let tab: HTMLButtonElement | null = null
+
 function apply(on: boolean) {
   try { if (on) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY) } catch { /* private mode: cookie only */ }
   document.cookie = on ? `${KEY}=1; path=/; max-age=31536000; SameSite=Lax` : `${KEY}=; path=/; max-age=0; SameSite=Lax`
-  let dot = document.getElementById('pw-demo-dot')
-  if (on && !dot) {
-    dot = document.createElement('div')
-    dot.id = 'pw-demo-dot'
-    dot.setAttribute('aria-hidden', 'true')
-    Object.assign(dot.style, {
-      position: 'fixed', left: '6px', bottom: '6px', width: '4px', height: '4px', borderRadius: '50%',
-      background: 'currentColor', opacity: '0.35', pointerEvents: 'none', zIndex: '2147483647',
-    })
-    document.body.appendChild(dot)
-  } else if (!on && dot) dot.remove()
+  if (!tab) {
+    tab = document.createElement('button')
+    tab.type = 'button'
+    tab.className = 'pw-demo-tab'
+    tab.addEventListener('click', () => apply(!isOn()))
+    document.body.appendChild(tab)
+  }
+  tab.classList.toggle('on', on)
+  tab.textContent = on ? 'demo' : ''
+  tab.title = on ? 'Demo mode on: recorded answers, at most 5 s each. Click to turn off.' : 'Demo mode'
+  tab.setAttribute('aria-pressed', String(on))
+  tab.setAttribute('aria-label', on ? 'Demo mode on' : 'Demo mode off')
 }
 
 function typing(t: EventTarget | null): boolean {
@@ -39,6 +44,7 @@ function init() {
 
   let taps: number[] = []
   document.addEventListener('pointerdown', (e) => {
+    if (e.target === tab) return
     if (e.clientX > 48 || e.clientY < window.innerHeight - 48) return // a 48px hot corner, bottom-left
     const now = Date.now()
     taps = [...taps.filter((t) => now - t < 2500), now]
