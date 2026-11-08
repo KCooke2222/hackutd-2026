@@ -90,31 +90,14 @@ Snapshot: {snapshot}
 Diagnosis: {diagnosis}
 Assumptions: {assumptions}"""
 
-EXPLAIN = """Turn this approved-for-review plan into short UI labels.
+EXPLAIN = """The customer changed their debt plan. Write one line (at most 16 words) saying what changed and what it
+costs or buys, e.g. "Travel no longer cut. Debt-free Aug 2027 → Oct 2027, −$1,240 at 2 yrs."
+Use only the numbers in the diff. No advice, no hedging.
 
-Rules:
-- One label per lever (debt payment, source, cut, redirect), ≤6 words, with its $ amount.
-  The debt payment lever leads with the net figure from simulation.paydown: what actually shrinks
-  the debt each month (net_paydown_per_month, was current_net_paydown_per_month), not the gross
-  budget, most of which pays this month's new card purchases.
-- One headline, ≤10 words: the outcome (e.g. "Both cards $0 by Feb, +$3,900 net worth").
-- For each spending cut in the plan, one "how" line, ≤8 words, from its own `how` and merchants.
-  Cuts with source "suggested" are the plan's suggestions for the customer to accept or decline:
-  set suggested true and add buys, ≤10 words, from that cut's `buys` (months_sooner /
-  net_worth_gain) only, e.g. "2 months sooner, +$3,200 in 2 years".
-- options: the 2-3 biggest optional cuts from cut_options, as the customer's choice (not part of
-  the plan). Each: category, label ≤8 words naming the merchants and $/mo, buys ≤10 words using
-  only its numbers (high_cost_debt_free / months_sooner / net_worth_24m_gain).
-- No advice language, no hedging, no numbers that aren't in the plan, simulation, cut_options or the reality check.
-- If reality.realistic is false, the headline starts with the gap: "$<gap_per_month>/mo short: ...".
+Return JSON only: {"headline": "..."}
 
-Return JSON only: {"headline", "levers": [{"kind", "label", "amount"}],
-"cuts": [{"category", "how", "suggested", "buys"}], "options": [{"category", "label", "buys"}]}
-
-Plan: {plan}
-Simulation: {simulation}
-cut_options: {cut_options}
-Reality check: {reality}"""
+Request: {request}
+Diff: {diff}"""
 
 # ---------- talk to the plan (PR 4) ----------
 

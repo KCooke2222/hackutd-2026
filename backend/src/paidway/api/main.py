@@ -344,7 +344,7 @@ def _adjust_events(pid: str, message: str):
         msgs = ev.pop("messages", None)
         if msgs and p:
             store.log_run(p["customer_id"], msgs)
-        if ev["type"] == "done":
+        if ev["type"] in ("done", "saved"):  # `saved`: the new plan, before its headline is written
             ev["proposal"] = store.get_proposal(ev["proposal_id"]) if ev.get("proposal_id") else None
         yield ev
 

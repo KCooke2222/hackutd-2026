@@ -300,24 +300,76 @@ def _react(llm, tools: list, system: str, instruction: str, w, st: dict, message
     return final
 
 
-def _explain(llm, w, proposal_id: str, messages: list, extra: dict | None = None) -> dict:
-    """The explain phase: short UI labels for a saved proposal, stored on it. Falls back to a code headline."""
+EXPLAIN_REASONING_BUDGET = 512  # the headline is one line; reasoning stays on but capped (it ran ~10k tokens, ~60 s)
+INTERPRET_REASONING_BUDGET = 1024  # interpret is usually ~2 s but spiked to 23 s unbounded
+
+
+def _budgeted(llm, budget: int):
+    """Reasoning on, but at most `budget` reasoning tokens, plus room for a short JSON answer."""
+    return llm.bind(max_tokens=budget + 1024,
+                    extra_body={"reasoning_budget": budget, "chat_template_kwargs": {"enable_thinking": True}})
+
+
+def _gap_first(headline: str, sim: dict) -> str:
+    rc = sim.get("reality_check") or {}
+    gap = rc.get("gap_per_month") or 0
+    if rc and rc.get("realistic") is False and f"{gap:,.0f}" not in headline:
+        return f"${gap:,.0f}/mo short: {headline}"  # the gap always leads
+    return headline
+
+
+def _carry_explain(parent_explain: dict | None, child_plan: dict, headline: str, extra: dict | None) -> dict:
+    """The previous plan's labels for the new plan: its cut notes for cuts that are still there, the new headline."""
+    keep = {t.get("category") for t in child_plan.get("spending_targets") or []}
+    pe = dict(parent_explain or {})
+    pe["cuts"] = [c for c in pe.get("cuts") or [] if c.get("category") in keep]
+    return {**pe, "headline": headline, **(extra or {})}
+
+
+def _diff_headline(new: dict | None, cmp: dict, cap_notes: list[str] | None = None) -> str:
+    """One line from the rules and the comparison, no LLM: "Travel no longer cut. Debt-free Aug 2027 → Oct 2027, −$1,240 at 2 yrs."."""
+    from .adjust import SOURCE_NAME
+
+    n = new or {}
+    name = lambda c: c.replace("_", " ").capitalize()  # noqa: E731
+    what = [f"{name(c)} no longer cut" for c in n.get("protect_categories") or []]
+    what += [f"{name(c)} capped at ${v:,.0f}/mo" for c, v in (n.get("category_max") or {}).items()]
+    what += [f"{name(c)} kept at ${v:,.0f}+/mo" for c, v in (n.get("category_min") or {}).items()]
+    what += [f"{SOURCE_NAME.get(x, x)} not used" for x in n.get("forbid_sources") or []]
+    if (m := n.get("min_emergency_months")) is not None:
+        what.append(f"Keeping {m:g}+ months cash")
+    if (v := n.get("min_debt_budget")) is not None:
+        what.append(f"Paying at least ${v:,.0f}/mo to debt")
+    if (v := n.get("max_debt_budget")) is not None:
+        what.append(f"Paying at most ${v:,.0f}/mo to debt")
+    if (v := n.get("max_redirect")) is not None:
+        what.append(f"Redirecting at most ${v:,.0f}/mo")
+    if not what:
+        what = (cmp.get("changes") or ["Plan updated"])[:2]
+    f = cmp.get("high_cost_debt_free") or {}
+    f0, f1 = _month(f.get("before")), _month(f.get("after"))
+    out = [f"Debt-free {f0} → {f1}" if f0 != f1 else f"Still debt-free {f1}"]
+    d = (cmp.get("net_worth_24m") or {}).get("delta") or 0
+    if abs(d) >= 1:
+        out.append(f"{'−' if d < 0 else '+'}${abs(d):,.0f} at 2 yrs")
+    line = "; ".join(what) + ". " + ", ".join(out) + "."
+    return (" ".join(cap_notes) + " " + line) if cap_notes else line
+
+
+def _explain(llm, w, proposal_id: str, messages: list, extra: dict | None = None, *, request: str = "",
+             cmp: dict | None = None, parent_explain: dict | None = None) -> dict:
+    """The explain phase after an agent re-plan: one headline from just the diff (short prompt, capped output,
+    reasoning on but budgeted), stored on the proposal. Falls back to the code headline."""
     _phase(w, "explain", "Writing it up")
     p = store.get_proposal(proposal_id)
-    data, e = _ask_json(llm, prompts.fill(
-        prompts.EXPLAIN, plan=p["plan"], simulation=sim_brief(p["simulation"]),
-        cut_options=[{k: o.get(k) for k in ("category", "label", "cut_per_month", "merchants", "high_cost_debt_free",
-                                            "months_sooner", "net_worth_24m_gain")}
-                     for o in p["simulation"].get("cut_options") or []],
-        reality=_reality_fields(p["simulation"].get("reality_check"))))
-    if not isinstance(data, dict) or not isinstance(data.get("headline"), str) or not data["headline"]:
-        sim = p["simulation"]
-        data = {"headline": f"High-cost debt $0 by {sim.get('high_cost_debt_free') or 'never'}", "levers": [], "cuts": [], "options": []}
-    rc = p["simulation"].get("reality_check") or {}
-    gap = rc.get("gap_per_month") or 0
-    if rc and rc.get("realistic") is False and f"{gap:,.0f}" not in data["headline"]:
-        data["headline"] = f"${gap:,.0f}/mo short: {data['headline']}"  # the gap always leads
-    data = {**data, **(extra or {})}
+    cmp = cmp or {}
+    diff = {k: cmp.get(k) for k in ("high_cost_debt_free", "net_worth_24m", "interest_total", "changes")}
+    llm = _budgeted(llm, EXPLAIN_REASONING_BUDGET)
+    data, e = _ask_json(llm, prompts.fill(prompts.EXPLAIN, request=request, diff=diff))
+    head = data.get("headline") if isinstance(data, dict) else None
+    if not isinstance(head, str) or not head.strip():
+        head = _diff_headline(None, cmp)
+    data = _carry_explain(parent_explain, p["plan"], _gap_first(head.strip()[:160], p["simulation"]), extra)
     try:
         store.annotate(p["id"], explain=data)
     except AttributeError:
@@ -607,6 +659,7 @@ class AdjustState(AgentState, total=False):
     fast: bool
     compare: dict | None
     cap_notes: list[str]
+    direct: bool
 
 
 def adjustable(pid: str) -> dict:
@@ -681,7 +734,7 @@ def build_adjust_graph(pid: str, request: str):
         _phase(w, "interpret", "Understanding your request")
         spend = wealth.context(cid)["spend"]
         cats = ", ".join(f"{k} ({'essential' if v.get('essential') else f'${v['avg']:,.0f}/mo'})" for k, v in spend.items())
-        data, e = _ask_json(llm, prompts.fill(prompts.INTERPRET, categories=cats, plan=parent["plan"],
+        data, e = _ask_json(_budgeted(llm, INTERPRET_REASONING_BUDGET), prompts.fill(prompts.INTERPRET, categories=cats, plan=parent["plan"],
                                               outcome=sim_brief(parent["simulation"]), constraints=old, request=request))
         if not isinstance(data, dict):
             data = {}
@@ -734,11 +787,12 @@ def build_adjust_graph(pid: str, request: str):
         messages = list(s.get("messages") or [])
         tools = make_tools(cid, st, s.get("constraints"))
         final = _direct_propose(tools, parent["plan"], s, w, st) if s.get("only_constraints") else None
+        direct = bool(st.get("proposal_id"))
         if not st.get("proposal_id"):  # the request needs more than rules: the agent works it out with tools
             final = _react(llm, tools, system, request, w, st, messages, ADJUST_RECURSION_LIMIT)
         if st.get("cap_notes"):
             w({"type": "notes", "notes": st["cap_notes"]})
-        out: dict = {"messages": messages, "final": final, "proposal_id": st.get("proposal_id")}
+        out: dict = {"messages": messages, "final": final, "proposal_id": st.get("proposal_id"), "direct": direct}
         if not st.get("proposal_id"):
             reasons = "; ".join(st.get("last_reasons") or []) or "the agent did not propose a plan"
             out["error"] = f"No valid plan for that change: {reasons}"[:400]
@@ -750,6 +804,7 @@ def build_adjust_graph(pid: str, request: str):
         cmp = compare_plans(parent["simulation"], child["simulation"], parent["plan"], child["plan"])
         store.annotate(child["id"], compare=cmp, constraint_labels=C.describe(s.get("constraints")))
         w({"type": "compare", **cmp})
+        w({"type": "saved", "proposal_id": child["id"], "compare": cmp})  # the new plan shows now; the headline follows
         return {"compare": cmp}
 
     def explain(s: AdjustState) -> dict:
@@ -763,7 +818,16 @@ def build_adjust_graph(pid: str, request: str):
             store.annotate(s["proposal_id"], explain=data)
             w({"type": "final", "text": data["headline"], "why": ""})
             return {"explain": data, "final": data["headline"]}
-        return _explain(llm, w, s["proposal_id"], list(s.get("messages") or []), extra)
+        if s.get("direct"):  # rules covered it: the one-line result comes from the diff, no LLM
+            child = store.get_proposal(s["proposal_id"])
+            head = _gap_first(_diff_headline(s.get("new_constraints"), cmp, s.get("cap_notes")), child["simulation"])
+            data = _carry_explain(parent["simulation"].get("explain"), child["plan"], head, extra)
+            store.annotate(s["proposal_id"], explain=data)
+            _phase(w, "explain", "", head[:60])
+            w({"type": "final", "text": head, "why": ""})
+            return {"explain": data, "final": head}
+        return _explain(llm, w, s["proposal_id"], list(s.get("messages") or []), extra, request=request, cmp=cmp,
+                        parent_explain=parent["simulation"].get("explain"))
 
     g = StateGraph(AdjustState)
     for name, fn in (("load", load), ("interpret", interpret), ("keep", keep), ("plan", plan), ("compare", compare), ("explain", explain)):
