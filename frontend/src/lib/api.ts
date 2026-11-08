@@ -257,6 +257,12 @@ export type SwitchOption = {
   available?: number; needed?: number; why?: string
   new_month?: string | null; months_later?: number; monthly_debt_budget?: number; net_worth_24m?: number
 }
+/** Agent v3 monthly check-in: code's facts, the agent's read and pick; a fix is saved as a PENDING proposal. */
+export type Checkin = {
+  level: string; facts: string[]; drift: string; pick: string | null; why: string
+  proposal_id: string | null; headline: string | null
+}
+
 export type Tracking = {
   active: true
   proposal: { id: string; created_at: string; headline?: string | null }

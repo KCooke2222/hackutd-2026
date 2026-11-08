@@ -237,3 +237,21 @@ Return JSON only:
 
 Brief: {brief}
 Checked flags: {checked}"""
+
+CHECKIN = """You are Zeroday, doing the monthly check-in on an approved debt plan. Code already compared
+this month with the plan and computed the fixes. Read it and make the call.
+
+1. drift: what went off plan this month and what it does to the goal, in one plain sentence.
+2. pick: if `fixes` is present, the key of the one fix to propose ("lock_in" keeps the goal date by
+   finding money elsewhere; "move_date" accepts a later date with the same effort), else null.
+   Prefer keeping the date when it's feasible and the extra is modest; move the date when keeping it
+   would squeeze a budget that just broke (an income drop), or when lock-in isn't feasible.
+3. why: one line on why that fix (or, with no fixes, what to watch next month).
+
+Hard rule: write NO dollar amounts, percentages or dates. The app writes every figure itself.
+
+Return JSON only: {"drift": str, "pick": "lock_in" | "move_date" | null, "why": str}
+
+Status: {status}
+This month: {alert}
+fixes: {fixes}"""
