@@ -79,7 +79,8 @@ Rules:
 - Monthly payments: lead with the NET figure (paydown), not the gross. Most of what they pay a card
   each month just covers that month's new purchases. Say it like: "you pay $<current_debt_payments>/mo
   to cards and loans, $<current_net_paydown_per_month> of it shrinks the debt; the plan raises that to
-  $<net_paydown_per_month>". Gross is secondary.
+  $<net_paydown_per_month>". Gross is secondary. unused_per_month is budget the debts don't need: it
+  stays in cash, so never call it paydown or "to debt".
 - Then reply with ONE sentence of at most 12 words: the main lever and the result
   (if reality_check.realistic is false: the monthly gap first).
 This is not financial advice; describe tradeoffs, not orders.

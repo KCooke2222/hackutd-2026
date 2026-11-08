@@ -454,8 +454,11 @@ def _explain_v3(p: dict, d: dict, under: dict | None = None) -> dict:
         runs = rc.get("cash_runs_out")
         headline = f"${rc.get('gap_per_month') or 0:,.0f}/mo short" + (f", cash runs out {_month(runs)}" if runs else ": the debt keeps growing")
     net, gross, cur = b.get("net_paydown_per_month"), b.get("monthly_debt_budget"), b.get("current_net_paydown_per_month")
-    summary = (f"You'd pay {_usd(gross)}/mo to debt; {_usd(net)} of it actually shrinks the balance (was {_usd(cur)}),"
-               f" the rest covers new card purchases.") if net is not None else ""
+    buys, left = b.get("new_card_purchases") or 0, b.get("unused_per_month") or 0
+    paid = b.get("paid_to_debt_per_month", gross)
+    summary = (f"Each month {_usd(paid)} goes to your debts: {_usd(net)} shrinks the balance (was {_usd(cur)})"
+               + (f", {_usd(buys)} pays off new card purchases" if buys >= 1 else "")
+               + (f"; {_usd(left)} left over stays in cash, not debt" if left >= 1 else "") + ".") if net is not None else ""
     pp = (rc.get("monthly") or {}).get("principal_paydown")
     if rc.get("realistic") is False and pp is not None and pp < 0:  # underwater: "net" would overstate it
         summary = (f"Even with every change, interest and new card charges add more than you can pay:"

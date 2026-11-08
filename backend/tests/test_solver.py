@@ -289,7 +289,12 @@ def test_net_paydown_is_gross_minus_new_card_purchases():
     ctx = wealth.context("C001", live=False)
     b = r["sim"]["budget"]
     assert b["current_net_paydown_per_month"] == pytest.approx(ctx["current_debt_payments"] - ctx["card_spend"], abs=0.01)
-    assert b["net_paydown_per_month"] == pytest.approx(b["monthly_debt_budget"] - r["sim"]["monthly_card_spending"], abs=0.01)
+    # net = what the sim really paid the debts minus the new purchases; budget the debts don't need stays in cash
+    paid = sum(d["first_month_payment"] for d in r["sim"]["debts"])
+    assert b["paid_to_debt_per_month"] == pytest.approx(paid, abs=0.01)
+    assert b["net_paydown_per_month"] == pytest.approx(paid - r["sim"]["monthly_card_spending"], abs=0.01)
+    assert b["unused_per_month"] == pytest.approx(max(b["monthly_debt_budget"] - paid, 0), abs=0.01)
+    assert b["net_paydown_per_month"] <= b["monthly_debt_budget"] - r["sim"]["monthly_card_spending"] + 0.01
     assert r["brief"]["paydown"]["net_paydown_per_month"] == b["net_paydown_per_month"]
     # no double count: the baseline's month-1 debt change is purchases + interest - gross payments
     base = wealth.simulate_plan("C001", None, ctx=ctx)

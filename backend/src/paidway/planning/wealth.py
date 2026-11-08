@@ -588,8 +588,20 @@ def simulate_plan(customer_id: str, plan: dict | None, *, live: bool = True, ctx
     res["baseline_interest_total"] = base["interest_total"]
     res["baseline_high_cost_debt_free"] = base["high_cost_debt_free"]
     if plan is not None:
-        res["budget"] = budget_limit(ctx, plan)
+        b = budget_limit(ctx, plan)
+        res["budget"] = {**b, **paid_split(res, b["monthly_debt_budget"])}
     return res
+
+
+def paid_split(res: dict, budget: float) -> dict:
+    """Where month 1's budget really goes, from the simulation's own payments: the bills to debt, the part of
+    them that only covers this month's new PNC card purchases, and what the debts don't need (it stays in cash,
+    the simulator's `cash += saved + left`). Net paydown is what the debt actually shrinks by (before interest):
+    paid to debt minus the new purchases, so money that is budgeted but stays in cash never counts as paydown."""
+    paid = round(sum(float(d.get("first_month_payment") or 0) for d in res.get("debts") or []), 2)
+    charges = float(res.get("monthly_card_spending") or 0)
+    return {"paid_to_debt_per_month": paid, "net_paydown_per_month": round(paid - charges, 2),
+            "unused_per_month": round(max(float(budget or 0) - paid, 0.0), 2)}
 
 
 def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> dict:

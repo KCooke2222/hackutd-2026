@@ -2,35 +2,34 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Area, CartesianGrid, ComposedChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { usd } from '../../lib/api'
-import type { ApprovePreview, Explain, NessieCall, Proposal, SimDebt, SimV2 } from '../../lib/api'
+import type { AgentStep, ApprovePreview, Explain, MonthSplit, NessieCall, Proposal, SimDebt, SimV2 } from '../../lib/api'
 import { SOURCE_NAME, title, ym, ymShort } from '../../lib/flow'
 import type { Schedule } from '../../lib/flow'
 import { ACCENT, C, DEBT_COLORS, GOOD, GREY, short } from '../../lib/chart'
 import NessieChip from '../NessieChip'
+import { callsFor, pretty } from './AgentActions'
 
 const money = (n: number) => usd(Math.round(n))
 const signed = (n: number) => `${n >= 0 ? '+' : '−'}${money(Math.abs(n))}`
 const pct = (n: number) => `${Math.round(n * 10) / 10}%`
 const tick = (m: string) => (m === 'now' ? 'Now' : ymShort(m))
 
-type Runs = 'nessie' | 'bill' | 'manual' | 'tracked' | 'recorded'
+type Runs = 'nessie' | 'bill' | 'manual' | 'agent' | 'recorded'
 function RunsTag({ r, label }: { r: Runs; label?: string }) {
   if (r === 'nessie') return <NessieChip label={label ?? 'Nessie transfer'} />
-  if (r === 'bill') return <NessieChip label={label ?? 'Recurring Nessie bills'} />
+  if (r === 'bill') return <NessieChip label={label ?? 'Nessie bill'} />
   if (r === 'manual') return <span className="tag warn">You do it</span>
-  if (r === 'tracked') return <span className="tag">Tracked monthly</span>
+  if (r === 'agent') return <span className="tag">Agent watches monthly</span>
   return <span className="tag">Recorded</span>
 }
 
 /** "What it would do": the plan's moves, generic, each tagged with how it runs on approve. */
-function steps(ai: Proposal, calls: NessieCall[], manual: { step: string; how?: string[] | string }[]) {
+function steps(ai: Proposal, calls: NessieCall[], manual: { step: string; how?: string[] | string }[], agent: AgentStep[], summary: MonthSplit | null) {
   const pl = ai.plan, sim = ai.simulation, ex: Explain = sim.explain ?? { headline: '' }
   const debt = new Map(sim.debts.map((d) => [d.account_id, d]))
   const name = (id: string) => debt.get(id)?.name ?? id
   const moves = calls.some((c) => !c.tool.endsWith('create_bill'))
   const bills = calls.filter((c) => c.tool.endsWith('create_bill'))
-  const autopayBill = bills.some((c) => /autopay/i.test(c.step ?? ''))
-  const payBill = bills.some((c) => !/autopay/i.test(c.step ?? ''))
   const out: { text: ReactNode; sub?: ReactNode; runs: Runs; label?: string }[] = []
 
   const bySource = new Map<string, typeof pl.lump_sums>()
@@ -48,21 +47,21 @@ function steps(ai: Proposal, calls: NessieCall[], manual: { step: string; how?: 
       runs: moves ? 'nessie' : 'recorded',
     })
   }
-  const order = pl.extra_order.map(name)
-  out.push({
-    text: <>Pay <b>{money(pl.monthly_debt_budget)}/mo</b> to debt</>,
-    sub: order.length ? <>Extra goes {order.join(' → ')}</> : undefined,
-    runs: payBill ? 'bill' : 'recorded',
-  })
+  // Each debt's own monthly bill (minimum, extra, or a paid-off card's statement), not one lump "budget to debt" line.
+  for (const c of bills) out.push({ text: c.step ? pretty(c.step) : <>{c.from} pays {c.to} <b>{money(c.amount)}/mo</b></>, sub: c.note ?? undefined, runs: 'bill' })
+  if (!bills.length && !summary) {
+    const order = pl.extra_order.map(name)
+    out.push({ text: <>Pay <b>{money(pl.monthly_debt_budget)}/mo</b> to debt</>, sub: order.length ? <>Extra goes {order.join(' → ')}</> : undefined, runs: 'recorded' })
+  }
+  for (const a of agent.filter((x) => x.kind === 'leftover')) out.push({ text: pretty(a.step), sub: brief(a.watch, 60) || undefined, runs: 'agent' })
   const red = pl.redirects.reduce((a, r) => a + r.amount_per_month, 0)
   if (red > 0) out.push({ text: <>Redirect <b>{money(red)}/mo</b> to debt</>, sub: pl.redirects.map((r) => title(r.flow).toLowerCase()).join(', '), runs: 'manual' })
   const cuts = pl.spending_targets.filter((t) => t.current > t.target)
   if (cuts.length) {
     const sum = cuts.reduce((a, t) => a + t.current - t.target, 0)
-    out.push({ text: <>{cuts.length} spending cut{cuts.length > 1 ? 's' : ''}, <b>{money(sum)}/mo</b></>, sub: cuts.map((t) => title(t.category)).join(', '), runs: 'tracked' })
+    out.push({ text: <>{cuts.length} spending cut{cuts.length > 1 ? 's' : ''}, <b>{money(sum)}/mo</b></>, sub: cuts.map((t) => title(t.category)).join(', '), runs: 'agent' })
   }
-  if (pl.autopay_full_cards.length)
-    out.push({ text: <>Autopay in full once a card hits $0</>, sub: pl.autopay_full_cards.map(name).join(', '), runs: autopayBill ? 'bill' : 'recorded', label: 'Nessie bill' })
+  for (const a of agent.filter((x) => x.kind === 'autopay')) out.push({ text: pretty(a.step), sub: brief(a.watch, 70) || undefined, runs: 'agent' })
   out.push({ text: <>Keep {pl.keep_emergency_months} months of cash</>, sub: brief(ex.buffer_why) || undefined, runs: 'recorded' })
   for (const m of manual) out.push({ text: m.step, sub: brief(Array.isArray(m.how) ? m.how[0] : m.how, 60), runs: 'manual' })
   return out
@@ -77,8 +76,22 @@ function brief(s?: string | null, max = 48): string {
 /** High-cost $0 lands inside the charted months (green); a later date is plain text, null reads "Never". */
 const inHorizon = (sim: SimV2) => !!sim.high_cost_debt_free && sim.high_cost_debt_free <= (sim.months[sim.months.length - 1]?.month ?? '')
 
-function Kpis({ sim, base }: { sim: SimV2; base: SimV2 | null }) {
-  const b = sim.budget
+type Budget = NonNullable<SimV2['budget']>
+/** The month's split from execute.schedule (fresh, minimums + statement bills) over the proposal's stored budget,
+ *  which older proposals saved as budget − charges: paydown is what the debts take minus new card purchases. */
+function honest(b: SimV2['budget'], s: MonthSplit | null): SimV2['budget'] {
+  if (!b || !s || s.paid == null) return b
+  return { ...b, paid_to_debt_per_month: s.paid, net_paydown_per_month: s.net_paydown ?? b.net_paydown_per_month,
+    new_card_purchases: s.new_purchases ?? b.new_card_purchases, unused_per_month: s.left_over ?? 0 }
+}
+/** Same words as graph._explain_v3's summary, from the honest numbers. */
+function splitLine(b: Budget): string {
+  const buys = b.new_card_purchases ?? 0, left = b.unused_per_month ?? 0
+  return `Each month ${money(b.paid_to_debt_per_month ?? 0)} goes to your debts: ${money(b.net_paydown_per_month ?? 0)} shrinks the balance (was ${money(b.current_net_paydown_per_month ?? 0)})`
+    + (buys >= 1 ? `, ${money(buys)} pays off new card purchases` : '') + (left >= 1 ? `; ${money(left)} left over stays in cash, not debt` : '') + '.'
+}
+
+function Kpis({ sim, base, b }: { sim: SimV2; base: SimV2 | null; b: SimV2['budget'] }) {
   const baseFree = sim.baseline_high_cost_debt_free ?? base?.high_cost_debt_free ?? null
   const nw = sim.net_worth_24m - sim.baseline_net_worth_24m
   const int = sim.interest_total - sim.baseline_interest_total
@@ -94,21 +107,22 @@ function Kpis({ sim, base }: { sim: SimV2; base: SimV2 | null }) {
   )
 }
 
-function PaydownBar({ sim }: { sim: SimV2 }) {
-  const b = sim.budget
+function PaydownBar({ b }: { b: SimV2['budget'] }) {
   if (!b?.monthly_debt_budget || b.net_paydown_per_month == null) return null
-  const buys = b.new_card_purchases ?? 0, shrink = Math.max(0, b.net_paydown_per_month)
-  const tot = buys + shrink || 1
+  const buys = b.new_card_purchases ?? 0, shrink = Math.max(0, b.net_paydown_per_month), left = b.unused_per_month ?? 0
+  const tot = buys + shrink + left || 1
   return (
     <div style={{ marginTop: 16 }}>
-      <div className="col-head"><h3 style={{ margin: 0 }}>Where the {money(b.monthly_debt_budget)}/mo to debt goes</h3></div>
-      <div className="pd-bar" role="img" aria-label={`${money(buys)} covers new card purchases, ${money(shrink)} shrinks the debt`}>
+      <div className="col-head"><h3 style={{ margin: 0 }}>Where the {money(b.monthly_debt_budget)}/mo goes</h3></div>
+      <div className="pd-bar" role="img" aria-label={`${money(buys)} covers new card purchases, ${money(shrink)} shrinks the debt${left >= 1 ? `, ${money(left)} stays in cash` : ''}`}>
         <div style={{ width: `${(buys / tot) * 100}%`, background: GREY }} />
         <div style={{ width: `${(shrink / tot) * 100}%`, background: GOOD }} />
+        {left >= 1 && <div style={{ width: `${(left / tot) * 100}%`, background: C.leftOver }} />}
       </div>
       <div className="legend">
         <span><i className="sw" style={{ background: GREY }} />New card purchases {money(buys)}</span>
         <span><i className="sw" style={{ background: GOOD }} />Shrinks the debt {money(shrink)}</span>
+        {left >= 1 && <span><i className="sw" style={{ background: C.leftOver }} />Left over, stays in cash {money(left)}</span>}
       </div>
     </div>
   )
@@ -247,17 +261,18 @@ export default function PlanReport({ ai, baseline, noCuts, preview, schedule, un
   children?: ReactNode // "What the agent will do on approve" + Approve
 }) {
   const sim = ai.simulation, ex = sim.explain
-  const calls = preview?.nessie_calls ?? (schedule?.steps ?? []).filter((s) => s.runs === 'nessie').map((s) => ({ tool: `create_${(s.nessie as { op?: string } | undefined)?.op ?? 'transfer'}`, method: 'POST', path: '', amount: 0, step: s.step }))
-  const manual = preview?.manual ?? []
-  const list = steps(ai, calls, manual)
+  const { calls, manual, agent, summary } = callsFor(preview, schedule)
+  const b = honest(sim.budget, summary)
+  const said = b?.paid_to_debt_per_month != null && summary ? splitLine(b) : ex?.summary
+  const list = steps(ai, calls, preview ? manual : [], agent, summary)
   return (
     <>
       <div className="card pr-head">
         <h1>{ex?.headline ?? 'Your plan'}</h1>
-        {ex?.summary && !underwater && <p>{ex.summary}</p>}
+        {said && !underwater && <p>{said}</p>}
         {ex?.driver && <p className="small"><b>What's driving it:</b> {ex.driver}</p>}
-        {!underwater && <Kpis sim={sim} base={baseline} />}
-        {!underwater && <PaydownBar sim={sim} />}
+        {!underwater && <Kpis sim={sim} base={baseline} b={b} />}
+        {!underwater && <PaydownBar b={b} />}
       </div>
       {underwater}
       {!underwater && builtOn}
