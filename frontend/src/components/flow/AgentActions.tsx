@@ -50,6 +50,30 @@ export function callsFor(pv: ApprovePreview | null, schedule: Schedule | null | 
   }
 }
 
+/** Planned view: a payoff (transfer + payment, maybe a modelled sale cost) is one row, not two or three. */
+type Planned = { verb: string; text: string; sub?: string; amount: number; when: string; calls: NessieCall[] }
+function planned(calls: NessieCall[]): Planned[] {
+  const out: Planned[] = []
+  const byGroup = new Map<string, Planned>()
+  for (const c of calls) {
+    const g = c.group && !c.tool.endsWith('create_bill') ? c.group : null
+    const row = g ? byGroup.get(g) : undefined
+    if (row) {
+      row.calls.push(c)
+      if (c.tool.endsWith('create_withdrawal')) row.sub = `${row.sub ?? ''} · ${usd(c.amount)} est. sale cost`
+      continue
+    }
+    const w = what(c)
+    const r: Planned = c.tool.endsWith('create_transfer') || c.tool.endsWith('create_deposit')
+      ? { verb: 'Pay off', text: `${c.to} from ${c.from}`, amount: c.amount, when: 'today', calls: [c] }
+      : { verb: w.verb, text: w.text, sub: c.note ?? undefined, amount: c.amount, when: w.when, calls: [c] }
+    if (g) byGroup.set(g, r)
+    out.push(r)
+  }
+  for (const r of out) if (r.calls.length > 1) r.sub = `Transfer + payment${r.sub ?? ''}`
+  return out
+}
+
 const failedCall = (c: NessieCall) => c.status === 'error'
 const heldCall = (c: NessieCall) => c.status === 'not_sent' || c.status === 'skipped'
 
@@ -82,11 +106,21 @@ export default function AgentActions({ title, calls, recorded = [], manual = [],
     <div className="card agent-do">
       <div className="col-head">
         <h2 style={{ margin: 0 }}>{title}</h2>
-        {calls.length > 0 && <span className="small muted">{calls.length} Nessie call{calls.length > 1 ? 's' : ''}</span>}
+        {calls.length > 0 && <span className="small muted">{receipt ? '' : `${planned(calls).length} moves · `}{calls.length} Nessie call{calls.length > 1 ? 's' : ''}</span>}
       </div>
       {note && <div className="small muted" style={{ margin: '0 0 6px' }}>{note}</div>}
       {calls.length === 0 && <div className="small muted">Nothing runs in Nessie; the steps below are tracked or yours to do.</div>}
-      {calls.map((c, i) => {
+      {!receipt && planned(calls).map((r, i) => (
+        <div key={i} className="act">
+          <NessieChip label={r.verb} title={`Nessie API: ${r.calls.map((c) => `${c.method} ${tool(c.tool)}`).join(', ')}`} />
+          <div style={{ minWidth: 0 }}>
+            <div className="what">{r.text}</div>
+            {r.sub && <div className="small muted">{r.sub}</div>}
+          </div>
+          <div className="amt">{usd(r.amount)}<small>{r.when}</small></div>
+        </div>
+      ))}
+      {receipt && calls.map((c, i) => {
         const w = what(c)
         return (
           <div key={i} className={`act${receipt ? ' receipt' : ''}`}>
