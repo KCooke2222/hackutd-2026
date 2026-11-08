@@ -622,6 +622,7 @@ def simulate_plan(customer_id: str, plan: dict | None, *, live: bool = True, ctx
         b = budget_limit(ctx, plan)
         res["budget"] = {**b, **paid_split(res, b["monthly_debt_budget"])}
         res["money_order"] = money_order_line(ctx, plan, res)
+        res["cash_line"] = cash_line(ctx, plan)
         res["contributions"] = contributions(ctx, plan, res)
     return res
 
@@ -684,6 +685,33 @@ def money_order_line(ctx: dict, plan: dict, sim: dict) -> str:
     else:
         last = f"then what's left goes into investing at {pct} (nothing left within {A.get('horizon_months')} months)"
     return f"{first}, then a {_k(ctx['emergency_buffer'])} cushion, {last}."
+
+
+def cash_line(ctx: dict, plan: dict) -> str:
+    """What the plan does with the PNC cash, in one line: the cushion it keeps (and why that size), what it uses
+    now and on what, or why none of it is used."""
+    cash, buf, keep = float(ctx["assets"]["cash"]), float(ctx["emergency_buffer"]), ctx["keep_months"]
+    names = {d["account_id"]: d["name"] for d in ctx["debts"]}
+    used = [ls for ls in plan.get("lump_sums") or [] if ls.get("source") == "cash" and float(ls.get("amount") or 0) >= 1]
+    total = sum(float(ls["amount"]) for ls in used)
+    why = f"{keep:g} months of spending at ${ctx['monthly_expenses']:,.0f}/mo"
+    if cash <= buf + 1:
+        return f"All ${cash:,.0f} of cash is the cushion ({why}: ${buf:,.0f}), so none of it goes to debt."
+    head = f"Keeping ${buf:,.0f} of the ${cash:,.0f} cash as a cushion ({why})"
+    if used:
+        to = ", ".join(f"${float(ls['amount']):,.0f} to {names.get(ls['to_debt'], ls['to_debt'])}" for ls in used)
+        rest = cash - buf - total
+        tail = f"; the other ${rest:,.0f} stays in savings" if rest >= 50 else ""
+        return f"{head}; using {to} now{tail}."
+    high = [d for d in ctx["debts"] if d["high_cost"] and d["balance"] > 0]
+    gap = -float(ctx["flows"].get("residual") or 0)
+    if not high:
+        reason = "there is no high-cost debt to pay with it"
+    elif gap >= 1:
+        reason = f"about ${gap:,.0f}/mo more goes out than comes in, and this cash covers that gap"
+    else:
+        reason = "the plan pays debt from monthly cash flow instead"
+    return f"{head}; the ${cash - buf:,.0f} above it is not used now because {reason}."
 
 
 def paid_split(res: dict, budget: float) -> dict:

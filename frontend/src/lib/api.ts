@@ -75,6 +75,8 @@ export type SimV2 = {
   monthly_card_spending?: number
   /** Each IRA / brokerage / CD contribution and what the plan does with it (paused while debt costs > 7%). */
   contributions?: Contribution[]
+  /** What the plan does with the PNC cash: the cushion it keeps and why, what it uses now, or why none. */
+  cash_line?: string
   /** The money order in one line: "Cards first, then a $6.8k cushion, then $228/mo into investing at ~7%". */
   money_order?: string
   investing?: { risk_profile: RiskProfile | null; from: string | null; per_month: number; total_24m: number; return_pct: number }

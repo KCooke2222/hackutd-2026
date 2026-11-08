@@ -50,3 +50,10 @@ def test_no_brokerage_gets_an_empty_mirror():
     m = next(m for m in plan if m["account_id"] == "N-C002-BROKERAGE")
     assert m["balance"] == 0 and m["nickname"] == "Brokerage"
     assert not any(m["account_id"].startswith("N-") for m in seed.mirror_plan("C001"))  # C001 has one
+
+
+def test_cash_line_says_what_cash_does(c001):
+    line = c001["medium"]["sim"]["cash_line"]
+    assert line.startswith("Keeping $") and "cushion (3 months of spending" in line
+    lumps = [ls for ls in c001["medium"]["plan"]["lump_sums"] if ls["source"] == "cash"]
+    assert ("using $" in line) == bool(lumps) and ("not used now because" in line) != bool(lumps)

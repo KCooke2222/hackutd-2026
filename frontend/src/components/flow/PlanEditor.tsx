@@ -88,6 +88,7 @@ export default function PlanEditor({ ai, knobs, setKnobs, preview, busy, error, 
         <h2>Plan</h2>
         <NetWorth sim={sim} baseline={preview?.baseline ?? null} />
         {sim.money_order && <div className="small" style={{ marginTop: 8 }}>{sim.money_order}</div>}
+        {sim.cash_line && <div className="small muted" style={{ marginTop: 4 }}>{sim.cash_line}</div>}
       </div>
 
       {chat}
