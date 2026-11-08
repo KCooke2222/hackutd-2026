@@ -48,6 +48,9 @@ class PlanArgs(BaseModel):
     spending_targets: list[SpendingTarget] = Field(default_factory=list)
     autopay_full_cards: list[str] = Field(default_factory=list, description="card account_ids: pay full statement once at $0")
     keep_emergency_months: float = 3.0
+    risk_profile: Literal["low", "medium", "high"] = Field(
+        "medium", description="money left after debt and the cushion: medium/high invest it all at ~7%/yr; low puts "
+                              "part on the highest-rate remaining loan")
 
 
 class Cut(BaseModel):
@@ -65,6 +68,7 @@ class OptimizeArgs(BaseModel):
                                         "adds up to 3 suggested cuts of its own on top (source=suggested)")
     declined_cuts: list[str] = DECLINED
     redirect_flows: list[str] | None = Field(None, description="limit which movable flows may go to debt; omit = all their flags allow")
+    risk_profile: Literal["low", "medium", "high"] = Field("medium", description="the customer's risk profile; default medium")
 
 
 class ProposeArgs(PlanArgs):
@@ -86,6 +90,7 @@ def to_plan(args: dict) -> dict:
         "spending_targets": [dump(x) for x in args.get("spending_targets") or []],
         "autopay_full_cards": list(args.get("autopay_full_cards") or []),
         "keep_emergency_months": float(args.get("keep_emergency_months") or 3.0),
+        "risk_profile": args.get("risk_profile") if args.get("risk_profile") in ("low", "medium", "high") else "medium",
     }
 
 
@@ -298,6 +303,8 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
             inputs = solver_inputs(cons, keep, given["spending_targets"], spend if cons else None)
             declined = _declined(kwargs, inputs)
             inputs["declined_cuts"] = declined
+            inputs["risk_profile"] = given["risk_profile"] if "risk_profile" in kwargs or not parent_plan \
+                else parent_plan.get("risk_profile") or "medium"
             if parent_plan:
                 _pin_parent_cuts(inputs, parent_plan, set(declined) | set((cons or {}).get("protect_categories") or []),
                                  (cons or {}).get("category_max") or {}, (cons or {}).get("category_min") or {})
@@ -364,6 +371,7 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
                 inp.update(solver_inputs(cons, inp["keep_emergency_months"], inp["spending_targets"],
                                          wealth.context(customer_id)["spend"]))
             inp["declined_cuts"] = _declined(kwargs, inp)
+            inp["risk_profile"] = kwargs.get("risk_profile") or "medium"
             r = solver.solve(customer_id, inp)
             return {"plan": r["plan"], "brief": r["brief"]}
 

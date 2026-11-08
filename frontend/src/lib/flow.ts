@@ -1,5 +1,5 @@
 // Types and helpers for the 4-screen flow (Snapshot -> Thinking -> Plan -> Done), plan v2.
-import type { PlanV2, Proposal, SimV2 } from './api'
+import type { PlanV2, Proposal, RiskProfile, SimV2 } from './api'
 
 /** /customers/{cid}/plan/simulate: validator verdict + plan and baseline paths. */
 export type Preview = { valid: boolean; reasons: string[]; sim: SimV2; baseline: SimV2; no_cuts?: SimV2 | null; schedule?: Schedule | null }
@@ -12,7 +12,7 @@ export type Schedule = {
 
 /** What the sliders edit: the debt budget, the redirect (surplus etc.), each cut's target (by category), and the
  * $/mo taken from each contribution (by flow: full = paused, half, 0 = kept). */
-export type Knobs = { budget: number; redirect: number; cuts: Record<string, number>; contrib: Record<string, number> }
+export type Knobs = { budget: number; redirect: number; cuts: Record<string, number>; contrib: Record<string, number>; risk: RiskProfile }
 
 export const isV2 = (p: Proposal | null | undefined): p is Proposal => p?.plan?.version === 2
 
@@ -27,6 +27,7 @@ export function knobsFrom(p: Proposal): Knobs {
     redirect: red.filter((r) => !cf.has(r.flow)).reduce((a, r) => a + r.amount_per_month, 0),
     cuts: Object.fromEntries((pl.spending_targets ?? []).map((t) => [t.category, t.target])),
     contrib: Object.fromEntries([...cf].map((f) => [f, red.find((r) => r.flow === f)?.amount_per_month ?? 0])),
+    risk: pl.risk_profile ?? 'medium',
   }
 }
 
@@ -47,6 +48,7 @@ export function planFrom(ai: Proposal, k: Knobs): PlanV2 {
     version: 2,
     monthly_debt_budget: Math.round(k.budget * 100) / 100,
     redirects: [...other, ...contrib],
+    risk_profile: k.risk ?? 'medium',
     spending_targets: (pl.spending_targets ?? []).map((t) => ({ ...t, target: k.cuts[t.category] ?? t.target })),
   }
 }

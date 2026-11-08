@@ -55,6 +55,10 @@ Rules:
     IRA / brokerage / CD contribution by default; each restarts on its own once that debt is $0.
     The customer may keep one or cut the IRA in half instead (redirect_flows). Never pause an
     employer 401(k) match.
+- Risk profile (risk_profile, default medium): once high-cost debt is $0 and the cushion is full,
+  medium and high invest every leftover dollar in the Brokerage (est. 7%/yr, can drop 30%+ in a bad
+  year); low puts part of it on the highest-rate remaining loan (a guaranteed return). Pass it only
+  if the customer says how much risk they want.
 - If saved_per_month is 0 or negative there is no monthly slack: say so, do not invent it.
   Use cash above the buffer and paused contributions only. If that leaves little, propose it
   anyway: an honest small plan beats invented money.
@@ -146,6 +150,8 @@ What they asked: {summary}
 Rules:
 - Use tools for every number. Never do arithmetic yourself.
 - Every debt gets its minimum. Extra money goes to the highest APR above the hurdle first. Never withdraw from the IRA or sell property.
+- risk_profile carries over from the plan unless they ask for more or less risk (low = part of the leftover
+  on the highest-rate loan; medium / high = all of it invested).
 - Spending cuts: essentials stay whole; at most 30% off a category unless cancelling a recurring charge; each
   cut needs a proof_month (a month they already spent at or below target) and 1-2 concrete `how` actions.
   Call spending_detail before changing any cut.

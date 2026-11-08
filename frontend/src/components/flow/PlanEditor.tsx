@@ -87,6 +87,7 @@ export default function PlanEditor({ ai, knobs, setKnobs, preview, busy, error, 
       <div className="card">
         <h2>Plan</h2>
         <NetWorth sim={sim} baseline={preview?.baseline ?? null} />
+        {sim.money_order && <div className="small" style={{ marginTop: 8 }}>{sim.money_order}</div>}
       </div>
 
       {chat}
@@ -135,6 +136,25 @@ export default function PlanEditor({ ai, knobs, setKnobs, preview, busy, error, 
           <div className="meta" style={{ marginTop: 6 }}>An employer 401(k) match is never paused.</div>
         </div>
       )}
+
+      <div className="card">
+        <div className="top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <h3 style={{ margin: 0 }}>Risk</h3>
+          <div className="seg" role="radiogroup" aria-label="Risk profile">
+            {(['low', 'medium', 'high'] as const).map((r) => (
+              <button key={r} className={knobs.risk === r ? 'on' : ''} role="radio" aria-checked={knobs.risk === r}
+                onClick={() => setKnobs({ ...knobs, risk: r })}>{title(r)}</button>
+            ))}
+          </div>
+        </div>
+        <div className="meta" style={{ marginTop: 6 }}>
+          {knobs.risk === 'low'
+            ? 'Once high-cost debt is $0: part of what is left goes to your highest-rate loan (a sure return), the rest is invested.'
+            : 'Once high-cost debt is $0: everything left above the cushion is invested in the Brokerage.'}
+          {' '}Stocks: 7% expected, can drop 30%+ in a bad year.
+          {sim.investing && sim.investing.per_month >= 1 && <> · {usd(sim.investing.per_month)}/mo from {ym(sim.investing.from)}</>}
+        </div>
+      </div>
 
       {pl.spending_targets.length > 0 && (
         <div className="card">

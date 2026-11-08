@@ -62,6 +62,17 @@ PRIMARY = {"A-{cid}-CHECKING": "checking", "A-{cid}-SAVINGS": "savings", "A-{cid
 NOT_MIRRORED = {"property"}
 MIRROR_NAMES = {"brokerage": "Brokerage", "ira": "IRA"}  # contributions are bills into these mirrors
 LOAN_RECORD = {"mortgage": "home", "auto_loan": "auto"}  # Nessie's loan types: also attach a loan record
+# A customer with no brokerage gets an empty "Brokerage" mirror: the money order's last step invests into it.
+INVEST_MIRROR = "N-{cid}-BROKERAGE"
+
+
+def invest_account(cid: str, rows: list[dict]) -> dict:
+    """The account leftover money is invested into: the largest brokerage, else the empty Brokerage mirror."""
+    brk = [r for r in rows if r["account_type"] == "brokerage" and r["side"] == "asset"]
+    if brk:
+        return max(brk, key=lambda r: float(r["balance"] or 0))
+    return {"account_id": INVEST_MIRROR.format(cid=cid), "account_type": "brokerage", "side": "asset",
+            "name": "Brokerage", "balance": 0.0, "source": "paidway"}
 
 
 def mirror_type(account_type: str, side: str) -> str:
@@ -79,10 +90,16 @@ def mirror_plan(cid: str) -> list[dict]:
     from ..planning import balance_sheet
 
     balance_sheet.clear_cache()
-    return [{"account_id": r["account_id"], "type": mirror_type(r["account_type"], r["side"]),
-             "nickname": mirror_nickname(cid, r), "balance": round(float(r["balance"]), 2),
-             "loan": LOAN_RECORD.get(r["account_type"]), "min_payment": r.get("min_payment")}
-            for r in balance_sheet.accounts(cid, live=False) if r["account_type"] not in NOT_MIRRORED]
+    rows = balance_sheet.accounts(cid, live=False)
+    out = [{"account_id": r["account_id"], "type": mirror_type(r["account_type"], r["side"]),
+            "nickname": mirror_nickname(cid, r), "balance": round(float(r["balance"]), 2),
+            "loan": LOAN_RECORD.get(r["account_type"]), "min_payment": r.get("min_payment")}
+           for r in rows if r["account_type"] not in NOT_MIRRORED]
+    inv = invest_account(cid, rows)
+    if inv["account_id"] == INVEST_MIRROR.format(cid=cid):
+        out.append({"account_id": inv["account_id"], "type": "Savings", "nickname": "Brokerage", "balance": 0.0,
+                    "loan": None, "min_payment": None})
+    return out
 
 
 def _create_mirror(write, nessie_customer: str, m: dict) -> dict:
@@ -119,7 +136,8 @@ def seed(customer_ids: list[str], reload_local: bool = True) -> dict:
     merchants = ids.setdefault("_merchants", {})
     for cid in customer_ids:
         entry = ids.get(cid) or {}
-        if entry.get("complete") and entry.get("mirrors_complete"):
+        if entry.get("complete") and entry.get("mirrors_complete") and \
+                all(m["account_id"] in (entry.get("accounts") or {}) for m in mirror_plan(cid)):
             print(f"{cid}: already seeded, skipping")
             continue
         if not entry.get("customer"):  # Nessie can't delete customers: reuse "PNC <cid>" from an earlier seed

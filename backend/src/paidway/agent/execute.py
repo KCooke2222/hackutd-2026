@@ -55,12 +55,13 @@ def _ids(customer_id: str) -> dict:
 def mirrors(customer_id: str, rows: list[dict], ids: dict | None = None) -> dict[str, dict]:
     """account_id -> {id, nickname} of its Nessie mirror. Unseeded accounts get a placeholder id "<account_id>"
     (shown in the dry-run; approve sends nothing while any call has one)."""
-    from ..data.seed import PRIMARY, mirror_nickname
+    from ..data.seed import PRIMARY, invest_account, mirror_nickname
 
     ids = ids if ids is not None else _ids(customer_id)
     have = ids.get("accounts") or {}
     out = {}
-    for r in rows:
+    inv = invest_account(customer_id, rows)
+    for r in [*rows, *([inv] if inv not in rows else [])]:
         m = have.get(r["account_id"])
         key = PRIMARY.get(r["account_id"].replace(customer_id, "{cid}"))
         nid = (m or {}).get("id") or (ids.get(key) if key else None)
@@ -253,10 +254,45 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
         steps.append({"kind": "budget", "runs": "summary", "extra_order": order,
                       "step": f"Debt shrinks ${net:,.0f}/mo", "budget": float(plan.get("monthly_debt_budget") or 0),
                       "paid": paid, "new_purchases": buys, "net_paydown": net, "left_over": left})
+    inv = (sim or {}).get("investing") or {}
+    if sim_debts and checking and float(inv.get("per_month") or 0) >= 1:
+        steps.append(_invest_step(customer_id, rows, mir, checking["account_id"], inv))
     base = ((ids if ids is not None else _ids(customer_id)).get("bills") or {}) if sim_debts else {}
     if base and checking:
         steps = against_baseline(customer_id, steps, base, sim, debts, checking["account_id"])
     return transfers, steps
+
+
+INVEST_KEY = "invest:brokerage"
+
+
+def _invest_step(customer_id: str, rows: list[dict], mir: dict, checking_id: str, inv: dict) -> dict:
+    """The money order's last step as a Nessie bill: checking -> the Brokerage mirror, every month. When investing
+    starts in the first bill month approve creates it; otherwise the check-in creates it in that month
+    (bill_schedule)."""
+    from ..data.seed import invest_account
+
+    brk = invest_account(customer_id, rows)
+    amt = float(dollars(inv["per_month"]))
+    first, day = _next_month()
+    frm = inv.get("from") or first[:7]
+    pct = inv.get("return_pct") or 7.0
+    name = brk["name"]
+    low = inv.get("risk_profile") == "low"
+    now = frm <= first[:7]
+    text = (f"Invest ${amt:,.0f}/mo into {name} (est. {pct:g}%/yr)"
+            + ("" if now else f" from {_month_name(frm)}, once high-cost debt is $0")
+            + ("; the rest of the leftover goes to your highest-rate loan" if low else ""))
+    step = {"kind": "invest", "step": text, "amount": amt, "from_month": frm, "risk_profile": inv.get("risk_profile"),
+            "account_id": brk["account_id"], "payee": name}
+    if now and brk["account_id"] in mir:
+        step.update(runs="nessie", note=_mirror_note(brk, mir[brk["account_id"]]["nickname"]),
+                    nessie={"op": "bill", "from": checking_id, "to": brk["account_id"], "key": INVEST_KEY,
+                            "payee": name, "nickname": "Paidway: invest the leftover",
+                            "payment_date": first, "recurring_date": day, "amount": amt})
+    else:
+        step.update(runs="agent", watch=f"The monthly check-in creates this Nessie bill in {_month_name(frm)}")
+    return step
 
 
 def _resume_month(sim: dict | None) -> str | None:
@@ -343,7 +379,8 @@ def bill_diff(customer_id: str, steps: list[dict], ids: dict | None = None) -> l
                      "resume": n.get("resume"), "step": (s or {}).get("step")})
     for k, s in by_key.items():
         if k not in base and s["nessie"].get("action") == "new":
-            rows.append({"key": k, "name": s["nessie"].get("payee"), "kind": "debt", "action": "new", "from": None,
+            rows.append({"key": k, "name": s["nessie"].get("payee"), "action": "new", "from": None,
+                         "kind": "investing" if k == INVEST_KEY else "debt",
                          "to": s["nessie"]["amount"], "resume": None, "step": s["step"]})
     order = {"change": 0, "pause": 1, "end": 2, "new": 3, "keep": 4}
     rows.sort(key=lambda r: order.get(r["action"], 9))
@@ -700,6 +737,11 @@ def bill_schedule(sim: dict | None, steps: list[dict], autopay: list[str] | None
             out.append({"month": n["resume"], "key": n["key"], "action": "resume", "amount": float(n["was"] or 0),
                         "was": None if n["action"] == "pause" else n["amount"], "name": n.get("payee"),
                         "why": "high-cost debt is $0", "to": n.get("to")})
+    for s in steps:  # investing that starts later: the check-in creates its bill in that month
+        if s.get("kind") == "invest" and not s.get("nessie") and s.get("account_id"):
+            out.append({"month": s["from_month"], "key": INVEST_KEY, "action": "new", "amount": s["amount"], "was": None,
+                        "name": s["payee"], "why": "high-cost debt is $0: the leftover goes to investing",
+                        "to": s["account_id"]})
     for e in out:
         e["done"] = False
     out.sort(key=lambda e: e["month"])

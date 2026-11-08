@@ -44,6 +44,8 @@ export type PlanV2 = {
   spending_targets: SpendingTarget[]
   autopay_full_cards: string[]
   keep_emergency_months: number
+  /** What happens to money left after debt and the cushion: medium/high invest it all, low splits it with the top loan. */
+  risk_profile?: RiskProfile
 }
 
 export type SimDebt = { account_id: string; name: string; apr_pct: number; balance: number; min_payment?: number; high_cost?: boolean; payoff_month: string | null; interest: number; first_month_payment?: number }
@@ -73,7 +75,12 @@ export type SimV2 = {
   monthly_card_spending?: number
   /** Each IRA / brokerage / CD contribution and what the plan does with it (paused while debt costs > 7%). */
   contributions?: Contribution[]
+  /** The money order in one line: "Cards first, then a $6.8k cushion, then $228/mo into investing at ~7%". */
+  money_order?: string
+  investing?: { risk_profile: RiskProfile | null; from: string | null; per_month: number; total_24m: number; return_pct: number }
 }
+
+export type RiskProfile = 'low' | 'medium' | 'high'
 
 export type Contribution = {
   flow: string; dest: string; label: string; per_month: number; paused: number
