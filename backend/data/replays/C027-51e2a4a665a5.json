@@ -1,0 +1,3281 @@
+{
+ "id": "51e2a4a665a5",
+ "customer_id": "C027",
+ "recorded_at": "2026-11-08T17:20:22+00:00",
+ "duration_ms": 48650,
+ "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+ "headline": "$539/mo short, cash runs out May 2028",
+ "proposal_id": "493aca2c9310",
+ "proposal": {
+  "id": "493aca2c9310",
+  "customer_id": "C027",
+  "status": "pending",
+  "created_at": "2026-11-08T17:20:22+00:00",
+  "decided_at": null,
+  "plan": {
+   "version": 2,
+   "monthly_debt_budget": 3043.17,
+   "extra_order": [
+    "L-C027-CREDIT_CARD-2",
+    "A-C027-CREDIT_CARD"
+   ],
+   "lump_sums": [],
+   "redirects": [],
+   "spending_targets": [
+    {
+     "category": "subscriptions",
+     "current": 54.92,
+     "target": 29.93,
+     "how": [
+      "Cancel Planet Fitness"
+     ],
+     "proof_month": "2026-10",
+     "source": "suggested",
+     "lumpy": false,
+     "buys": {
+      "net_worth_gain": 748.92,
+      "months_sooner": 3,
+      "high_cost_debt_free": "2029-02",
+      "interest_saved": 149.16
+     }
+    },
+    {
+     "category": "other_spending",
+     "current": 251.96,
+     "target": 226.77,
+     "how": [
+      "Cut back on Walmart and Amazon household",
+      "Keep household & other under $227/mo"
+     ],
+     "proof_month": "2026-10",
+     "source": "suggested",
+     "lumpy": false,
+     "buys": {
+      "net_worth_gain": 754.91,
+      "months_sooner": 3,
+      "high_cost_debt_free": "2029-02",
+      "interest_saved": 150.35
+     }
+    },
+    {
+     "category": "dining",
+     "current": 228.09,
+     "target": 202.71,
+     "how": [
+      "Cut back on Starbucks and Whataburger",
+      "Keep dining & delivery under $203/mo"
+     ],
+     "proof_month": "2026-06",
+     "source": "suggested",
+     "lumpy": false,
+     "buys": {
+      "net_worth_gain": 760.44,
+      "months_sooner": 3,
+      "high_cost_debt_free": "2029-02",
+      "interest_saved": 151.32
+     }
+    }
+   ],
+   "autopay_full_cards": [
+    "L-C027-CREDIT_CARD-2",
+    "A-C027-CREDIT_CARD"
+   ],
+   "keep_emergency_months": 3.0
+  },
+  "simulation": {
+   "feasible": true,
+   "problems": [],
+   "debts": [
+    {
+     "account_id": "L-C027-CREDIT_CARD-2",
+     "name": "Store card",
+     "apr_pct": 27.59,
+     "balance": 1030.0,
+     "min_payment": 35.0,
+     "high_cost": true,
+     "payoff_month": "2026-12",
+     "interest": 28.66,
+     "first_month_payment": 837.29
+    },
+    {
+     "account_id": "A-C027-CREDIT_CARD",
+     "name": "PNC Credit card",
+     "apr_pct": 22.5,
+     "balance": 6362.0,
+     "min_payment": 190.88,
+     "high_cost": true,
+     "payoff_month": "2028-10",
+     "interest": 1788.98,
+     "first_month_payment": 190.88
+    },
+    {
+     "account_id": "A-C027-MORTGAGE",
+     "name": "PNC Mortgage",
+     "apr_pct": 6.5,
+     "balance": 245000.0,
+     "min_payment": 1549.0,
+     "high_cost": false,
+     "payoff_month": null,
+     "interest": 31504.67,
+     "first_month_payment": 1549.0
+    },
+    {
+     "account_id": "L-C027-STUDENT_LOAN-1",
+     "name": "Federal Direct Loan",
+     "apr_pct": 4.53,
+     "balance": 45000.0,
+     "min_payment": 466.0,
+     "high_cost": false,
+     "payoff_month": null,
+     "interest": 3759.75,
+     "first_month_payment": 466.0
+    }
+   ],
+   "months": [
+    {
+     "month": "2026-10",
+     "total_debt": 297392.0,
+     "high_cost_debt": 7392.0,
+     "cash": 18333.0,
+     "invested": 78140.0,
+     "net_worth": 118381.0,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 1030.0,
+       "A-C027-CREDIT_CARD": 6362.0,
+       "A-C027-MORTGAGE": 245000.0,
+       "L-C027-STUDENT_LOAN-1": 45000.0
+      },
+      "assets": {
+       "cash": 18333.0,
+       "cd": 0,
+       "brokerage": 0,
+       "ira": 78140.0,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 18333,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 78140,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 1030,
+       "A-C027-CREDIT_CARD": 6362,
+       "A-C027-MORTGAGE": 245000,
+       "L-C027-STUDENT_LOAN-1": 45000
+      }
+     }
+    },
+    {
+     "month": "2026-11",
+     "total_debt": 296623.92,
+     "high_cost_debt": 7141.96,
+     "cash": 17255.33,
+     "invested": 78833.32,
+     "net_worth": 118764.73,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 216.39,
+       "A-C027-CREDIT_CARD": 6925.57,
+       "A-C027-MORTGAGE": 244778.08,
+       "L-C027-STUDENT_LOAN-1": 44703.88
+      },
+      "assets": {
+       "cash": 17255.33,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 78833.32,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 17255,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 78833,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 216,
+       "A-C027-CREDIT_CARD": 6926,
+       "A-C027-MORTGAGE": 244778,
+       "L-C027-STUDENT_LOAN-1": 44704
+      }
+     }
+    },
+    {
+     "month": "2026-12",
+     "total_debt": 295845.38,
+     "high_cost_debt": 6883.78,
+     "cash": 16176.45,
+     "invested": 79530.69,
+     "net_worth": 119161.77,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 6883.78,
+       "A-C027-MORTGAGE": 244554.96,
+       "L-C027-STUDENT_LOAN-1": 44406.63
+      },
+      "assets": {
+       "cash": 16176.45,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 79530.69,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 16176,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 79531,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 6884,
+       "A-C027-MORTGAGE": 244555,
+       "L-C027-STUDENT_LOAN-1": 44407
+      }
+     }
+    },
+    {
+     "month": "2027-01",
+     "total_debt": 295058.74,
+     "high_cost_debt": 6619.84,
+     "cash": 15096.39,
+     "invested": 80232.13,
+     "net_worth": 119569.77,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 6619.84,
+       "A-C027-MORTGAGE": 244330.64,
+       "L-C027-STUDENT_LOAN-1": 44108.27
+      },
+      "assets": {
+       "cash": 15096.39,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 80232.13,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 15096,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 80232,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 6620,
+       "A-C027-MORTGAGE": 244331,
+       "L-C027-STUDENT_LOAN-1": 44108
+      }
+     }
+    },
+    {
+     "month": "2027-02",
+     "total_debt": 294264.82,
+     "high_cost_debt": 6350.95,
+     "cash": 14015.12,
+     "invested": 80937.65,
+     "net_worth": 119987.95,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 6350.95,
+       "A-C027-MORTGAGE": 244105.09,
+       "L-C027-STUDENT_LOAN-1": 43808.78
+      },
+      "assets": {
+       "cash": 14015.12,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 80937.65,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 14015,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 80938,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 6351,
+       "A-C027-MORTGAGE": 244105,
+       "L-C027-STUDENT_LOAN-1": 43809
+      }
+     }
+    },
+    {
+     "month": "2027-03",
+     "total_debt": 293463.51,
+     "high_cost_debt": 6077.02,
+     "cash": 12932.65,
+     "invested": 81647.3,
+     "net_worth": 120416.44,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 6077.02,
+       "A-C027-MORTGAGE": 243878.33,
+       "L-C027-STUDENT_LOAN-1": 43508.15
+      },
+      "assets": {
+       "cash": 12932.65,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 81647.3,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 12933,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 81647,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 6077,
+       "A-C027-MORTGAGE": 243878,
+       "L-C027-STUDENT_LOAN-1": 43508
+      }
+     }
+    },
+    {
+     "month": "2027-04",
+     "total_debt": 292654.69,
+     "high_cost_debt": 5797.96,
+     "cash": 11848.98,
+     "invested": 82361.08,
+     "net_worth": 120855.37,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 5797.96,
+       "A-C027-MORTGAGE": 243650.34,
+       "L-C027-STUDENT_LOAN-1": 43206.4
+      },
+      "assets": {
+       "cash": 11848.98,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 82361.08,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 11849,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 82361,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 5798,
+       "A-C027-MORTGAGE": 243650,
+       "L-C027-STUDENT_LOAN-1": 43206
+      }
+     }
+    },
+    {
+     "month": "2027-05",
+     "total_debt": 291838.27,
+     "high_cost_debt": 5513.66,
+     "cash": 10764.11,
+     "invested": 83079.03,
+     "net_worth": 121304.87,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 5513.66,
+       "A-C027-MORTGAGE": 243421.11,
+       "L-C027-STUDENT_LOAN-1": 42903.5
+      },
+      "assets": {
+       "cash": 10764.11,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 83079.03,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 10764,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 83079,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 5514,
+       "A-C027-MORTGAGE": 243421,
+       "L-C027-STUDENT_LOAN-1": 42904
+      }
+     }
+    },
+    {
+     "month": "2027-06",
+     "total_debt": 291014.13,
+     "high_cost_debt": 5224.03,
+     "cash": 9678.04,
+     "invested": 83801.16,
+     "net_worth": 121765.07,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 5224.03,
+       "A-C027-MORTGAGE": 243190.64,
+       "L-C027-STUDENT_LOAN-1": 42599.46
+      },
+      "assets": {
+       "cash": 9678.04,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 83801.16,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 9678,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 83801,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 5224,
+       "A-C027-MORTGAGE": 243191,
+       "L-C027-STUDENT_LOAN-1": 42599
+      }
+     }
+    },
+    {
+     "month": "2027-07",
+     "total_debt": 290182.17,
+     "high_cost_debt": 4928.97,
+     "cash": 8590.76,
+     "invested": 84527.51,
+     "net_worth": 122236.1,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 4928.97,
+       "A-C027-MORTGAGE": 242958.92,
+       "L-C027-STUDENT_LOAN-1": 42294.28
+      },
+      "assets": {
+       "cash": 8590.76,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 84527.51,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 8591,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 84528,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 4929,
+       "A-C027-MORTGAGE": 242959,
+       "L-C027-STUDENT_LOAN-1": 42294
+      }
+     }
+    },
+    {
+     "month": "2027-08",
+     "total_debt": 289342.27,
+     "high_cost_debt": 4628.38,
+     "cash": 7502.27,
+     "invested": 85258.09,
+     "net_worth": 122718.1,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 4628.38,
+       "A-C027-MORTGAGE": 242725.95,
+       "L-C027-STUDENT_LOAN-1": 41987.94
+      },
+      "assets": {
+       "cash": 7502.27,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 85258.09,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 7502,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 85258,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 4628,
+       "A-C027-MORTGAGE": 242726,
+       "L-C027-STUDENT_LOAN-1": 41988
+      }
+     }
+    },
+    {
+     "month": "2027-09",
+     "total_debt": 288494.31,
+     "high_cost_debt": 4322.15,
+     "cash": 6412.58,
+     "invested": 85992.94,
+     "net_worth": 123211.2,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 4322.15,
+       "A-C027-MORTGAGE": 242491.72,
+       "L-C027-STUDENT_LOAN-1": 41680.44
+      },
+      "assets": {
+       "cash": 6412.58,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 85992.94,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 6413,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 85993,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 4322,
+       "A-C027-MORTGAGE": 242492,
+       "L-C027-STUDENT_LOAN-1": 41680
+      }
+     }
+    },
+    {
+     "month": "2027-10",
+     "total_debt": 287638.18,
+     "high_cost_debt": 4010.18,
+     "cash": 5321.67,
+     "invested": 86732.07,
+     "net_worth": 123715.56,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 4010.18,
+       "A-C027-MORTGAGE": 242256.21,
+       "L-C027-STUDENT_LOAN-1": 41371.78
+      },
+      "assets": {
+       "cash": 5321.67,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 86732.07,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 5322,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 86732,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 4010,
+       "A-C027-MORTGAGE": 242256,
+       "L-C027-STUDENT_LOAN-1": 41372
+      }
+     }
+    },
+    {
+     "month": "2027-11",
+     "total_debt": 286773.76,
+     "high_cost_debt": 3692.36,
+     "cash": 4229.56,
+     "invested": 87475.51,
+     "net_worth": 124231.31,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 3692.36,
+       "A-C027-MORTGAGE": 242019.44,
+       "L-C027-STUDENT_LOAN-1": 41061.96
+      },
+      "assets": {
+       "cash": 4229.56,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 87475.51,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 4230,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 87476,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 3692,
+       "A-C027-MORTGAGE": 242019,
+       "L-C027-STUDENT_LOAN-1": 41062
+      }
+     }
+    },
+    {
+     "month": "2027-12",
+     "total_debt": 285900.93,
+     "high_cost_debt": 3368.58,
+     "cash": 3136.23,
+     "invested": 88223.29,
+     "net_worth": 124758.59,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 3368.58,
+       "A-C027-MORTGAGE": 241781.37,
+       "L-C027-STUDENT_LOAN-1": 40750.97
+      },
+      "assets": {
+       "cash": 3136.23,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 88223.29,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 3136,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 88223,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 3369,
+       "A-C027-MORTGAGE": 241781,
+       "L-C027-STUDENT_LOAN-1": 40751
+      }
+     }
+    },
+    {
+     "month": "2028-01",
+     "total_debt": 285019.56,
+     "high_cost_debt": 3038.73,
+     "cash": 2041.69,
+     "invested": 88975.44,
+     "net_worth": 125297.56,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 3038.73,
+       "A-C027-MORTGAGE": 241542.02,
+       "L-C027-STUDENT_LOAN-1": 40438.81
+      },
+      "assets": {
+       "cash": 2041.69,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 88975.44,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 2042,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 88975,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 3039,
+       "A-C027-MORTGAGE": 241542,
+       "L-C027-STUDENT_LOAN-1": 40439
+      }
+     }
+    },
+    {
+     "month": "2028-02",
+     "total_debt": 284129.54,
+     "high_cost_debt": 2702.7,
+     "cash": 945.93,
+     "invested": 89731.97,
+     "net_worth": 125848.36,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 2702.7,
+       "A-C027-MORTGAGE": 241301.38,
+       "L-C027-STUDENT_LOAN-1": 40125.46
+      },
+      "assets": {
+       "cash": 945.93,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 89731.97,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": 946,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 89732,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 2703,
+       "A-C027-MORTGAGE": 241301,
+       "L-C027-STUDENT_LOAN-1": 40125
+      }
+     }
+    },
+    {
+     "month": "2028-03",
+     "total_debt": 283230.73,
+     "high_cost_debt": 2360.37,
+     "cash": -151.04,
+     "invested": 90492.91,
+     "net_worth": 126411.14,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 2360.37,
+       "A-C027-MORTGAGE": 241059.43,
+       "L-C027-STUDENT_LOAN-1": 39810.94
+      },
+      "assets": {
+       "cash": -151.04,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 90492.91,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": -151,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 90493,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 2360,
+       "A-C027-MORTGAGE": 241059,
+       "L-C027-STUDENT_LOAN-1": 39811
+      }
+     }
+    },
+    {
+     "month": "2028-04",
+     "total_debt": 282323.0,
+     "high_cost_debt": 2011.61,
+     "cash": -1249.23,
+     "invested": 91258.29,
+     "net_worth": 126986.07,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 2011.61,
+       "A-C027-MORTGAGE": 240816.16,
+       "L-C027-STUDENT_LOAN-1": 39495.22
+      },
+      "assets": {
+       "cash": -1249.23,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 91258.29,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": -1249,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 91258,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 2012,
+       "A-C027-MORTGAGE": 240816,
+       "L-C027-STUDENT_LOAN-1": 39495
+      }
+     }
+    },
+    {
+     "month": "2028-05",
+     "total_debt": 281406.22,
+     "high_cost_debt": 1656.32,
+     "cash": -2348.63,
+     "invested": 92028.14,
+     "net_worth": 127573.28,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 1656.32,
+       "A-C027-MORTGAGE": 240571.58,
+       "L-C027-STUDENT_LOAN-1": 39178.32
+      },
+      "assets": {
+       "cash": -2348.63,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 92028.14,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": -2349,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 92028,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 1656,
+       "A-C027-MORTGAGE": 240572,
+       "L-C027-STUDENT_LOAN-1": 39178
+      }
+     }
+    },
+    {
+     "month": "2028-06",
+     "total_debt": 280480.26,
+     "high_cost_debt": 1294.37,
+     "cash": -3449.26,
+     "invested": 92802.47,
+     "net_worth": 128172.95,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 1294.37,
+       "A-C027-MORTGAGE": 240325.68,
+       "L-C027-STUDENT_LOAN-1": 38860.22
+      },
+      "assets": {
+       "cash": -3449.26,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 92802.47,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": -3449,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 92802,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 1294,
+       "A-C027-MORTGAGE": 240326,
+       "L-C027-STUDENT_LOAN-1": 38860
+      }
+     }
+    },
+    {
+     "month": "2028-07",
+     "total_debt": 279544.98,
+     "high_cost_debt": 925.62,
+     "cash": -4551.11,
+     "invested": 93581.33,
+     "net_worth": 128785.24,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 925.62,
+       "A-C027-MORTGAGE": 240078.45,
+       "L-C027-STUDENT_LOAN-1": 38540.91
+      },
+      "assets": {
+       "cash": -4551.11,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 93581.33,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": -4551,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 93581,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 926,
+       "A-C027-MORTGAGE": 240078,
+       "L-C027-STUDENT_LOAN-1": 38541
+      }
+     }
+    },
+    {
+     "month": "2028-08",
+     "total_debt": 278600.25,
+     "high_cost_debt": 549.97,
+     "cash": -5654.18,
+     "invested": 94364.73,
+     "net_worth": 129410.3,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 549.97,
+       "A-C027-MORTGAGE": 239829.87,
+       "L-C027-STUDENT_LOAN-1": 38220.4
+      },
+      "assets": {
+       "cash": -5654.18,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 94364.73,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": -5654,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 94365,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 550,
+       "A-C027-MORTGAGE": 239830,
+       "L-C027-STUDENT_LOAN-1": 38220
+      }
+     }
+    },
+    {
+     "month": "2028-09",
+     "total_debt": 277645.91,
+     "high_cost_debt": 167.27,
+     "cash": -6758.48,
+     "invested": 95152.69,
+     "net_worth": 130048.31,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 167.27,
+       "A-C027-MORTGAGE": 239579.95,
+       "L-C027-STUDENT_LOAN-1": 37898.69
+      },
+      "assets": {
+       "cash": -6758.48,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 95152.69,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": -6758,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 95153,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 167,
+       "A-C027-MORTGAGE": 239580,
+       "L-C027-STUDENT_LOAN-1": 37899
+      }
+     }
+    },
+    {
+     "month": "2028-10",
+     "total_debt": 276904.43,
+     "high_cost_debt": 0.0,
+     "cash": -7641.4,
+     "invested": 95945.26,
+     "net_worth": 130699.44,
+     "balances": {
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0.0,
+       "A-C027-CREDIT_CARD": 0.0,
+       "A-C027-MORTGAGE": 239328.67,
+       "L-C027-STUDENT_LOAN-1": 37575.75
+      },
+      "assets": {
+       "cash": -7641.4,
+       "cd": 0.0,
+       "brokerage": 0.0,
+       "ira": 95945.26,
+       "property": 319300.0
+      }
+     },
+     "parts": {
+      "cash": -7641,
+      "cd": 0,
+      "brokerage": 0,
+      "ira": 95945,
+      "property": 319300,
+      "debts": {
+       "L-C027-CREDIT_CARD-2": 0,
+       "A-C027-CREDIT_CARD": 0,
+       "A-C027-MORTGAGE": 239329,
+       "L-C027-STUDENT_LOAN-1": 37576
+      }
+     }
+    }
+   ],
+   "net_worth_24m": 130699.44,
+   "net_worth_now": 118381.0,
+   "interest_total": 37082.07,
+   "high_cost_debt_free": "2028-10",
+   "upfront_cost": 0.0,
+   "monthly_card_spending": 635.16,
+   "monthly_saved": -1098.02,
+   "baseline_net_worth_24m": 127591.17,
+   "baseline_interest_total": 38376.9,
+   "baseline_high_cost_debt_free": null,
+   "budget": {
+    "current_net_paydown_per_month": 2332.45,
+    "net_paydown_per_month": 2408.01,
+    "current_new_card_purchases": 660.54,
+    "new_card_purchases": 635.16,
+    "monthly_debt_budget": 3043.17,
+    "current_debt_payments": 2992.99,
+    "redirects": 0.0,
+    "surplus_redirected": 0.0,
+    "contributions_paused": 0,
+    "checking_cuts": 50.18,
+    "card_cuts": 25.38,
+    "max_monthly_debt_budget": 3043.17,
+    "minimums": 2240.88,
+    "paid_to_debt_per_month": 3043.17,
+    "unused_per_month": 0.0
+   },
+   "no_cuts": {
+    "net_worth_24m": 128435.17,
+    "high_cost_debt_free": "2029-05",
+    "interest_total": 37532.89,
+    "monthly_debt_budget": 2992.99,
+    "net_paydown_per_month": 2332.45,
+    "feasible": true,
+    "suggested_cut_per_month": 75.56,
+    "suggested_buys": {
+     "net_worth_gain": 2264.27,
+     "months_sooner": 7,
+     "high_cost_debt_free": "2028-10",
+     "interest_saved": 450.82
+    }
+   },
+   "cut_options": [
+    {
+     "category": "shopping",
+     "label": "Shopping",
+     "flag": "trim",
+     "current": 145.72,
+     "target": 106.28,
+     "cut_per_month": 39.44,
+     "how": [
+      "Scale back Old Navy and Amazon"
+     ],
+     "merchants": [
+      "Old Navy",
+      "Amazon"
+     ],
+     "proof_month": "2026-02",
+     "high_cost_debt_free": "2028-07",
+     "months_sooner": 3,
+     "net_worth_24m_gain": 1154.46,
+     "interest_saved": 206.2,
+     "spending_target": {
+      "category": "shopping",
+      "current": 145.72,
+      "target": 106.28,
+      "proof_month": "2026-02",
+      "how": [
+       "Scale back Old Navy and Amazon"
+      ]
+     }
+    },
+    {
+     "category": "travel",
+     "label": "Travel",
+     "flag": "trim",
+     "current": 42.64,
+     "target": 25.58,
+     "cut_per_month": 17.06,
+     "how": [
+      "Scale back Delta Air Lines and Marriott"
+     ],
+     "merchants": [
+      "Delta Air Lines",
+      "Marriott"
+     ],
+     "proof_month": "2025-12",
+     "high_cost_debt_free": "2028-09",
+     "months_sooner": 1,
+     "net_worth_24m_gain": 505.65,
+     "interest_saved": 95.87,
+     "spending_target": {
+      "category": "travel",
+      "current": 42.64,
+      "target": 25.58,
+      "proof_month": "2025-12",
+      "how": [
+       "Scale back Delta Air Lines and Marriott"
+      ]
+     }
+    },
+    {
+     "category": "home_household",
+     "label": "Home & household",
+     "flag": "trim",
+     "current": 35.25,
+     "target": 24.67,
+     "cut_per_month": 10.58,
+     "how": [
+      "Scale back Ashley Furniture and Lowe's"
+     ],
+     "merchants": [
+      "Ashley Furniture",
+      "Lowe's"
+     ],
+     "proof_month": "2025-11",
+     "high_cost_debt_free": "2028-09",
+     "months_sooner": 1,
+     "net_worth_24m_gain": 314.71,
+     "interest_saved": 60.65,
+     "spending_target": {
+      "category": "home_household",
+      "current": 35.25,
+      "target": 24.67,
+      "proof_month": "2025-11",
+      "how": [
+       "Scale back Ashley Furniture and Lowe's"
+      ]
+     }
+    }
+   ],
+   "balances_snapshot": {
+    "pnc": {
+     "credit_card": 6362.53,
+     "savings": 9766.18
+    },
+    "nessie": {
+     "credit_card": 6362.0,
+     "savings": 9766.0
+    }
+   },
+   "reality_check": {
+    "realistic": false,
+    "message": "Even after every realistic change you are $539/mo short, so the debt keeps growing and cash runs out by 2028-05. To close it, spend $539/mo less or earn $539/mo more (or a mix).",
+    "gap_per_month": 538.64,
+    "cash_runs_out": "2028-05",
+    "close_gap": {
+     "spend_less_per_month": 538.64,
+     "earn_more_per_month": 538.64,
+     "spending_target_per_month": 1714.56,
+     "income_target_per_month": 5154.62,
+     "spending_alone_can_close": true,
+     "min_extra_income_if_spending_maxed": 0.0
+    },
+    "monthly": {
+     "income": 4615.98,
+     "spending": 2483.51,
+     "debt_room": 2035.08,
+     "interest": 1639.93,
+     "card_charges": 570.34,
+     "minimums": 2240.88,
+     "principal_paydown": -175.19,
+     "shortfall": 538.64,
+     "lowest_cash": -3309.09
+    },
+    "today": {
+     "debt_change_per_month": -692.52,
+     "cash_change_per_month": -1098.02
+    },
+    "levers": {
+     "spending_cuts_per_month": 230.31,
+     "cuts": [
+      {
+       "category": "subscriptions",
+       "current": 54.92,
+       "target": 0.0,
+       "save": 54.92
+      },
+      {
+       "category": "dining",
+       "current": 228.09,
+       "target": 177.33,
+       "save": 50.76
+      },
+      {
+       "category": "other_spending",
+       "current": 251.96,
+       "target": 201.57,
+       "save": 50.39
+      },
+      {
+       "category": "shopping",
+       "current": 145.72,
+       "target": 106.28,
+       "save": 39.44
+      },
+      {
+       "category": "travel",
+       "current": 42.64,
+       "target": 25.59,
+       "save": 17.05
+      },
+      {
+       "category": "home_household",
+       "current": 35.25,
+       "target": 24.68,
+       "save": 10.57
+      },
+      {
+       "category": "gifts_holidays",
+       "current": 17.95,
+       "target": 10.77,
+       "save": 7.18
+      }
+     ],
+     "redirect_per_month": 0,
+     "lump_sums": [],
+     "discretionary_left_per_month": 661.29
+    }
+   },
+   "explain": {
+    "headline": "$539/mo short, cash runs out May 2028",
+    "summary": "Even with every change, interest and new card charges add more than you can pay: the debt grows about $175/mo until the gap closes.",
+    "driver": "They keep charging on the cards while paying them down, so balances barely move.",
+    "buffer_months": 3.0,
+    "buffer_why": "Steady income; buffer size changes nothing here.",
+    "lumps_why": "",
+    "downsides": [
+     "Less dining out and shopping",
+     "Retirement contributions continue despite negative cash flow",
+     "Small cash cushion while debt still grows"
+    ],
+    "underwater": "Cut spending or raise income by the monthly shortfall.",
+    "levers": [
+     {
+      "kind": "debt_payment",
+      "label": "$2,408/mo off the debt",
+      "amount": 2408.01
+     },
+     {
+      "kind": "cut",
+      "label": "subscriptions to $30/mo",
+      "amount": 29.93
+     },
+     {
+      "kind": "cut",
+      "label": "other spending to $227/mo",
+      "amount": 226.77
+     },
+     {
+      "kind": "cut",
+      "label": "dining to $203/mo",
+      "amount": 202.71
+     }
+    ],
+    "cuts": [
+     {
+      "category": "subscriptions",
+      "how": "Cancel Planet Fitness",
+      "why": "unused Planet Fitness membership",
+      "suggested": true,
+      "buys": "3 months sooner, +$749 in 2 years",
+      "from": 54.92,
+      "to": 29.93
+     },
+     {
+      "category": "other_spending",
+      "how": "Cut back on Walmart and Amazon household; Keep household & other under $227/mo",
+      "why": "Walmart and Amazon household runs",
+      "suggested": true,
+      "buys": "3 months sooner, +$755 in 2 years",
+      "from": 251.96,
+      "to": 226.77
+     },
+     {
+      "category": "dining",
+      "how": "Cut back on Starbucks and Whataburger; Keep dining & delivery under $203/mo",
+      "why": "Starbucks and Whataburger habit",
+      "suggested": true,
+      "buys": "3 months sooner, +$760 in 2 years",
+      "from": 228.09,
+      "to": 202.71
+     }
+    ],
+    "options": [],
+    "underwater_options": [
+     {
+      "key": "pause_ira",
+      "title": "Pause IRA contributions",
+      "detail": "Stop the monthly IRA deposit until the gap closes.",
+      "modelled": true,
+      "closes_per_month": 538.64,
+      "cash_runs_out": null,
+      "never_recommend": false,
+      "runs": "manual",
+      "how": "Lower or pause the contribution at your IRA provider.",
+      "link": null,
+      "closes_gap": true,
+      "why": "Stops retirement deposits to cover the full monthly shortfall.",
+      "downside": "Lost retirement growth and compounding for as long as paused.",
+      "recommended": true,
+      "agent_skipped": false
+     },
+     {
+      "key": "idr_student_loan",
+      "title": "Income-driven repayment",
+      "detail": "Ask the federal loan servicer for an income-driven plan.",
+      "modelled": true,
+      "closes_per_month": 200.03,
+      "cash_runs_out": null,
+      "never_recommend": false,
+      "runs": "manual",
+      "how": "Apply for an income-driven repayment plan; it takes about 10 minutes with your FSA ID.",
+      "link": "https://studentaid.gov/idr/",
+      "closes_gap": false,
+      "new_payment": 265.97,
+      "why": "Lowers the federal student loan payment right away.",
+      "downside": "More interest over time and a longer payoff.",
+      "recommended": true,
+      "agent_skipped": false
+     },
+     {
+      "key": "card_hardship",
+      "title": "Card hardship program",
+      "detail": "Ask each card issuer for a hardship rate (often about 9.9%).",
+      "modelled": true,
+      "closes_per_month": 84.77,
+      "cash_runs_out": "2028-06",
+      "never_recommend": false,
+      "runs": "manual",
+      "how": "Call the number on the back of each card and ask for their hardship program.",
+      "link": null,
+      "closes_gap": false,
+      "why": "Lowers credit card rates and monthly payments.",
+      "downside": "Card access may close and credit could dip.",
+      "recommended": true,
+      "agent_skipped": false
+     },
+     {
+      "key": "mortgage_help",
+      "title": "Ask the mortgage lender for help",
+      "detail": "A loan modification, forbearance or refinance can lower the payment; the lender decides.",
+      "modelled": false,
+      "closes_per_month": null,
+      "cash_runs_out": null,
+      "never_recommend": false,
+      "runs": "manual",
+      "how": "Call your servicer and ask about a loan modification or forbearance; a HUD counselor is free.",
+      "link": "https://www.consumerfinance.gov/find-a-housing-counselor/",
+      "why": "",
+      "downside": "",
+      "recommended": false,
+      "agent_skipped": true
+     },
+     {
+      "key": "downsize",
+      "title": "Sell or downsize the home",
+      "detail": "Frees the largest payment; a big life decision with selling costs.",
+      "modelled": false,
+      "closes_per_month": null,
+      "cash_runs_out": null,
+      "never_recommend": true,
+      "runs": "manual",
+      "how": "Talk to a real-estate agent about selling costs before deciding.",
+      "link": null,
+      "why": "",
+      "downside": "",
+      "recommended": false,
+      "agent_skipped": true
+     },
+     {
+      "key": "extra_income",
+      "title": "Earn more each month",
+      "detail": "A room rental, extra hours or side work; hard to count on, so not modelled.",
+      "modelled": false,
+      "closes_per_month": null,
+      "cash_runs_out": null,
+      "never_recommend": true,
+      "runs": "manual",
+      "how": "Only count it once it's steady.",
+      "link": null,
+      "why": "",
+      "downside": "",
+      "recommended": false,
+      "agent_skipped": true
+     },
+     {
+      "key": "ira_withdrawal",
+      "title": "Withdraw from the IRA",
+      "detail": "Last resort: taxes plus a 10% penalty before 59\u00bd, and lost retirement growth.",
+      "modelled": false,
+      "closes_per_month": null,
+      "cash_runs_out": null,
+      "never_recommend": true,
+      "runs": "manual",
+      "how": "Last resort: ask your IRA provider about the taxes and 10% penalty first.",
+      "link": "https://www.irs.gov/retirement-plans/hardships-early-withdrawals-and-loans",
+      "why": "",
+      "downside": "",
+      "recommended": false,
+      "agent_skipped": true
+     }
+    ],
+    "underwater_gap": 538.64,
+    "underwater_not_helping": [
+     {
+      "key": "smaller_cushion",
+      "title": "Smaller cash cushion",
+      "why": "cash is already draining each month, so there's none spare to put on the debt"
+     }
+    ]
+   }
+  },
+  "rationale": "They keep charging on the cards while paying them down, so balances barely move.",
+  "execution": null,
+  "parent_id": null,
+  "constraints": null,
+  "request": null
+ },
+ "events": [
+  {
+   "t": 1835,
+   "type": "phase",
+   "data": {
+    "type": "phase",
+    "phase": "gather",
+    "status": "start"
+   }
+  },
+  {
+   "t": 1835,
+   "type": "call",
+   "data": {
+    "type": "call",
+    "id": "phase:gather",
+    "name": "phase_gather",
+    "label": "Reading accounts",
+    "args": {},
+    "why": ""
+   }
+  },
+  {
+   "t": 1835,
+   "type": "phase",
+   "data": {
+    "type": "phase",
+    "phase": "build",
+    "status": "start"
+   }
+  },
+  {
+   "t": 1835,
+   "type": "call",
+   "data": {
+    "type": "call",
+    "id": "phase:build",
+    "name": "phase_build",
+    "label": "Building the plan",
+    "args": {},
+    "why": ""
+   }
+  },
+  {
+   "t": 3375,
+   "type": "phase",
+   "data": {
+    "type": "phase",
+    "phase": "gather",
+    "status": "done",
+    "summary": "4 debts \u00b7 5 assets"
+   }
+  },
+  {
+   "t": 3375,
+   "type": "result",
+   "data": {
+    "type": "result",
+    "id": "phase:gather",
+    "name": "phase_gather",
+    "result": "4 debts \u00b7 5 assets"
+   }
+  },
+  {
+   "t": 3375,
+   "type": "phase",
+   "data": {
+    "type": "phase",
+    "phase": "build",
+    "status": "done",
+    "summary": "$0 by Oct 2028 \u00b7 3 cuts suggested"
+   }
+  },
+  {
+   "t": 3375,
+   "type": "result",
+   "data": {
+    "type": "result",
+    "id": "phase:build",
+    "name": "phase_build",
+    "result": "$0 by Oct 2028 \u00b7 3 cuts suggested"
+   }
+  },
+  {
+   "t": 3376,
+   "type": "phase",
+   "data": {
+    "type": "phase",
+    "phase": "decide",
+    "status": "start"
+   }
+  },
+  {
+   "t": 3376,
+   "type": "call",
+   "data": {
+    "type": "call",
+    "id": "phase:decide",
+    "name": "phase_decide",
+    "label": "Choosing what to suggest",
+    "args": {},
+    "why": ""
+   }
+  },
+  {
+   "t": 47215,
+   "type": "phase",
+   "data": {
+    "type": "phase",
+    "phase": "decide",
+    "status": "done",
+    "summary": "keep 3 months of cash"
+   }
+  },
+  {
+   "t": 47215,
+   "type": "result",
+   "data": {
+    "type": "result",
+    "id": "phase:decide",
+    "name": "phase_decide",
+    "result": "keep 3 months of cash"
+   }
+  },
+  {
+   "t": 47224,
+   "type": "phase",
+   "data": {
+    "type": "phase",
+    "phase": "propose",
+    "status": "start"
+   }
+  },
+  {
+   "t": 47224,
+   "type": "call",
+   "data": {
+    "type": "call",
+    "id": "phase:propose",
+    "name": "phase_propose",
+    "label": "Saving the plan",
+    "args": {},
+    "why": ""
+   }
+  },
+  {
+   "t": 48638,
+   "type": "phase",
+   "data": {
+    "type": "phase",
+    "phase": "propose",
+    "status": "done",
+    "summary": "Plan ready"
+   }
+  },
+  {
+   "t": 48638,
+   "type": "result",
+   "data": {
+    "type": "result",
+    "id": "phase:propose",
+    "name": "phase_propose",
+    "result": "Plan ready"
+   }
+  },
+  {
+   "t": 48638,
+   "type": "final",
+   "data": {
+    "type": "final",
+    "text": "$539/mo short, cash runs out May 2028",
+    "why": ""
+   }
+  },
+  {
+   "t": 48650,
+   "type": "done",
+   "data": {
+    "type": "done",
+    "final": "$539/mo short, cash runs out May 2028",
+    "diagnosis": {
+     "driver": "They keep charging on the cards while paying them down, so balances barely move."
+    },
+    "explain": {
+     "headline": "$539/mo short, cash runs out May 2028",
+     "summary": "Even with every change, interest and new card charges add more than you can pay: the debt grows about $175/mo until the gap closes.",
+     "driver": "They keep charging on the cards while paying them down, so balances barely move.",
+     "buffer_months": 3.0,
+     "buffer_why": "Steady income; buffer size changes nothing here.",
+     "lumps_why": "",
+     "downsides": [
+      "Less dining out and shopping",
+      "Retirement contributions continue despite negative cash flow",
+      "Small cash cushion while debt still grows"
+     ],
+     "underwater": "Cut spending or raise income by the monthly shortfall.",
+     "levers": [
+      {
+       "kind": "debt_payment",
+       "label": "$2,408/mo off the debt",
+       "amount": 2408.01
+      },
+      {
+       "kind": "cut",
+       "label": "subscriptions to $30/mo",
+       "amount": 29.93
+      },
+      {
+       "kind": "cut",
+       "label": "other spending to $227/mo",
+       "amount": 226.77
+      },
+      {
+       "kind": "cut",
+       "label": "dining to $203/mo",
+       "amount": 202.71
+      }
+     ],
+     "cuts": [
+      {
+       "category": "subscriptions",
+       "how": "Cancel Planet Fitness",
+       "why": "unused Planet Fitness membership",
+       "suggested": true,
+       "buys": "3 months sooner, +$749 in 2 years",
+       "from": 54.92,
+       "to": 29.93
+      },
+      {
+       "category": "other_spending",
+       "how": "Cut back on Walmart and Amazon household; Keep household & other under $227/mo",
+       "why": "Walmart and Amazon household runs",
+       "suggested": true,
+       "buys": "3 months sooner, +$755 in 2 years",
+       "from": 251.96,
+       "to": 226.77
+      },
+      {
+       "category": "dining",
+       "how": "Cut back on Starbucks and Whataburger; Keep dining & delivery under $203/mo",
+       "why": "Starbucks and Whataburger habit",
+       "suggested": true,
+       "buys": "3 months sooner, +$760 in 2 years",
+       "from": 228.09,
+       "to": 202.71
+      }
+     ],
+     "options": [],
+     "underwater_options": [
+      {
+       "key": "pause_ira",
+       "title": "Pause IRA contributions",
+       "detail": "Stop the monthly IRA deposit until the gap closes.",
+       "modelled": true,
+       "closes_per_month": 538.64,
+       "cash_runs_out": null,
+       "never_recommend": false,
+       "runs": "manual",
+       "how": "Lower or pause the contribution at your IRA provider.",
+       "link": null,
+       "closes_gap": true,
+       "why": "Stops retirement deposits to cover the full monthly shortfall.",
+       "downside": "Lost retirement growth and compounding for as long as paused.",
+       "recommended": true,
+       "agent_skipped": false
+      },
+      {
+       "key": "idr_student_loan",
+       "title": "Income-driven repayment",
+       "detail": "Ask the federal loan servicer for an income-driven plan.",
+       "modelled": true,
+       "closes_per_month": 200.03,
+       "cash_runs_out": null,
+       "never_recommend": false,
+       "runs": "manual",
+       "how": "Apply for an income-driven repayment plan; it takes about 10 minutes with your FSA ID.",
+       "link": "https://studentaid.gov/idr/",
+       "closes_gap": false,
+       "new_payment": 265.97,
+       "why": "Lowers the federal student loan payment right away.",
+       "downside": "More interest over time and a longer payoff.",
+       "recommended": true,
+       "agent_skipped": false
+      },
+      {
+       "key": "card_hardship",
+       "title": "Card hardship program",
+       "detail": "Ask each card issuer for a hardship rate (often about 9.9%).",
+       "modelled": true,
+       "closes_per_month": 84.77,
+       "cash_runs_out": "2028-06",
+       "never_recommend": false,
+       "runs": "manual",
+       "how": "Call the number on the back of each card and ask for their hardship program.",
+       "link": null,
+       "closes_gap": false,
+       "why": "Lowers credit card rates and monthly payments.",
+       "downside": "Card access may close and credit could dip.",
+       "recommended": true,
+       "agent_skipped": false
+      },
+      {
+       "key": "mortgage_help",
+       "title": "Ask the mortgage lender for help",
+       "detail": "A loan modification, forbearance or refinance can lower the payment; the lender decides.",
+       "modelled": false,
+       "closes_per_month": null,
+       "cash_runs_out": null,
+       "never_recommend": false,
+       "runs": "manual",
+       "how": "Call your servicer and ask about a loan modification or forbearance; a HUD counselor is free.",
+       "link": "https://www.consumerfinance.gov/find-a-housing-counselor/",
+       "why": "",
+       "downside": "",
+       "recommended": false,
+       "agent_skipped": true
+      },
+      {
+       "key": "downsize",
+       "title": "Sell or downsize the home",
+       "detail": "Frees the largest payment; a big life decision with selling costs.",
+       "modelled": false,
+       "closes_per_month": null,
+       "cash_runs_out": null,
+       "never_recommend": true,
+       "runs": "manual",
+       "how": "Talk to a real-estate agent about selling costs before deciding.",
+       "link": null,
+       "why": "",
+       "downside": "",
+       "recommended": false,
+       "agent_skipped": true
+      },
+      {
+       "key": "extra_income",
+       "title": "Earn more each month",
+       "detail": "A room rental, extra hours or side work; hard to count on, so not modelled.",
+       "modelled": false,
+       "closes_per_month": null,
+       "cash_runs_out": null,
+       "never_recommend": true,
+       "runs": "manual",
+       "how": "Only count it once it's steady.",
+       "link": null,
+       "why": "",
+       "downside": "",
+       "recommended": false,
+       "agent_skipped": true
+      },
+      {
+       "key": "ira_withdrawal",
+       "title": "Withdraw from the IRA",
+       "detail": "Last resort: taxes plus a 10% penalty before 59\u00bd, and lost retirement growth.",
+       "modelled": false,
+       "closes_per_month": null,
+       "cash_runs_out": null,
+       "never_recommend": true,
+       "runs": "manual",
+       "how": "Last resort: ask your IRA provider about the taxes and 10% penalty first.",
+       "link": "https://www.irs.gov/retirement-plans/hardships-early-withdrawals-and-loans",
+       "why": "",
+       "downside": "",
+       "recommended": false,
+       "agent_skipped": true
+      }
+     ],
+     "underwater_gap": 538.64,
+     "underwater_not_helping": [
+      {
+       "key": "smaller_cushion",
+       "title": "Smaller cash cushion",
+       "why": "cash is already draining each month, so there's none spare to put on the debt"
+      }
+     ]
+    },
+    "error": null,
+    "proposal_id": "493aca2c9310",
+    "proposal": {
+     "id": "493aca2c9310",
+     "customer_id": "C027",
+     "status": "pending",
+     "created_at": "2026-11-08T17:20:22+00:00",
+     "decided_at": null,
+     "plan": {
+      "version": 2,
+      "monthly_debt_budget": 3043.17,
+      "extra_order": [
+       "L-C027-CREDIT_CARD-2",
+       "A-C027-CREDIT_CARD"
+      ],
+      "lump_sums": [],
+      "redirects": [],
+      "spending_targets": [
+       {
+        "category": "subscriptions",
+        "current": 54.92,
+        "target": 29.93,
+        "how": [
+         "Cancel Planet Fitness"
+        ],
+        "proof_month": "2026-10",
+        "source": "suggested",
+        "lumpy": false,
+        "buys": {
+         "net_worth_gain": 748.92,
+         "months_sooner": 3,
+         "high_cost_debt_free": "2029-02",
+         "interest_saved": 149.16
+        }
+       },
+       {
+        "category": "other_spending",
+        "current": 251.96,
+        "target": 226.77,
+        "how": [
+         "Cut back on Walmart and Amazon household",
+         "Keep household & other under $227/mo"
+        ],
+        "proof_month": "2026-10",
+        "source": "suggested",
+        "lumpy": false,
+        "buys": {
+         "net_worth_gain": 754.91,
+         "months_sooner": 3,
+         "high_cost_debt_free": "2029-02",
+         "interest_saved": 150.35
+        }
+       },
+       {
+        "category": "dining",
+        "current": 228.09,
+        "target": 202.71,
+        "how": [
+         "Cut back on Starbucks and Whataburger",
+         "Keep dining & delivery under $203/mo"
+        ],
+        "proof_month": "2026-06",
+        "source": "suggested",
+        "lumpy": false,
+        "buys": {
+         "net_worth_gain": 760.44,
+         "months_sooner": 3,
+         "high_cost_debt_free": "2029-02",
+         "interest_saved": 151.32
+        }
+       }
+      ],
+      "autopay_full_cards": [
+       "L-C027-CREDIT_CARD-2",
+       "A-C027-CREDIT_CARD"
+      ],
+      "keep_emergency_months": 3.0
+     },
+     "simulation": {
+      "feasible": true,
+      "problems": [],
+      "debts": [
+       {
+        "account_id": "L-C027-CREDIT_CARD-2",
+        "name": "Store card",
+        "apr_pct": 27.59,
+        "balance": 1030.0,
+        "min_payment": 35.0,
+        "high_cost": true,
+        "payoff_month": "2026-12",
+        "interest": 28.66,
+        "first_month_payment": 837.29
+       },
+       {
+        "account_id": "A-C027-CREDIT_CARD",
+        "name": "PNC Credit card",
+        "apr_pct": 22.5,
+        "balance": 6362.0,
+        "min_payment": 190.88,
+        "high_cost": true,
+        "payoff_month": "2028-10",
+        "interest": 1788.98,
+        "first_month_payment": 190.88
+       },
+       {
+        "account_id": "A-C027-MORTGAGE",
+        "name": "PNC Mortgage",
+        "apr_pct": 6.5,
+        "balance": 245000.0,
+        "min_payment": 1549.0,
+        "high_cost": false,
+        "payoff_month": null,
+        "interest": 31504.67,
+        "first_month_payment": 1549.0
+       },
+       {
+        "account_id": "L-C027-STUDENT_LOAN-1",
+        "name": "Federal Direct Loan",
+        "apr_pct": 4.53,
+        "balance": 45000.0,
+        "min_payment": 466.0,
+        "high_cost": false,
+        "payoff_month": null,
+        "interest": 3759.75,
+        "first_month_payment": 466.0
+       }
+      ],
+      "months": [
+       {
+        "month": "2026-10",
+        "total_debt": 297392.0,
+        "high_cost_debt": 7392.0,
+        "cash": 18333.0,
+        "invested": 78140.0,
+        "net_worth": 118381.0,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 1030.0,
+          "A-C027-CREDIT_CARD": 6362.0,
+          "A-C027-MORTGAGE": 245000.0,
+          "L-C027-STUDENT_LOAN-1": 45000.0
+         },
+         "assets": {
+          "cash": 18333.0,
+          "cd": 0,
+          "brokerage": 0,
+          "ira": 78140.0,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 18333,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 78140,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 1030,
+          "A-C027-CREDIT_CARD": 6362,
+          "A-C027-MORTGAGE": 245000,
+          "L-C027-STUDENT_LOAN-1": 45000
+         }
+        }
+       },
+       {
+        "month": "2026-11",
+        "total_debt": 296623.92,
+        "high_cost_debt": 7141.96,
+        "cash": 17255.33,
+        "invested": 78833.32,
+        "net_worth": 118764.73,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 216.39,
+          "A-C027-CREDIT_CARD": 6925.57,
+          "A-C027-MORTGAGE": 244778.08,
+          "L-C027-STUDENT_LOAN-1": 44703.88
+         },
+         "assets": {
+          "cash": 17255.33,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 78833.32,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 17255,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 78833,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 216,
+          "A-C027-CREDIT_CARD": 6926,
+          "A-C027-MORTGAGE": 244778,
+          "L-C027-STUDENT_LOAN-1": 44704
+         }
+        }
+       },
+       {
+        "month": "2026-12",
+        "total_debt": 295845.38,
+        "high_cost_debt": 6883.78,
+        "cash": 16176.45,
+        "invested": 79530.69,
+        "net_worth": 119161.77,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 6883.78,
+          "A-C027-MORTGAGE": 244554.96,
+          "L-C027-STUDENT_LOAN-1": 44406.63
+         },
+         "assets": {
+          "cash": 16176.45,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 79530.69,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 16176,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 79531,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 6884,
+          "A-C027-MORTGAGE": 244555,
+          "L-C027-STUDENT_LOAN-1": 44407
+         }
+        }
+       },
+       {
+        "month": "2027-01",
+        "total_debt": 295058.74,
+        "high_cost_debt": 6619.84,
+        "cash": 15096.39,
+        "invested": 80232.13,
+        "net_worth": 119569.77,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 6619.84,
+          "A-C027-MORTGAGE": 244330.64,
+          "L-C027-STUDENT_LOAN-1": 44108.27
+         },
+         "assets": {
+          "cash": 15096.39,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 80232.13,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 15096,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 80232,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 6620,
+          "A-C027-MORTGAGE": 244331,
+          "L-C027-STUDENT_LOAN-1": 44108
+         }
+        }
+       },
+       {
+        "month": "2027-02",
+        "total_debt": 294264.82,
+        "high_cost_debt": 6350.95,
+        "cash": 14015.12,
+        "invested": 80937.65,
+        "net_worth": 119987.95,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 6350.95,
+          "A-C027-MORTGAGE": 244105.09,
+          "L-C027-STUDENT_LOAN-1": 43808.78
+         },
+         "assets": {
+          "cash": 14015.12,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 80937.65,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 14015,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 80938,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 6351,
+          "A-C027-MORTGAGE": 244105,
+          "L-C027-STUDENT_LOAN-1": 43809
+         }
+        }
+       },
+       {
+        "month": "2027-03",
+        "total_debt": 293463.51,
+        "high_cost_debt": 6077.02,
+        "cash": 12932.65,
+        "invested": 81647.3,
+        "net_worth": 120416.44,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 6077.02,
+          "A-C027-MORTGAGE": 243878.33,
+          "L-C027-STUDENT_LOAN-1": 43508.15
+         },
+         "assets": {
+          "cash": 12932.65,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 81647.3,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 12933,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 81647,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 6077,
+          "A-C027-MORTGAGE": 243878,
+          "L-C027-STUDENT_LOAN-1": 43508
+         }
+        }
+       },
+       {
+        "month": "2027-04",
+        "total_debt": 292654.69,
+        "high_cost_debt": 5797.96,
+        "cash": 11848.98,
+        "invested": 82361.08,
+        "net_worth": 120855.37,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 5797.96,
+          "A-C027-MORTGAGE": 243650.34,
+          "L-C027-STUDENT_LOAN-1": 43206.4
+         },
+         "assets": {
+          "cash": 11848.98,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 82361.08,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 11849,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 82361,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 5798,
+          "A-C027-MORTGAGE": 243650,
+          "L-C027-STUDENT_LOAN-1": 43206
+         }
+        }
+       },
+       {
+        "month": "2027-05",
+        "total_debt": 291838.27,
+        "high_cost_debt": 5513.66,
+        "cash": 10764.11,
+        "invested": 83079.03,
+        "net_worth": 121304.87,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 5513.66,
+          "A-C027-MORTGAGE": 243421.11,
+          "L-C027-STUDENT_LOAN-1": 42903.5
+         },
+         "assets": {
+          "cash": 10764.11,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 83079.03,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 10764,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 83079,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 5514,
+          "A-C027-MORTGAGE": 243421,
+          "L-C027-STUDENT_LOAN-1": 42904
+         }
+        }
+       },
+       {
+        "month": "2027-06",
+        "total_debt": 291014.13,
+        "high_cost_debt": 5224.03,
+        "cash": 9678.04,
+        "invested": 83801.16,
+        "net_worth": 121765.07,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 5224.03,
+          "A-C027-MORTGAGE": 243190.64,
+          "L-C027-STUDENT_LOAN-1": 42599.46
+         },
+         "assets": {
+          "cash": 9678.04,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 83801.16,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 9678,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 83801,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 5224,
+          "A-C027-MORTGAGE": 243191,
+          "L-C027-STUDENT_LOAN-1": 42599
+         }
+        }
+       },
+       {
+        "month": "2027-07",
+        "total_debt": 290182.17,
+        "high_cost_debt": 4928.97,
+        "cash": 8590.76,
+        "invested": 84527.51,
+        "net_worth": 122236.1,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 4928.97,
+          "A-C027-MORTGAGE": 242958.92,
+          "L-C027-STUDENT_LOAN-1": 42294.28
+         },
+         "assets": {
+          "cash": 8590.76,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 84527.51,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 8591,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 84528,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 4929,
+          "A-C027-MORTGAGE": 242959,
+          "L-C027-STUDENT_LOAN-1": 42294
+         }
+        }
+       },
+       {
+        "month": "2027-08",
+        "total_debt": 289342.27,
+        "high_cost_debt": 4628.38,
+        "cash": 7502.27,
+        "invested": 85258.09,
+        "net_worth": 122718.1,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 4628.38,
+          "A-C027-MORTGAGE": 242725.95,
+          "L-C027-STUDENT_LOAN-1": 41987.94
+         },
+         "assets": {
+          "cash": 7502.27,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 85258.09,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 7502,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 85258,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 4628,
+          "A-C027-MORTGAGE": 242726,
+          "L-C027-STUDENT_LOAN-1": 41988
+         }
+        }
+       },
+       {
+        "month": "2027-09",
+        "total_debt": 288494.31,
+        "high_cost_debt": 4322.15,
+        "cash": 6412.58,
+        "invested": 85992.94,
+        "net_worth": 123211.2,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 4322.15,
+          "A-C027-MORTGAGE": 242491.72,
+          "L-C027-STUDENT_LOAN-1": 41680.44
+         },
+         "assets": {
+          "cash": 6412.58,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 85992.94,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 6413,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 85993,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 4322,
+          "A-C027-MORTGAGE": 242492,
+          "L-C027-STUDENT_LOAN-1": 41680
+         }
+        }
+       },
+       {
+        "month": "2027-10",
+        "total_debt": 287638.18,
+        "high_cost_debt": 4010.18,
+        "cash": 5321.67,
+        "invested": 86732.07,
+        "net_worth": 123715.56,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 4010.18,
+          "A-C027-MORTGAGE": 242256.21,
+          "L-C027-STUDENT_LOAN-1": 41371.78
+         },
+         "assets": {
+          "cash": 5321.67,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 86732.07,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 5322,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 86732,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 4010,
+          "A-C027-MORTGAGE": 242256,
+          "L-C027-STUDENT_LOAN-1": 41372
+         }
+        }
+       },
+       {
+        "month": "2027-11",
+        "total_debt": 286773.76,
+        "high_cost_debt": 3692.36,
+        "cash": 4229.56,
+        "invested": 87475.51,
+        "net_worth": 124231.31,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 3692.36,
+          "A-C027-MORTGAGE": 242019.44,
+          "L-C027-STUDENT_LOAN-1": 41061.96
+         },
+         "assets": {
+          "cash": 4229.56,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 87475.51,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 4230,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 87476,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 3692,
+          "A-C027-MORTGAGE": 242019,
+          "L-C027-STUDENT_LOAN-1": 41062
+         }
+        }
+       },
+       {
+        "month": "2027-12",
+        "total_debt": 285900.93,
+        "high_cost_debt": 3368.58,
+        "cash": 3136.23,
+        "invested": 88223.29,
+        "net_worth": 124758.59,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 3368.58,
+          "A-C027-MORTGAGE": 241781.37,
+          "L-C027-STUDENT_LOAN-1": 40750.97
+         },
+         "assets": {
+          "cash": 3136.23,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 88223.29,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 3136,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 88223,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 3369,
+          "A-C027-MORTGAGE": 241781,
+          "L-C027-STUDENT_LOAN-1": 40751
+         }
+        }
+       },
+       {
+        "month": "2028-01",
+        "total_debt": 285019.56,
+        "high_cost_debt": 3038.73,
+        "cash": 2041.69,
+        "invested": 88975.44,
+        "net_worth": 125297.56,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 3038.73,
+          "A-C027-MORTGAGE": 241542.02,
+          "L-C027-STUDENT_LOAN-1": 40438.81
+         },
+         "assets": {
+          "cash": 2041.69,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 88975.44,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 2042,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 88975,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 3039,
+          "A-C027-MORTGAGE": 241542,
+          "L-C027-STUDENT_LOAN-1": 40439
+         }
+        }
+       },
+       {
+        "month": "2028-02",
+        "total_debt": 284129.54,
+        "high_cost_debt": 2702.7,
+        "cash": 945.93,
+        "invested": 89731.97,
+        "net_worth": 125848.36,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 2702.7,
+          "A-C027-MORTGAGE": 241301.38,
+          "L-C027-STUDENT_LOAN-1": 40125.46
+         },
+         "assets": {
+          "cash": 945.93,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 89731.97,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": 946,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 89732,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 2703,
+          "A-C027-MORTGAGE": 241301,
+          "L-C027-STUDENT_LOAN-1": 40125
+         }
+        }
+       },
+       {
+        "month": "2028-03",
+        "total_debt": 283230.73,
+        "high_cost_debt": 2360.37,
+        "cash": -151.04,
+        "invested": 90492.91,
+        "net_worth": 126411.14,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 2360.37,
+          "A-C027-MORTGAGE": 241059.43,
+          "L-C027-STUDENT_LOAN-1": 39810.94
+         },
+         "assets": {
+          "cash": -151.04,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 90492.91,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": -151,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 90493,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 2360,
+          "A-C027-MORTGAGE": 241059,
+          "L-C027-STUDENT_LOAN-1": 39811
+         }
+        }
+       },
+       {
+        "month": "2028-04",
+        "total_debt": 282323.0,
+        "high_cost_debt": 2011.61,
+        "cash": -1249.23,
+        "invested": 91258.29,
+        "net_worth": 126986.07,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 2011.61,
+          "A-C027-MORTGAGE": 240816.16,
+          "L-C027-STUDENT_LOAN-1": 39495.22
+         },
+         "assets": {
+          "cash": -1249.23,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 91258.29,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": -1249,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 91258,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 2012,
+          "A-C027-MORTGAGE": 240816,
+          "L-C027-STUDENT_LOAN-1": 39495
+         }
+        }
+       },
+       {
+        "month": "2028-05",
+        "total_debt": 281406.22,
+        "high_cost_debt": 1656.32,
+        "cash": -2348.63,
+        "invested": 92028.14,
+        "net_worth": 127573.28,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 1656.32,
+          "A-C027-MORTGAGE": 240571.58,
+          "L-C027-STUDENT_LOAN-1": 39178.32
+         },
+         "assets": {
+          "cash": -2348.63,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 92028.14,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": -2349,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 92028,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 1656,
+          "A-C027-MORTGAGE": 240572,
+          "L-C027-STUDENT_LOAN-1": 39178
+         }
+        }
+       },
+       {
+        "month": "2028-06",
+        "total_debt": 280480.26,
+        "high_cost_debt": 1294.37,
+        "cash": -3449.26,
+        "invested": 92802.47,
+        "net_worth": 128172.95,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 1294.37,
+          "A-C027-MORTGAGE": 240325.68,
+          "L-C027-STUDENT_LOAN-1": 38860.22
+         },
+         "assets": {
+          "cash": -3449.26,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 92802.47,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": -3449,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 92802,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 1294,
+          "A-C027-MORTGAGE": 240326,
+          "L-C027-STUDENT_LOAN-1": 38860
+         }
+        }
+       },
+       {
+        "month": "2028-07",
+        "total_debt": 279544.98,
+        "high_cost_debt": 925.62,
+        "cash": -4551.11,
+        "invested": 93581.33,
+        "net_worth": 128785.24,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 925.62,
+          "A-C027-MORTGAGE": 240078.45,
+          "L-C027-STUDENT_LOAN-1": 38540.91
+         },
+         "assets": {
+          "cash": -4551.11,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 93581.33,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": -4551,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 93581,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 926,
+          "A-C027-MORTGAGE": 240078,
+          "L-C027-STUDENT_LOAN-1": 38541
+         }
+        }
+       },
+       {
+        "month": "2028-08",
+        "total_debt": 278600.25,
+        "high_cost_debt": 549.97,
+        "cash": -5654.18,
+        "invested": 94364.73,
+        "net_worth": 129410.3,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 549.97,
+          "A-C027-MORTGAGE": 239829.87,
+          "L-C027-STUDENT_LOAN-1": 38220.4
+         },
+         "assets": {
+          "cash": -5654.18,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 94364.73,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": -5654,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 94365,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 550,
+          "A-C027-MORTGAGE": 239830,
+          "L-C027-STUDENT_LOAN-1": 38220
+         }
+        }
+       },
+       {
+        "month": "2028-09",
+        "total_debt": 277645.91,
+        "high_cost_debt": 167.27,
+        "cash": -6758.48,
+        "invested": 95152.69,
+        "net_worth": 130048.31,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 167.27,
+          "A-C027-MORTGAGE": 239579.95,
+          "L-C027-STUDENT_LOAN-1": 37898.69
+         },
+         "assets": {
+          "cash": -6758.48,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 95152.69,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": -6758,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 95153,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 167,
+          "A-C027-MORTGAGE": 239580,
+          "L-C027-STUDENT_LOAN-1": 37899
+         }
+        }
+       },
+       {
+        "month": "2028-10",
+        "total_debt": 276904.43,
+        "high_cost_debt": 0.0,
+        "cash": -7641.4,
+        "invested": 95945.26,
+        "net_worth": 130699.44,
+        "balances": {
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0.0,
+          "A-C027-CREDIT_CARD": 0.0,
+          "A-C027-MORTGAGE": 239328.67,
+          "L-C027-STUDENT_LOAN-1": 37575.75
+         },
+         "assets": {
+          "cash": -7641.4,
+          "cd": 0.0,
+          "brokerage": 0.0,
+          "ira": 95945.26,
+          "property": 319300.0
+         }
+        },
+        "parts": {
+         "cash": -7641,
+         "cd": 0,
+         "brokerage": 0,
+         "ira": 95945,
+         "property": 319300,
+         "debts": {
+          "L-C027-CREDIT_CARD-2": 0,
+          "A-C027-CREDIT_CARD": 0,
+          "A-C027-MORTGAGE": 239329,
+          "L-C027-STUDENT_LOAN-1": 37576
+         }
+        }
+       }
+      ],
+      "net_worth_24m": 130699.44,
+      "net_worth_now": 118381.0,
+      "interest_total": 37082.07,
+      "high_cost_debt_free": "2028-10",
+      "upfront_cost": 0.0,
+      "monthly_card_spending": 635.16,
+      "monthly_saved": -1098.02,
+      "baseline_net_worth_24m": 127591.17,
+      "baseline_interest_total": 38376.9,
+      "baseline_high_cost_debt_free": null,
+      "budget": {
+       "current_net_paydown_per_month": 2332.45,
+       "net_paydown_per_month": 2408.01,
+       "current_new_card_purchases": 660.54,
+       "new_card_purchases": 635.16,
+       "monthly_debt_budget": 3043.17,
+       "current_debt_payments": 2992.99,
+       "redirects": 0.0,
+       "surplus_redirected": 0.0,
+       "contributions_paused": 0,
+       "checking_cuts": 50.18,
+       "card_cuts": 25.38,
+       "max_monthly_debt_budget": 3043.17,
+       "minimums": 2240.88,
+       "paid_to_debt_per_month": 3043.17,
+       "unused_per_month": 0.0
+      },
+      "no_cuts": {
+       "net_worth_24m": 128435.17,
+       "high_cost_debt_free": "2029-05",
+       "interest_total": 37532.89,
+       "monthly_debt_budget": 2992.99,
+       "net_paydown_per_month": 2332.45,
+       "feasible": true,
+       "suggested_cut_per_month": 75.56,
+       "suggested_buys": {
+        "net_worth_gain": 2264.27,
+        "months_sooner": 7,
+        "high_cost_debt_free": "2028-10",
+        "interest_saved": 450.82
+       }
+      },
+      "cut_options": [
+       {
+        "category": "shopping",
+        "label": "Shopping",
+        "flag": "trim",
+        "current": 145.72,
+        "target": 106.28,
+        "cut_per_month": 39.44,
+        "how": [
+         "Scale back Old Navy and Amazon"
+        ],
+        "merchants": [
+         "Old Navy",
+         "Amazon"
+        ],
+        "proof_month": "2026-02",
+        "high_cost_debt_free": "2028-07",
+        "months_sooner": 3,
+        "net_worth_24m_gain": 1154.46,
+        "interest_saved": 206.2,
+        "spending_target": {
+         "category": "shopping",
+         "current": 145.72,
+         "target": 106.28,
+         "proof_month": "2026-02",
+         "how": [
+          "Scale back Old Navy and Amazon"
+         ]
+        }
+       },
+       {
+        "category": "travel",
+        "label": "Travel",
+        "flag": "trim",
+        "current": 42.64,
+        "target": 25.58,
+        "cut_per_month": 17.06,
+        "how": [
+         "Scale back Delta Air Lines and Marriott"
+        ],
+        "merchants": [
+         "Delta Air Lines",
+         "Marriott"
+        ],
+        "proof_month": "2025-12",
+        "high_cost_debt_free": "2028-09",
+        "months_sooner": 1,
+        "net_worth_24m_gain": 505.65,
+        "interest_saved": 95.87,
+        "spending_target": {
+         "category": "travel",
+         "current": 42.64,
+         "target": 25.58,
+         "proof_month": "2025-12",
+         "how": [
+          "Scale back Delta Air Lines and Marriott"
+         ]
+        }
+       },
+       {
+        "category": "home_household",
+        "label": "Home & household",
+        "flag": "trim",
+        "current": 35.25,
+        "target": 24.67,
+        "cut_per_month": 10.58,
+        "how": [
+         "Scale back Ashley Furniture and Lowe's"
+        ],
+        "merchants": [
+         "Ashley Furniture",
+         "Lowe's"
+        ],
+        "proof_month": "2025-11",
+        "high_cost_debt_free": "2028-09",
+        "months_sooner": 1,
+        "net_worth_24m_gain": 314.71,
+        "interest_saved": 60.65,
+        "spending_target": {
+         "category": "home_household",
+         "current": 35.25,
+         "target": 24.67,
+         "proof_month": "2025-11",
+         "how": [
+          "Scale back Ashley Furniture and Lowe's"
+         ]
+        }
+       }
+      ],
+      "balances_snapshot": {
+       "pnc": {
+        "credit_card": 6362.53,
+        "savings": 9766.18
+       },
+       "nessie": {
+        "credit_card": 6362.0,
+        "savings": 9766.0
+       }
+      },
+      "reality_check": {
+       "realistic": false,
+       "message": "Even after every realistic change you are $539/mo short, so the debt keeps growing and cash runs out by 2028-05. To close it, spend $539/mo less or earn $539/mo more (or a mix).",
+       "gap_per_month": 538.64,
+       "cash_runs_out": "2028-05",
+       "close_gap": {
+        "spend_less_per_month": 538.64,
+        "earn_more_per_month": 538.64,
+        "spending_target_per_month": 1714.56,
+        "income_target_per_month": 5154.62,
+        "spending_alone_can_close": true,
+        "min_extra_income_if_spending_maxed": 0.0
+       },
+       "monthly": {
+        "income": 4615.98,
+        "spending": 2483.51,
+        "debt_room": 2035.08,
+        "interest": 1639.93,
+        "card_charges": 570.34,
+        "minimums": 2240.88,
+        "principal_paydown": -175.19,
+        "shortfall": 538.64,
+        "lowest_cash": -3309.09
+       },
+       "today": {
+        "debt_change_per_month": -692.52,
+        "cash_change_per_month": -1098.02
+       },
+       "levers": {
+        "spending_cuts_per_month": 230.31,
+        "cuts": [
+         {
+          "category": "subscriptions",
+          "current": 54.92,
+          "target": 0.0,
+          "save": 54.92
+         },
+         {
+          "category": "dining",
+          "current": 228.09,
+          "target": 177.33,
+          "save": 50.76
+         },
+         {
+          "category": "other_spending",
+          "current": 251.96,
+          "target": 201.57,
+          "save": 50.39
+         },
+         {
+          "category": "shopping",
+          "current": 145.72,
+          "target": 106.28,
+          "save": 39.44
+         },
+         {
+          "category": "travel",
+          "current": 42.64,
+          "target": 25.59,
+          "save": 17.05
+         },
+         {
+          "category": "home_household",
+          "current": 35.25,
+          "target": 24.68,
+          "save": 10.57
+         },
+         {
+          "category": "gifts_holidays",
+          "current": 17.95,
+          "target": 10.77,
+          "save": 7.18
+         }
+        ],
+        "redirect_per_month": 0,
+        "lump_sums": [],
+        "discretionary_left_per_month": 661.29
+       }
+      },
+      "explain": {
+       "headline": "$539/mo short, cash runs out May 2028",
+       "summary": "Even with every change, interest and new card charges add more than you can pay: the debt grows about $175/mo until the gap closes.",
+       "driver": "They keep charging on the cards while paying them down, so balances barely move.",
+       "buffer_months": 3.0,
+       "buffer_why": "Steady income; buffer size changes nothing here.",
+       "lumps_why": "",
+       "downsides": [
+        "Less dining out and shopping",
+        "Retirement contributions continue despite negative cash flow",
+        "Small cash cushion while debt still grows"
+       ],
+       "underwater": "Cut spending or raise income by the monthly shortfall.",
+       "levers": [
+        {
+         "kind": "debt_payment",
+         "label": "$2,408/mo off the debt",
+         "amount": 2408.01
+        },
+        {
+         "kind": "cut",
+         "label": "subscriptions to $30/mo",
+         "amount": 29.93
+        },
+        {
+         "kind": "cut",
+         "label": "other spending to $227/mo",
+         "amount": 226.77
+        },
+        {
+         "kind": "cut",
+         "label": "dining to $203/mo",
+         "amount": 202.71
+        }
+       ],
+       "cuts": [
+        {
+         "category": "subscriptions",
+         "how": "Cancel Planet Fitness",
+         "why": "unused Planet Fitness membership",
+         "suggested": true,
+         "buys": "3 months sooner, +$749 in 2 years",
+         "from": 54.92,
+         "to": 29.93
+        },
+        {
+         "category": "other_spending",
+         "how": "Cut back on Walmart and Amazon household; Keep household & other under $227/mo",
+         "why": "Walmart and Amazon household runs",
+         "suggested": true,
+         "buys": "3 months sooner, +$755 in 2 years",
+         "from": 251.96,
+         "to": 226.77
+        },
+        {
+         "category": "dining",
+         "how": "Cut back on Starbucks and Whataburger; Keep dining & delivery under $203/mo",
+         "why": "Starbucks and Whataburger habit",
+         "suggested": true,
+         "buys": "3 months sooner, +$760 in 2 years",
+         "from": 228.09,
+         "to": 202.71
+        }
+       ],
+       "options": [],
+       "underwater_options": [
+        {
+         "key": "pause_ira",
+         "title": "Pause IRA contributions",
+         "detail": "Stop the monthly IRA deposit until the gap closes.",
+         "modelled": true,
+         "closes_per_month": 538.64,
+         "cash_runs_out": null,
+         "never_recommend": false,
+         "runs": "manual",
+         "how": "Lower or pause the contribution at your IRA provider.",
+         "link": null,
+         "closes_gap": true,
+         "why": "Stops retirement deposits to cover the full monthly shortfall.",
+         "downside": "Lost retirement growth and compounding for as long as paused.",
+         "recommended": true,
+         "agent_skipped": false
+        },
+        {
+         "key": "idr_student_loan",
+         "title": "Income-driven repayment",
+         "detail": "Ask the federal loan servicer for an income-driven plan.",
+         "modelled": true,
+         "closes_per_month": 200.03,
+         "cash_runs_out": null,
+         "never_recommend": false,
+         "runs": "manual",
+         "how": "Apply for an income-driven repayment plan; it takes about 10 minutes with your FSA ID.",
+         "link": "https://studentaid.gov/idr/",
+         "closes_gap": false,
+         "new_payment": 265.97,
+         "why": "Lowers the federal student loan payment right away.",
+         "downside": "More interest over time and a longer payoff.",
+         "recommended": true,
+         "agent_skipped": false
+        },
+        {
+         "key": "card_hardship",
+         "title": "Card hardship program",
+         "detail": "Ask each card issuer for a hardship rate (often about 9.9%).",
+         "modelled": true,
+         "closes_per_month": 84.77,
+         "cash_runs_out": "2028-06",
+         "never_recommend": false,
+         "runs": "manual",
+         "how": "Call the number on the back of each card and ask for their hardship program.",
+         "link": null,
+         "closes_gap": false,
+         "why": "Lowers credit card rates and monthly payments.",
+         "downside": "Card access may close and credit could dip.",
+         "recommended": true,
+         "agent_skipped": false
+        },
+        {
+         "key": "mortgage_help",
+         "title": "Ask the mortgage lender for help",
+         "detail": "A loan modification, forbearance or refinance can lower the payment; the lender decides.",
+         "modelled": false,
+         "closes_per_month": null,
+         "cash_runs_out": null,
+         "never_recommend": false,
+         "runs": "manual",
+         "how": "Call your servicer and ask about a loan modification or forbearance; a HUD counselor is free.",
+         "link": "https://www.consumerfinance.gov/find-a-housing-counselor/",
+         "why": "",
+         "downside": "",
+         "recommended": false,
+         "agent_skipped": true
+        },
+        {
+         "key": "downsize",
+         "title": "Sell or downsize the home",
+         "detail": "Frees the largest payment; a big life decision with selling costs.",
+         "modelled": false,
+         "closes_per_month": null,
+         "cash_runs_out": null,
+         "never_recommend": true,
+         "runs": "manual",
+         "how": "Talk to a real-estate agent about selling costs before deciding.",
+         "link": null,
+         "why": "",
+         "downside": "",
+         "recommended": false,
+         "agent_skipped": true
+        },
+        {
+         "key": "extra_income",
+         "title": "Earn more each month",
+         "detail": "A room rental, extra hours or side work; hard to count on, so not modelled.",
+         "modelled": false,
+         "closes_per_month": null,
+         "cash_runs_out": null,
+         "never_recommend": true,
+         "runs": "manual",
+         "how": "Only count it once it's steady.",
+         "link": null,
+         "why": "",
+         "downside": "",
+         "recommended": false,
+         "agent_skipped": true
+        },
+        {
+         "key": "ira_withdrawal",
+         "title": "Withdraw from the IRA",
+         "detail": "Last resort: taxes plus a 10% penalty before 59\u00bd, and lost retirement growth.",
+         "modelled": false,
+         "closes_per_month": null,
+         "cash_runs_out": null,
+         "never_recommend": true,
+         "runs": "manual",
+         "how": "Last resort: ask your IRA provider about the taxes and 10% penalty first.",
+         "link": "https://www.irs.gov/retirement-plans/hardships-early-withdrawals-and-loans",
+         "why": "",
+         "downside": "",
+         "recommended": false,
+         "agent_skipped": true
+        }
+       ],
+       "underwater_gap": 538.64,
+       "underwater_not_helping": [
+        {
+         "key": "smaller_cushion",
+         "title": "Smaller cash cushion",
+         "why": "cash is already draining each month, so there's none spare to put on the debt"
+        }
+       ]
+      }
+     },
+     "rationale": "They keep charging on the cards while paying them down, so balances barely move.",
+     "execution": null,
+     "parent_id": null,
+     "constraints": null,
+     "request": null
+    }
+   }
+  }
+ ]
+}

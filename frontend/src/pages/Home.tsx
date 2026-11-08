@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
-import { api, fmtDuration } from '../lib/api'
+import { api } from '../lib/api'
+import { isOn as demoOn } from '../lib/demoMode'
 import type { AppliedOption, ApprovePreview, BalanceSheet, Proposal, RealityCheck as RC, ReplayMeta, ReplayRun, SimV2, Tracking } from '../lib/api'
 import { isV2, knobsFrom, planFrom } from '../lib/flow'
 import type { Knobs, Preview, Schedule } from '../lib/flow'
@@ -51,8 +52,7 @@ export default function Home() {
   const epoch = useRef(0)
   const [thinkingDone, setThinkingDone] = useState(false)
   const [ai, setAi] = useState<Proposal | null>(null)
-  const [past, setPast] = useState<Proposal[]>([])
-  const lastPending = past.find((p) => p.status === 'pending') ?? null
+  const [, setPast] = useState<Proposal[]>([])
   const urlPlan = useRef(new URLSearchParams(location.search).get('plan'))
   const urlReplay = useRef(new URLSearchParams(location.search).get('replay'))
   const [knobs, setKnobs] = useState<Knobs | null>(null)
@@ -344,25 +344,7 @@ export default function Home() {
         <button disabled={screen === 0} style={{ visibility: screen === 0 ? 'hidden' : 'visible' }} onClick={() => go(screen - 1)}>Back</button>
         {screen === 0 && (
           <span className="flow-actions">
-            {demo && past.length > 0 && (
-              <select aria-label="Previous runs" value="" onChange={(e) => { const p = past.find((x) => x.id === e.target.value); if (p) openPlan(p) }}>
-                <option value="">Previous runs ({past.length})</option>
-                {past.map((p) => (
-                  <option key={p.id} value={p.id}>{new Date(p.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {p.status}{p.simulation?.explain?.headline ? ` · ${p.simulation.explain.headline}` : ''}</option>
-                ))}
-              </select>
-            )}
-            {demo && lastPending && <button className="ghost" onClick={() => openPlan(lastPending)}>Open last plan</button>}
-            {demo && replays.length > 0 && (
-              <select value="" aria-label="Load cached run" title="Replay a recorded agent run (no model call), sped up 8×"
-                onChange={(e) => { const r = replays.find((x) => x.id === e.target.value); if (r) findPlan({ id: r.id, speed: 8, duration_ms: r.duration_ms }) }}>
-                <option value="" disabled>Load cached run</option>
-                {replays.map((r) => (
-                  <option key={r.id} value={r.id}>{new Date(r.recorded_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {fmtDuration(r.duration_ms)} · {r.headline || r.id}</option>
-                ))}
-              </select>
-            )}
-            <button className="primary" onClick={() => findPlan()} disabled={!health?.nvidia}>Find a plan</button>
+            <button className="primary" onClick={() => { const r = demoOn() ? replays[0] : null; findPlan(r ? { id: r.id, speed: 8, duration_ms: r.duration_ms } : null) }} disabled={!health?.nvidia && !(demoOn() && replays.length)}>Find a plan</button>
           </span>
         )}
         {screen === 1 && <button className="primary" disabled={!thinkingDone || !ai} onClick={() => go(2)}>See plan</button>}

@@ -28,7 +28,7 @@ class _Model(demo.ReplayMixin, _Fake):
 
 def _setup(tmp_path, monkeypatch):
     monkeypatch.setattr(demo, "CACHE_DIR", tmp_path)
-    monkeypatch.setattr(demo, "DELAY", 0)
+    monkeypatch.setattr(demo, "SPEED", 0)
     monkeypatch.setattr(demo, "_files", {})
     return _Model()
 
@@ -74,3 +74,31 @@ def test_parse_modes(monkeypatch):
     assert demo.parse("1") == "replay" and demo.parse("0") == "off" and demo.parse("junk") is None
     monkeypatch.setattr(demo, "PUBLIC", True)
     assert demo.parse("record") == "replay"  # visitors on the public deploy can't record
+
+
+def test_playback_takes_the_recorded_time_capped(monkeypatch):
+    monkeypatch.setattr(demo, "SPEED", 1.0)
+    monkeypatch.setattr(demo, "CAP", 5.0)
+    assert demo.delay({"ms": 1200}) == 1.2
+    assert demo.delay({"ms": 42000}) == 5.0  # a 42 s live call replays in 5 s
+    assert demo.delay({}) == demo.UNTIMED_MS / 1000
+    monkeypatch.setattr(demo, "SPEED", 0.5)
+    assert demo.delay({"ms": 4000}) == 2.0
+    monkeypatch.setattr(demo, "SPEED", 0)
+    assert demo.delay({"ms": 4000}) == 0
+
+
+def test_record_keeps_the_live_time_and_merge_unions(tmp_path, monkeypatch):
+    m = _setup(tmp_path / "a", monkeypatch)
+    with demo.session("record", "C001"):
+        m.invoke([HumanMessage("how much do I owe in total?")])
+    rec = next(iter(demo._files["C001"].values()))
+    assert isinstance(rec["ms"], int) and rec["ms"] >= 0
+    dst = tmp_path / "main"
+    assert demo.merge(tmp_path / "a", dst) == 1
+    assert demo.merge(tmp_path / "a", dst) == 0  # already there
+    monkeypatch.setattr(demo, "CACHE_DIR", dst)
+    demo._files.clear()
+    with demo.session("replay", "C001"):
+        m.invoke([HumanMessage("how much do I owe in total?")])
+    assert m.calls == 1
