@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paidway styles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f4f0;--panel:#fff;--ink:#1c1917;--muted:#78716c;--line:#e7e2da;--accent:#e8590c;--on-accent:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#141210;--panel:#1d1a17;--ink:#f2efe9;--muted:#a39b91;--line:#302b26}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+main{max-width:1280px;margin:0 auto;padding:32px 16px 64px}
+h1{font:600 30px/1.1 Fraunces,serif;margin:0 0 6px}
+h2{font:600 20px/1.2 Fraunces,serif;margin:44px 0 4px}
+.sub{color:var(--muted);margin:0}
+.sub code,h3 code{font:12px ui-monospace,monospace;color:var(--muted);font-weight:400}
+nav.toc{display:flex;flex-wrap:wrap;gap:6px 14px;margin:14px 0 0;font-size:13px}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+h3{font-size:15px;font-weight:600;margin:0}
+.grid-logos{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;margin-top:16px}
+.logo{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+.logo p{color:var(--muted);margin:2px 0 6px;font-size:13px}
+.logo a{font-size:13px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.lp{border-radius:8px;padding:14px 8px 10px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.lp.light{background:#faf8f5;color:#1c1917;box-shadow:inset 0 0 0 1px #ece7df}
+.lp.dark{background:#171412;color:#f2efe9}
+.lp.dark{--accent:#f76b1c}
+.nav{display:flex;align-items:center;gap:7px}
+.wm{font:600 15px/1 Fraunces,serif;letter-spacing:-.01em}
+.grid-dirs{display:grid;gap:18px;margin-top:16px}
+.dir{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.dir header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.dir p{color:var(--muted);margin:2px 0 12px}
+.n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--line);font-size:12px;margin-right:8px}
+.shots{display:grid;grid-template-columns:2fr 2fr 1.2fr;gap:10px;align-items:start}
+.shots a{display:block;color:var(--muted);font-size:12px}
+.shots img{display:block;width:100%;height:auto;aspect-ratio:1440/1000;object-fit:cover;object-position:top;border-radius:8px;border:1px solid var(--line)}
+.shots span{display:block;margin-top:4px}
+@media (max-width:720px){.shots{grid-template-columns:1fr}}
+</style></head><body><main>
+<h1>Paidway styles</h1>
+<p class="sub">10 logo options and 10 style directions, all on the real app. Live: <code>:15750/?plan=last&amp;style=&lt;slug&gt;&amp;logo=&lt;slug&gt;</code>. A switcher appears bottom-right.</p>
+<nav class="toc"><a href="#logos">Logos</a><a href="#warm">Paidway warm</a><a href="#swiss">Swiss mono</a><a href="#navy">Fintech navy</a><a href="#pastel">Soft pastel cards</a><a href="#terminal">Terminal green</a><a href="#editorial">Editorial serif</a><a href="#glass">Glassy gradient</a><a href="#brutal">Brutalist-lite</a><a href="#sage">Calm sage</a><a href="#apple">Neutral (Apple-like)</a></nav>
+<h2 id="logos">Logos</h2>
+<p class="sub">Each at large and nav size (24px) with the wordmark, on light and dark.</p>
+<div class="grid-logos">
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M5.5 7H10v5h4v5h3" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="17" r="1.9" fill="var(--on-accent)"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M5.5 7H10v5h4v5h3" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="17" r="1.9" fill="var(--on-accent)"/></svg><span class="wm">Paidway</span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M5.5 7H10v5h4v5h3" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="17" r="1.9" fill="var(--on-accent)"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M5.5 7H10v5h4v5h3" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="17" r="1.9" fill="var(--on-accent)"/></svg><span class="wm">Paidway</span></div>
+  </div></div>
+  <h3>Step down <code>step</code></h3>
+  <p>The current mark: a balance stepping down to a stop.</p>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=step">See in header ↗</a>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 19.5V4.5h5.6a4.75 4.75 0 0 1 0 9.5H7" fill="none" stroke="var(--accent)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="19.6" r="2.4" fill="var(--accent)"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 19.5V4.5h5.6a4.75 4.75 0 0 1 0 9.5H7" fill="none" stroke="var(--accent)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="19.6" r="2.4" fill="var(--accent)"/></svg><span class="wm">Paidway</span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 19.5V4.5h5.6a4.75 4.75 0 0 1 0 9.5H7" fill="none" stroke="var(--accent)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="19.6" r="2.4" fill="var(--accent)"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 19.5V4.5h5.6a4.75 4.75 0 0 1 0 9.5H7" fill="none" stroke="var(--accent)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="19.6" r="2.4" fill="var(--accent)"/></svg><span class="wm">Paidway</span></div>
+  </div></div>
+  <h3>P path <code>ppath</code></h3>
+  <p>A route that draws a P: start dot, up, around.</p>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=ppath">See in header ↗</a>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><path d="M6 15.5l3.6-3.6 3 2.6L17.6 9" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.2 9h3.4v3.4" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><path d="M6 15.5l3.6-3.6 3 2.6L17.6 9" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.2 9h3.4v3.4" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="wm">Paidway</span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><path d="M6 15.5l3.6-3.6 3 2.6L17.6 9" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.2 9h3.4v3.4" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><path d="M6 15.5l3.6-3.6 3 2.6L17.6 9" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.2 9h3.4v3.4" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="wm">Paidway</span></div>
+  </div></div>
+  <h3>Rising line <code>rise</code></h3>
+  <p>Net worth going up: an arrowed line in a coin.</p>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=rise">See in header ↗</a>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="var(--accent)"/><path d="M6.5 12.6l3.6 3.6L17.8 6.5" fill="none" stroke="var(--on-accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17.8" cy="6.5" r="1.6" fill="var(--on-accent)"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="var(--accent)"/><path d="M6.5 12.6l3.6 3.6L17.8 6.5" fill="none" stroke="var(--on-accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17.8" cy="6.5" r="1.6" fill="var(--on-accent)"/></svg><span class="wm">Paidway</span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="var(--accent)"/><path d="M6.5 12.6l3.6 3.6L17.8 6.5" fill="none" stroke="var(--on-accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17.8" cy="6.5" r="1.6" fill="var(--on-accent)"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="var(--accent)"/><path d="M6.5 12.6l3.6 3.6L17.8 6.5" fill="none" stroke="var(--on-accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17.8" cy="6.5" r="1.6" fill="var(--on-accent)"/></svg><span class="wm">Paidway</span></div>
+  </div></div>
+  <h3>Paid check <code>check</code></h3>
+  <p>A checkmark whose tail climbs out of the tile.</p>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=check">See in header ↗</a>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><circle cx="12" cy="12" r="8.6" fill="none" stroke="var(--on-accent)" stroke-opacity=".35" stroke-width="1.2"/><path d="M10 16.6V7.4h3.1a2.7 2.7 0 0 1 0 5.4H10" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><circle cx="12" cy="12" r="8.6" fill="none" stroke="var(--on-accent)" stroke-opacity=".35" stroke-width="1.2"/><path d="M10 16.6V7.4h3.1a2.7 2.7 0 0 1 0 5.4H10" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="wm">Paidway</span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><circle cx="12" cy="12" r="8.6" fill="none" stroke="var(--on-accent)" stroke-opacity=".35" stroke-width="1.2"/><path d="M10 16.6V7.4h3.1a2.7 2.7 0 0 1 0 5.4H10" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11.5" fill="var(--accent)"/><circle cx="12" cy="12" r="8.6" fill="none" stroke="var(--on-accent)" stroke-opacity=".35" stroke-width="1.2"/><path d="M10 16.6V7.4h3.1a2.7 2.7 0 0 1 0 5.4H10" fill="none" stroke="var(--on-accent)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="wm">Paidway</span></div>
+  </div></div>
+  <h3>P coin <code>coin</code></h3>
+  <p>A coin with an engraved P and rim.</p>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=coin">See in header ↗</a>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M6.5 20L10.6 5M17.5 20L13.4 5" fill="none" stroke="var(--on-accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 18.8V7" fill="none" stroke="var(--on-accent)" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="2.4 2.6"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M6.5 20L10.6 5M17.5 20L13.4 5" fill="none" stroke="var(--on-accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 18.8V7" fill="none" stroke="var(--on-accent)" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="2.4 2.6"/></svg><span class="wm">Paidway</span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M6.5 20L10.6 5M17.5 20L13.4 5" fill="none" stroke="var(--on-accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 18.8V7" fill="none" stroke="var(--on-accent)" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="2.4 2.6"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="var(--accent)"/><path d="M6.5 20L10.6 5M17.5 20L13.4 5" fill="none" stroke="var(--on-accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 18.8V7" fill="none" stroke="var(--on-accent)" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="2.4 2.6"/></svg><span class="wm">Paidway</span></div>
+  </div></div>
+  <h3>Road ahead <code>road</code></h3>
+  <p>A road narrowing to the horizon: the way to paid.</p>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=road">See in header ↗</a>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="currentColor"/><path d="M4.6 8.2V19.5M4.6 8.2h3a3 3 0 0 1 0 6h-3" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.9 8.2l1.9 7 2.1-5.4 2.1 5.4 1.9-7" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="currentColor"/><path d="M4.6 8.2V19.5M4.6 8.2h3a3 3 0 0 1 0 6h-3" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.9 8.2l1.9 7 2.1-5.4 2.1 5.4 1.9-7" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="wm">paidway</span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="currentColor"/><path d="M4.6 8.2V19.5M4.6 8.2h3a3 3 0 0 1 0 6h-3" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.9 8.2l1.9 7 2.1-5.4 2.1 5.4 1.9-7" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6.5" fill="currentColor"/><path d="M4.6 8.2V19.5M4.6 8.2h3a3 3 0 0 1 0 6h-3" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.9 8.2l1.9 7 2.1-5.4 2.1 5.4 1.9-7" fill="none" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="wm">paidway</span></div>
+  </div></div>
+  <h3>pw monogram <code>monogram</code></h3>
+  <p>Lowercase p and w set as one stroke family.</p>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=monogram">See in header ↗</a>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5h15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5l4.8 5.6 3.2-2.6 4.7 9.4" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="19.4" r="2.4" fill="var(--accent)"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5h15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5l4.8 5.6 3.2-2.6 4.7 9.4" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="19.4" r="2.4" fill="var(--accent)"/></svg><span class="wm">Paidway</span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5h15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5l4.8 5.6 3.2-2.6 4.7 9.4" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="19.4" r="2.4" fill="var(--accent)"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5h15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 5l4.8 5.6 3.2-2.6 4.7 9.4" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18.2" cy="19.4" r="2.4" fill="var(--accent)"/></svg><span class="wm">Paidway</span></div>
+  </div></div>
+  <h3>To zero <code>tozero</code></h3>
+  <p>A debt line falling until it lands on the zero line.</p>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=tozero">See in header ↗</a>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="4.2" height="15" rx="1.4" fill="var(--accent)"/><rect x="9.9" y="10" width="4.2" height="10" rx="1.4" fill="var(--accent)" fill-opacity=".7"/><circle cx="18.4" cy="17.6" r="2.3" fill="none" stroke="var(--accent)" stroke-width="2"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="4.2" height="15" rx="1.4" fill="var(--accent)"/><rect x="9.9" y="10" width="4.2" height="10" rx="1.4" fill="var(--accent)" fill-opacity=".7"/><circle cx="18.4" cy="17.6" r="2.3" fill="none" stroke="var(--accent)" stroke-width="2"/></svg><span class="wm">Paidway</span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="4.2" height="15" rx="1.4" fill="var(--accent)"/><rect x="9.9" y="10" width="4.2" height="10" rx="1.4" fill="var(--accent)" fill-opacity=".7"/><circle cx="18.4" cy="17.6" r="2.3" fill="none" stroke="var(--accent)" stroke-width="2"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="4.2" height="15" rx="1.4" fill="var(--accent)"/><rect x="9.9" y="10" width="4.2" height="10" rx="1.4" fill="var(--accent)" fill-opacity=".7"/><circle cx="18.4" cy="17.6" r="2.3" fill="none" stroke="var(--accent)" stroke-width="2"/></svg><span class="wm">Paidway</span></div>
+  </div></div>
+  <h3>Shrinking bars <code>bars</code></h3>
+  <p>Balances shrinking month by month, ending at a zero.</p>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=bars">See in header ↗</a>
+</article>
+<article class="logo">
+  <div class="pair">
+  <div class="lp light">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 23s-8-6.8-8-13.2a8 8 0 0 1 16 0C20 16.2 12 23 12 23z" fill="var(--accent)"/><path d="M8.6 10.1l2.4 2.4 4.5-4.6" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 23s-8-6.8-8-13.2a8 8 0 0 1 16 0C20 16.2 12 23 12 23z" fill="var(--accent)"/><path d="M8.6 10.1l2.4 2.4 4.5-4.6" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="wm">Paidway</span></div>
+  </div>
+  <div class="lp dark">
+    <div class="big"><svg width="88" height="88" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 23s-8-6.8-8-13.2a8 8 0 0 1 16 0C20 16.2 12 23 12 23z" fill="var(--accent)"/><path d="M8.6 10.1l2.4 2.4 4.5-4.6" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="nav"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 23s-8-6.8-8-13.2a8 8 0 0 1 16 0C20 16.2 12 23 12 23z" fill="var(--accent)"/><path d="M8.6 10.1l2.4 2.4 4.5-4.6" fill="none" stroke="var(--on-accent)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="wm">Paidway</span></div>
+  </div></div>
+  <h3>Waypoint <code>waypoint</code></h3>
+  <p>A map pin with a check: you are here, and it is paid.</p>
+  <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm&logo=waypoint">See in header ↗</a>
+</article></div>
+<h2>Style directions</h2>
+<p class="sub">Snapshot and Plan at 1440 wide, light scheme, plus Plan in dark. Click a shot for full size.</p>
+<div class="grid-dirs">
+<article class="dir" id="warm">
+  <header>
+    <h3><span class="n">1</span>Paidway warm <code>warm</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=warm">Open live ↗</a>
+  </header>
+  <p>The current restyle: warm neutrals, one vermilion accent, Fraunces numbers.</p>
+  <div class="shots">
+    <a href="shots/warm-home.jpg"><img loading="lazy" src="shots/warm-home.jpg" alt="Paidway warm snapshot"><span>Snapshot</span></a>
+    <a href="shots/warm-plan.jpg"><img loading="lazy" src="shots/warm-plan.jpg" alt="Paidway warm plan"><span>Plan</span></a>
+    <a href="shots/warm-plan-dark.jpg"><img loading="lazy" src="shots/warm-plan-dark.jpg" alt="Paidway warm plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="swiss">
+  <header>
+    <h3><span class="n">2</span>Swiss mono <code>swiss</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=swiss">Open live ↗</a>
+  </header>
+  <p>Black, white and one red. Square corners, hairline rules, Inter Tight caps.</p>
+  <div class="shots">
+    <a href="shots/swiss-home.jpg"><img loading="lazy" src="shots/swiss-home.jpg" alt="Swiss mono snapshot"><span>Snapshot</span></a>
+    <a href="shots/swiss-plan.jpg"><img loading="lazy" src="shots/swiss-plan.jpg" alt="Swiss mono plan"><span>Plan</span></a>
+    <a href="shots/swiss-plan-dark.jpg"><img loading="lazy" src="shots/swiss-plan-dark.jpg" alt="Swiss mono plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="navy">
+  <header>
+    <h3><span class="n">3</span>Fintech navy <code>navy</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=navy">Open live ↗</a>
+  </header>
+  <p>Banking-app trust: navy header bar, cool greys, electric blue, Manrope.</p>
+  <div class="shots">
+    <a href="shots/navy-home.jpg"><img loading="lazy" src="shots/navy-home.jpg" alt="Fintech navy snapshot"><span>Snapshot</span></a>
+    <a href="shots/navy-plan.jpg"><img loading="lazy" src="shots/navy-plan.jpg" alt="Fintech navy plan"><span>Plan</span></a>
+    <a href="shots/navy-plan-dark.jpg"><img loading="lazy" src="shots/navy-plan-dark.jpg" alt="Fintech navy plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="pastel">
+  <header>
+    <h3><span class="n">4</span>Soft pastel cards <code>pastel</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=pastel">Open live ↗</a>
+  </header>
+  <p>Airy lavender canvas, borderless floating cards, violet accent, Plus Jakarta.</p>
+  <div class="shots">
+    <a href="shots/pastel-home.jpg"><img loading="lazy" src="shots/pastel-home.jpg" alt="Soft pastel cards snapshot"><span>Snapshot</span></a>
+    <a href="shots/pastel-plan.jpg"><img loading="lazy" src="shots/pastel-plan.jpg" alt="Soft pastel cards plan"><span>Plan</span></a>
+    <a href="shots/pastel-plan-dark.jpg"><img loading="lazy" src="shots/pastel-plan-dark.jpg" alt="Soft pastel cards plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="terminal">
+  <header>
+    <h3><span class="n">5</span>Terminal green <code>terminal</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=terminal">Open live ↗</a>
+  </header>
+  <p>Dark-first, monospace numbers, phosphor green on near-black. Dense.</p>
+  <div class="shots">
+    <a href="shots/terminal-home.jpg"><img loading="lazy" src="shots/terminal-home.jpg" alt="Terminal green snapshot"><span>Snapshot</span></a>
+    <a href="shots/terminal-plan.jpg"><img loading="lazy" src="shots/terminal-plan.jpg" alt="Terminal green plan"><span>Plan</span></a>
+    <a href="shots/terminal-plan-dark.jpg"><img loading="lazy" src="shots/terminal-plan-dark.jpg" alt="Terminal green plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="editorial">
+  <header>
+    <h3><span class="n">6</span>Editorial serif <code>editorial</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=editorial">Open live ↗</a>
+  </header>
+  <p>A financial-paper page: big Newsreader headlines, rules instead of boxes.</p>
+  <div class="shots">
+    <a href="shots/editorial-home.jpg"><img loading="lazy" src="shots/editorial-home.jpg" alt="Editorial serif snapshot"><span>Snapshot</span></a>
+    <a href="shots/editorial-plan.jpg"><img loading="lazy" src="shots/editorial-plan.jpg" alt="Editorial serif plan"><span>Plan</span></a>
+    <a href="shots/editorial-plan-dark.jpg"><img loading="lazy" src="shots/editorial-plan-dark.jpg" alt="Editorial serif plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="glass">
+  <header>
+    <h3><span class="n">7</span>Glassy gradient <code>glass</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=glass">Open live ↗</a>
+  </header>
+  <p>Frosted cards over a soft colour mesh, gradient buttons, Sora.</p>
+  <div class="shots">
+    <a href="shots/glass-home.jpg"><img loading="lazy" src="shots/glass-home.jpg" alt="Glassy gradient snapshot"><span>Snapshot</span></a>
+    <a href="shots/glass-plan.jpg"><img loading="lazy" src="shots/glass-plan.jpg" alt="Glassy gradient plan"><span>Plan</span></a>
+    <a href="shots/glass-plan-dark.jpg"><img loading="lazy" src="shots/glass-plan-dark.jpg" alt="Glassy gradient plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="brutal">
+  <header>
+    <h3><span class="n">8</span>Brutalist-lite <code>brutal</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=brutal">Open live ↗</a>
+  </header>
+  <p>Thick black borders, hard offset shadows, cobalt + yellow, Space Grotesk.</p>
+  <div class="shots">
+    <a href="shots/brutal-home.jpg"><img loading="lazy" src="shots/brutal-home.jpg" alt="Brutalist-lite snapshot"><span>Snapshot</span></a>
+    <a href="shots/brutal-plan.jpg"><img loading="lazy" src="shots/brutal-plan.jpg" alt="Brutalist-lite plan"><span>Plan</span></a>
+    <a href="shots/brutal-plan-dark.jpg"><img loading="lazy" src="shots/brutal-plan-dark.jpg" alt="Brutalist-lite plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="sage">
+  <header>
+    <h3><span class="n">9</span>Calm sage <code>sage</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=sage">Open live ↗</a>
+  </header>
+  <p>Quiet greens and clay, rounded and roomy, Figtree with Lora numbers.</p>
+  <div class="shots">
+    <a href="shots/sage-home.jpg"><img loading="lazy" src="shots/sage-home.jpg" alt="Calm sage snapshot"><span>Snapshot</span></a>
+    <a href="shots/sage-plan.jpg"><img loading="lazy" src="shots/sage-plan.jpg" alt="Calm sage plan"><span>Plan</span></a>
+    <a href="shots/sage-plan-dark.jpg"><img loading="lazy" src="shots/sage-plan-dark.jpg" alt="Calm sage plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article>
+<article class="dir" id="apple">
+  <header>
+    <h3><span class="n">10</span>Neutral (Apple-like) <code>apple</code></h3>
+    <a href="https://main.tail865d08.ts.net:15750/?plan=last&style=apple">Open live ↗</a>
+  </header>
+  <p>Grey canvas, white borderless cards, segmented steps, system blue.</p>
+  <div class="shots">
+    <a href="shots/apple-home.jpg"><img loading="lazy" src="shots/apple-home.jpg" alt="Neutral (Apple-like) snapshot"><span>Snapshot</span></a>
+    <a href="shots/apple-plan.jpg"><img loading="lazy" src="shots/apple-plan.jpg" alt="Neutral (Apple-like) plan"><span>Plan</span></a>
+    <a href="shots/apple-plan-dark.jpg"><img loading="lazy" src="shots/apple-plan-dark.jpg" alt="Neutral (Apple-like) plan, dark"><span>Plan · dark</span></a>
+  </div>
+</article></div>
+</main></body></html>

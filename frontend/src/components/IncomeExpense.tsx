@@ -10,10 +10,10 @@ type CashFlow = { months: Month[]; monthly_avg: Month; unknown_outflow_per_month
 
 const SERIES = [
   { key: 'essentials', name: 'Essentials', color: 'var(--muted)' },
-  { key: 'discretionary', name: 'Discretionary', color: '#fb923c' },
-  { key: 'debt_payments', name: 'Debt payoff', color: '#2563eb' },
-  { key: 'savings_invest', name: 'Saved', color: '#0d9488' },
-  { key: 'transfers_out_unknown', name: 'Unknown outflow', color: '#dc2626' },
+  { key: 'discretionary', name: 'Discretionary', color: 'var(--c-disc)' },
+  { key: 'debt_payments', name: 'Debt payoff', color: 'var(--c-debt)' },
+  { key: 'savings_invest', name: 'Saved', color: 'var(--c-save)' },
+  { key: 'transfers_out_unknown', name: 'Unknown outflow', color: 'var(--c-out)' },
 ] as const
 
 const short = (v: number) => (Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`)
@@ -37,7 +37,7 @@ export default function IncomeExpense({ cid }: { cid: string }) {
         <h2 style={{ margin: 0 }}>Income vs spending</h2>
         <div className="legend">
           <span><i style={{ borderColor: 'var(--text)' }} />Income</span>
-          <span><i className="dash" style={{ borderColor: '#16a34a' }} />Left over</span>
+          <span><i className="dash" style={{ borderColor: 'var(--c-left)' }} />Left over</span>
           {SERIES.map((s) => <span key={s.key}><i style={{ borderColor: s.color }} />{s.name}</span>)}
         </div>
       </div>
@@ -57,7 +57,7 @@ export default function IncomeExpense({ cid }: { cid: string }) {
             <Bar key={s.key} dataKey={s.key} name={s.name} stackId="out" fill={s.color} isAnimationActive={false} />
           ))}
           <Line dataKey="income" name="Income" stroke="var(--text)" strokeWidth={2.5} dot={false} type="linear" isAnimationActive={false} />
-          <Line dataKey="surplus" name="Left over" stroke="#16a34a" strokeDasharray="5 4" strokeWidth={2} dot={false} type="linear" isAnimationActive={false} />
+          <Line dataKey="surplus" name="Left over" stroke="var(--c-left)" strokeDasharray="5 4" strokeWidth={2} dot={false} type="linear" isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

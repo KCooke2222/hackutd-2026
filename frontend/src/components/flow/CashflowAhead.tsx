@@ -18,10 +18,10 @@ export default function CashflowAhead({ cid, t, at }: { cid: string; t: Timeline
   const out = t.cashflow.transfers_out_name
   const SERIES = [
     { key: 'essentials', name: 'Essentials', color: 'var(--muted)' },
-    { key: 'discretionary', name: 'Discretionary', color: '#fb923c' },
-    { key: 'debt_payments', name: 'Debt payoff', color: '#2563eb' },
-    { key: 'savings_invest', name: 'Saved', color: '#0d9488' },
-    { key: 'transfers_out', name: out, color: '#dc2626' },
+    { key: 'discretionary', name: 'Discretionary', color: 'var(--c-disc)' },
+    { key: 'debt_payments', name: 'Debt payoff', color: 'var(--c-debt)' },
+    { key: 'savings_invest', name: 'Saved', color: 'var(--c-save)' },
+    { key: 'transfers_out', name: out, color: 'var(--c-out)' },
   ] as const
   const ahead = t.cashflow[view]
   const data = [
@@ -59,7 +59,7 @@ export default function CashflowAhead({ cid, t, at }: { cid: string; t: Timeline
       </div>
       <div className="legend" style={{ marginTop: 10 }}>
         <span><i style={{ borderColor: 'var(--text)' }} />Income</span>
-        <span><i className="dash" style={{ borderColor: '#16a34a' }} />Left over</span>
+        <span><i className="dash" style={{ borderColor: 'var(--c-left)' }} />Left over</span>
         {SERIES.map((s) => <span key={s.key}><i style={{ borderColor: s.color }} />{s.name}</span>)}
       </div>
       <ResponsiveContainer width="100%" height={260}>
@@ -72,7 +72,7 @@ export default function CashflowAhead({ cid, t, at }: { cid: string; t: Timeline
             <Bar key={s.key} dataKey={s.key} name={s.name} stackId="out" fill={s.color} isAnimationActive={false} />
           ))}
           <Line dataKey="income" name="Income" stroke="var(--text)" strokeWidth={2.5} dot={false} type="linear" isAnimationActive={false} />
-          <Line dataKey="surplus" name="Left over" stroke="#16a34a" strokeDasharray="5 4" strokeWidth={2} dot={false} type="linear" isAnimationActive={false} />
+          <Line dataKey="surplus" name="Left over" stroke="var(--c-left)" strokeDasharray="5 4" strokeWidth={2} dot={false} type="linear" isAnimationActive={false} />
           {ahead[0] && <ReferenceLine x={ahead[0].month} stroke="var(--grey)" label={{ value: 'ahead →', position: 'insideTopLeft', fontSize: 11, fill: 'var(--muted)' }} />}
           <ReferenceLine x={p.month} stroke="var(--text)" strokeDasharray="2 3" />
         </ComposedChart>

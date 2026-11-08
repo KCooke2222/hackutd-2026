@@ -6,8 +6,8 @@ import { ym, ymShort } from '../../lib/flow'
 import CashflowAhead from './CashflowAhead'
 import { GREY } from './NetWorth'
 
-const DEBT_COLORS = ['#dc2626', '#ea580c', '#d97706', '#7c3aed', '#db2777', '#9f1239']
-const ASSET_COLORS = ['#16a34a', '#0d9488', '#2563eb', '#0891b2', 'var(--muted)', '#65a30d']
+const DEBT_COLORS = ['var(--d1)', 'var(--d2)', 'var(--d3)', 'var(--d4)', 'var(--d5)', 'var(--d6)']
+const ASSET_COLORS = ['var(--a1)', 'var(--a2)', 'var(--a3)', 'var(--a4)', 'var(--muted)', 'var(--a6)']
 const short = (v: number) => (Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`)
 
 /** The home page again, but over time: accounts by month, payments, income vs spending, every change. */
