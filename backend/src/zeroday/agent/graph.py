@@ -139,7 +139,7 @@ def _reality_fields(rc: dict | None) -> dict:
     """The verdict and the gap, for prompts (an {"error"} or a missing check gives {})."""
     if not isinstance(rc, dict) or "realistic" not in rc:
         return {}
-    return {k: rc.get(k) for k in ("realistic", "message", "gap_per_month", "close_gap", "monthly")}
+    return {k: rc.get(k) for k in ("realistic", "message", "gap_per_month", "cash_runs_out", "close_gap", "monthly")}
 
 
 # ---------- message log helpers ----------

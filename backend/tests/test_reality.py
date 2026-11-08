@@ -90,3 +90,22 @@ def test_api():
     r = c.get(f"/api/customers/{CID}/reality-check")
     assert r.status_code == 200 and "realistic" in r.json()
     assert c.get("/api/customers/NOPE/reality-check").status_code == 404
+
+
+def test_cash_running_out_is_not_realistic():
+    """C027 spends more than it earns even with every cut at its floor: the simulator would keep paying debt
+    out of negative cash, so the cash test has to catch it."""
+    rc = wealth.reality_check("C027", live=False)
+    assert rc["realistic"] is False
+    assert rc["cash_runs_out"] == "2027-05"
+    assert rc["monthly"]["lowest_cash"] < 0
+    assert rc["gap_per_month"] == pytest.approx(rc["monthly"]["shortfall"], abs=0.01)
+    assert rc["gap_per_month"] > 0
+    assert "cash runs out by 2027-05" in rc["message"]
+
+
+def test_realistic_means_cash_stays_positive():
+    for cid in ("C001", "C002", "C003"):
+        rc = wealth.reality_check(cid, live=False)
+        if rc["realistic"]:
+            assert rc["cash_runs_out"] is None and rc["monthly"]["lowest_cash"] >= -0.5

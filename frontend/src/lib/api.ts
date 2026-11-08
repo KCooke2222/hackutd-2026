@@ -254,6 +254,7 @@ export type RealityCheck = {
   realistic: boolean
   message: string
   gap_per_month: number
+  cash_runs_out: string | null
   close_gap: null | {
     spend_less_per_month: number
     earn_more_per_month: number
@@ -262,7 +263,7 @@ export type RealityCheck = {
     spending_alone_can_close: boolean
     min_extra_income_if_spending_maxed: number
   }
-  monthly: { income: number; spending: number; debt_room: number; interest: number; card_charges: number; minimums: number; principal_paydown: number }
+  monthly: { income: number; spending: number; debt_room: number; interest: number; card_charges: number; minimums: number; principal_paydown: number; shortfall: number; lowest_cash: number }
   today: { debt_change_per_month: number; cash_change_per_month: number }
   levers: {
     spending_cuts_per_month: number

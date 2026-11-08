@@ -435,8 +435,11 @@ def reality_check(customer_id: str, *, live: bool = True, ctx: dict | None = Non
         room      = that plan's monthly debt budget, less any monthly shortfall that drains cash
         growth    = interest (after the lump sums) + card charges (after card cuts)
         shrinks  <=> room > growth and room >= every minimum
-    When it can't shrink, `gap_per_month` is the shortfall: spend `gap` less (beyond those cuts) or earn
-    `gap` more, or a mix.
+    It is also unrealistic when that plan, simulated, takes cash below $0 within the horizon (`cash_runs_out`
+    is the first such month): the simulator keeps paying debt out of negative cash, so the debt test alone
+    can pass for a household that spends more than it earns.
+    When it is unrealistic, `gap_per_month` is the larger of the monthly shortfall (spending after the floor
+    cuts + minimums - income) and the debt gap: spend `gap` less (beyond those cuts) or earn `gap` more, or a mix.
     """
     from . import solver
 
@@ -475,8 +478,18 @@ def _reality(ctx: dict, plan: dict) -> dict:
     growth = interest + charges
     paydown = room - growth
     needed = max(minimums, growth)
-    gap = max(needed - room, 0.0)
-    realistic = paydown > 0.5 and room >= minimums - 0.005
+    debt_gap = max(needed - room, 0.0)
+    shrinks = paydown > 0.5 and room >= minimums - 0.005
+    # Spending after the floor cuts (cash + card) + minimums - income, written from the residual
+    # (residual = income - cash expenses - debt payments - contributions; card spend is paid inside debt payments).
+    # Contributions are left out: they can be paused.
+    all_mins = sum(d["min_payment"] for d in ctx["debts"])
+    shortfall = (ctx["card_spend"] - card_cut - cash_cut + all_mins
+                 - f["residual"] - f["debt_payments"] - f["invest_contrib"])
+    sim = _run(ctx, plan)
+    runs_out = next((m["month"] for m in sim["months"] if m["cash"] < -0.5), None)
+    realistic = shrinks and runs_out is None
+    gap = max(debt_gap, shortfall, 0.0)
     if not realistic and gap < 1:
         gap = 1.0  # break-even: the debt doesn't shrink, so they still need a little more room
     disc_left = max(disc_now - cut_total, 0.0)
@@ -484,7 +497,10 @@ def _reality(ctx: dict, plan: dict) -> dict:
     if realistic:
         msg = f"The debt can shrink: with the best plan, about ${paydown:,.0f}/mo goes to principal."
     else:
-        msg = (f"Even after every realistic change you are ${gap:,.0f}/mo short, so the debt keeps growing. "
+        why = (f"cash runs out by {runs_out}" if runs_out and shrinks
+               else f"the debt keeps growing and cash runs out by {runs_out}" if runs_out
+               else "the debt keeps growing")
+        msg = (f"Even after every realistic change you are ${gap:,.0f}/mo short, so {why}. "
                f"To close it, spend ${gap:,.0f}/mo less or earn ${gap:,.0f}/mo more (or a mix).")
         if gap > disc_left + 0.5:
             msg += (f" Spending cuts alone can't do it: only ${disc_left:,.0f}/mo of discretionary spending is left, "
@@ -495,6 +511,7 @@ def _reality(ctx: dict, plan: dict) -> dict:
         "realistic": realistic,
         "message": msg,
         "gap_per_month": r(gap) if not realistic else 0.0,
+        "cash_runs_out": runs_out,  # first month the best plan's cash goes below $0, else None
         "close_gap": None if realistic else {
             "spend_less_per_month": r(gap),
             "earn_more_per_month": r(gap),
@@ -511,6 +528,8 @@ def _reality(ctx: dict, plan: dict) -> dict:
             "card_charges": r(charges),      # after the card cuts
             "minimums": r(minimums),
             "principal_paydown": r(paydown),  # negative = the debt grows
+            "shortfall": r(shortfall),        # spending after floor cuts + minimums - income; > 0 = cash drains
+            "lowest_cash": r(min(m["cash"] for m in sim["months"])),
         },
         "today": {  # no changes at all
             "debt_change_per_month": r(interest_now + ctx["card_spend"] - ctx["current_debt_payments"]),
