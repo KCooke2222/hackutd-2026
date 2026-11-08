@@ -50,10 +50,11 @@ demo-reset:
 fresh:
 	cd backend && $(UV) run python scripts/reset_local.py C001 C027
 	cd backend && $(UV) run python -m paidway.data.seed reset C001 C027
+	curl -s -X POST http://127.0.0.1:$${API_PORT:-8750}/api/agent/runs/forget; echo
 
 # Same reset on the public VM (paidway.kevin-cooke.com), its own Nessie customers.
 fresh-prod:
-	ssh paidway-prod 'cd /opt/paidway/backend && set -a && . /opt/paidway/deploy/paidway.env && set +a && .venv/bin/python scripts/reset_local.py C001 C027 && .venv/bin/python -m paidway.data.seed reset C001 C027 >/dev/null && echo reset done'
+	ssh paidway-prod 'cd /opt/paidway/backend && set -a && . /opt/paidway/deploy/paidway.env && set +a && .venv/bin/python scripts/reset_local.py C001 C027 && .venv/bin/python -m paidway.data.seed reset C001 C027 >/dev/null && curl -s -X POST http://127.0.0.1:8720/api/agent/runs/forget && echo " reset done"'
 
 # Clear a customer's local proposals and demo tracking (SQLite only; never touches Nessie). Demo examples by default.
 reset-local:

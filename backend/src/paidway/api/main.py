@@ -261,6 +261,15 @@ def agent_run_latest(customer_id: str) -> dict | None:
     return r.meta() if r else None
 
 
+@app.post("/api/agent/runs/forget")
+def agent_runs_forget() -> dict:
+    """Demo reset (`make fresh`): the next page load opens on the Snapshot instead of the last run."""
+    from ..agent import runs
+
+    runs.forget(["C001", "C027"])
+    return {"ok": True}
+
+
 @app.get("/api/agent/runs/{run_id}")
 def agent_run_meta(run_id: str) -> dict:
     from ..agent import runs

@@ -92,6 +92,16 @@ def get(run_id: str) -> Run | None:
     return _runs.get(run_id)
 
 
+def forget(customer_ids: Iterable[str]) -> None:
+    """Demo reset: drop these customers' runs so no page re-attaches to one (a running one keeps going, unlisted)."""
+    cs = set(customer_ids)
+    with _lock:
+        for c in cs:
+            _latest.pop(c, None)
+        for rid in [rid for rid, r in _runs.items() if r.customer_id in cs]:
+            _runs.pop(rid, None)
+
+
 def latest(customer_id: str) -> Run | None:
     rid = _latest.get(customer_id)
     return _runs.get(rid) if rid else None
