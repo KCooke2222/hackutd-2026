@@ -341,12 +341,26 @@ html[data-direction^="mac-"] .lrow { border-radius: 0; padding: 9px 2px; }
   }
 }
 
-/* 1. mac-light: grouped-list Settings, inset white groups on light grey */
-html[data-direction="mac-light"] { --bg: #f2f2f7; --panel: #ffffff; --soft: #f2f2f7; --bw: 0px; --head-bg: rgba(242, 242, 247, .78); }
+/* 1. mac-light (the default look): grouped-list Settings, inset white groups on light grey.
+   Themed to the Paidway wordmark: Outfit for headings and numbers, the logo's green as the accent.
+   "good" stays a yellower green than the accent so plan lines and good-news text don't merge. */
+html[data-direction="mac-light"] { --bg: #f2f2f7; --panel: #ffffff; --soft: #f2f2f7; --bw: 0px; --head-bg: rgba(242, 242, 247, .78);
+  --font-ui: Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-display: Outfit, Inter, system-ui, sans-serif; --font-num: Outfit, Inter, system-ui, sans-serif;
+  --display-weight: 600; --display-track: -.02em;
+  --accent: #0f7a4a; --accent-ink: #0a5c37; --accent-soft: #e3f1e9; --accent-line: #a9d5bd; --on-accent: #fff;
+  --good: #2e8b2e; --good-soft: #e8f5e3;
+  --info-soft: #edf5f0; --info-line: #c9e2d3;
+  --c-adj: #007aff; }
 html[data-direction="mac-light"] .card { padding: 6px 16px 10px; }
-html[data-direction="mac-light"] .card h2 { margin: 10px 0 4px; }
+html[data-direction="mac-light"] .card h2 { margin: 10px 0 4px; font-size: 16px; }
+html[data-direction="mac-light"] .hero .big { font-weight: 700; letter-spacing: -.025em; }
 @media (prefers-color-scheme: dark) {
-  html[data-direction="mac-light"] { --bg: #000000; --panel: #1c1c1e; --soft: #2c2c2e; --line: #38383a; --head-bg: rgba(0, 0, 0, .72); }
+  html[data-direction="mac-light"] { --bg: #000000; --panel: #1c1c1e; --soft: #2c2c2e; --line: #38383a; --head-bg: rgba(0, 0, 0, .72);
+    --accent: #3fd08f; --accent-ink: #7fe3b4; --accent-soft: #10301f; --accent-line: #1f6142; --on-accent: #04241a;
+    --good: #8fdc5c; --good-soft: #1b2f12;
+    --info-soft: #102419; --info-line: #1f4a33;
+    --c-adj: #0a84ff; }
 }
 
 /* 2. mac-plain: white page, hairlines only, almost no cards */

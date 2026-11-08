@@ -11,6 +11,7 @@
   /* density + shape (style directions override these) */
   --fs: 14px; --card-pad: 18px 20px; --gap: 16px; --bw: 1px; --ctl-radius: 8px; --tile-radius: 10px;
   --display-weight: 600; --display-track: -.01em; --hero-size: 44px; --font-num: var(--font-display);
+  --c-adj: var(--good);
   --card-bg: var(--panel); --head-bg: color-mix(in srgb, var(--bg) 88%, transparent);
   /* chart series */
   --c-disc: #fb923c; --c-debt: #2563eb; --c-save: #0d9488; --c-out: #dc2626; --c-left: #16a34a;
