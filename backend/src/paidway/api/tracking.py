@@ -69,3 +69,22 @@ def choose(cid: str, body: ChooseIn) -> dict:
     except ValueError as e:
         raise HTTPException(422, str(e))
     return {"proposal_id": new["id"], "status": new["status"], "headline": new["simulation"]["explain"]["headline"]}
+
+
+class CheckinIn(BaseModel):
+    scenario: str | None = None
+
+
+@router.post("/api/customers/{cid}/tracking/checkin")
+def checkin(cid: str, body: CheckinIn) -> dict:
+    """Advance a demo month (optional) and let the agent name the drift and propose a fix (PENDING only)."""
+    from ..agent.checkin import checkin as run_checkin
+    from ..agent.graph import AgentUnavailable
+
+    p = _need(cid)
+    try:
+        r = run_checkin(cid, body.scenario, p)
+    except (ValueError, AgentUnavailable) as e:
+        raise HTTPException(422, str(e))
+    t = r.pop("tracking")
+    return {"active": True, **t, "checkin": r}

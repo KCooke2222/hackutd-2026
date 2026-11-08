@@ -3,7 +3,8 @@ import { usd } from '../../lib/api'
 import type { Proposal, SimDebt, SimV2 } from '../../lib/api'
 import { SOURCE_NAME, knobsFrom, title, ym } from '../../lib/flow'
 import type { Knobs, Preview } from '../../lib/flow'
-import NetWorth, { ACCENT, GOOD, GREY } from './NetWorth'
+import NetWorth from './NetWorth'
+import { ACCENT, GOOD, GREY } from '../../lib/chart'
 
 type SliderDef = { label: string; min: number; max: number; step: number; value: number; ai: number; meta: string; onChange: (v: number) => void }
 
@@ -52,17 +53,20 @@ function DebtStack({ sim, order }: { sim: SimV2; order: string[] }) {
   )
 }
 
-export default function PlanEditor({ ai, headline, knobs, setKnobs, preview, busy, error, onApprove, onReject, chat }: {
-  ai: Proposal; headline: string; knobs: Knobs; setKnobs: (k: Knobs) => void; preview: Preview | null
+export default function PlanEditor({ ai, knobs, setKnobs, preview, busy, error, onApprove, onReject, chat }: {
+  ai: Proposal; knobs: Knobs; setKnobs: (k: Knobs) => void; preview: Preview | null
   busy: boolean; error: string | null; onApprove: () => void; onReject: () => void; chat?: ReactNode
 }) {
   const aiK = knobsFrom(ai)
   const sim = preview?.sim ?? ai.simulation
   const pl = ai.plan
   const b = sim.budget
-  const minimums = b?.minimums ?? sim.debts.reduce((a, d) => a + (d.min_payment ?? 0), 0)
-  const budgetMax = roundUp(Math.max(b?.max_monthly_debt_budget ?? 0, aiK.budget, knobs.budget) * 1.05, 50)
-  const redirectMax = roundUp(Math.max(aiK.redirect, knobs.redirect, 500) * 1.25, 100)
+  // Slider ranges come from the AI plan only: if they followed the dragged value (or the live preview),
+  // the scale would stretch under the thumb and it would run away while dragging.
+  const aiB = ai.simulation.budget
+  const minimums = aiB?.minimums ?? ai.simulation.debts.reduce((a, d) => a + (d.min_payment ?? 0), 0)
+  const budgetMax = roundUp(Math.max(aiB?.max_monthly_debt_budget ?? 0, aiK.budget) * 1.05, 50)
+  const redirectMax = roundUp(Math.max(aiK.redirect, 500) * 1.25, 100)
   const debtNames = Object.fromEntries(sim.debts.map((d) => [d.account_id, d.name]))
 
   const sliders: SliderDef[] = [
@@ -78,11 +82,7 @@ export default function PlanEditor({ ai, headline, knobs, setKnobs, preview, bus
   return (
     <>
       <div className="card">
-        <div className="col-head">
-          <h2 style={{ margin: 0 }}>Plan</h2>
-          <button className="ghost" onClick={() => setKnobs(aiK)}>Reset to AI</button>
-        </div>
-        {headline && <p className="why1">{headline}</p>}
+        <h2>Plan</h2>
         <NetWorth sim={sim} baseline={preview?.baseline ?? null} />
       </div>
 

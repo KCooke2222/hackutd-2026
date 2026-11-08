@@ -3,7 +3,7 @@ import { usd } from '../../lib/api'
 import type { SimV2 } from '../../lib/api'
 import { ym, ymShort } from '../../lib/flow'
 
-export const GREY = 'var(--grey)', ACCENT = 'var(--accent)', GOOD = 'var(--good)', BAD = 'var(--bad)'
+import { ACCENT, C, GOOD, GREY, short } from '../../lib/chart'
 
 /** Net worth for 24 months: the plan vs doing nothing (both from wealth.simulate_plan). */
 export default function NetWorth({ sim, baseline, height = 240 }: { sim: SimV2; baseline: SimV2 | null; height?: number }) {
@@ -11,7 +11,6 @@ export default function NetWorth({ sim, baseline, height = 240 }: { sim: SimV2; 
   const freeAt = sim.high_cost_debt_free ? data.find((d) => d.m === sim.high_cost_debt_free) : null
   const gain = sim.net_worth_24m - sim.baseline_net_worth_24m
   const last = data[data.length - 1]
-  const short = (v: number) => (Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`)
   return (
     <>
       <div className="col-head">
@@ -23,9 +22,9 @@ export default function NetWorth({ sim, baseline, height = 240 }: { sim: SimV2; 
       </div>
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={{ top: 18, right: 16, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="var(--line)" vertical={false} />
-          <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 11, fill: 'var(--muted)' }} tickLine={false} axisLine={{ stroke: 'var(--line)' }} />
-          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: 'var(--muted)' }} width={48} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
+          <CartesianGrid stroke={C.grid} vertical={false} />
+          <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 11, fill: C.tick }} tickLine={false} axisLine={{ stroke: C.grid }} />
+          <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: C.tick }} width={48} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
           <Tooltip formatter={(v, n) => [usd(Number(v)), n === 'plan' ? 'Plan' : 'Do nothing']} labelFormatter={(m) => ym(String(m))} />
           <Line dataKey="base" stroke={GREY} strokeDasharray="5 4" strokeWidth={2} dot={false} isAnimationActive={false} />
           <Line dataKey="plan" stroke={ACCENT} strokeWidth={3} dot={false} isAnimationActive={false} />

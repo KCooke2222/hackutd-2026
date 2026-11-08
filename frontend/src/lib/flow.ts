@@ -2,7 +2,13 @@
 import type { PlanV2, Proposal, SimV2 } from './api'
 
 /** /customers/{cid}/plan/simulate: validator verdict + plan and baseline paths. */
-export type Preview = { valid: boolean; reasons: string[]; sim: SimV2; baseline: SimV2 }
+export type Preview = { valid: boolean; reasons: string[]; sim: SimV2; baseline: SimV2; no_cuts?: SimV2 | null; schedule?: Schedule | null }
+
+/** execute.schedule, read-only: what approve would send to Nessie vs record as steps. */
+export type Schedule = {
+  transfers: { from: string; to: string; to_debt: string; amount: number }[]
+  steps: { kind: 'lump_sum' | 'budget' | 'redirect' | 'spending_target' | 'autopay' | string; step: string; runs?: string; source?: string; amount?: number; to_debt?: string; category?: string; account_id?: string; [k: string]: unknown }[]
+}
 
 /** What the sliders edit: the debt budget, the redirect, and each cut's target (by category). */
 export type Knobs = { budget: number; redirect: number; cuts: Record<string, number> }

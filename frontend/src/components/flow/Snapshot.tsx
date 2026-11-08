@@ -1,51 +1,51 @@
 import { usd } from '../../lib/api'
-import type { BalanceSheet, Refill, SheetAccount } from '../../lib/api'
-
-export type Summary = { card_history: { month: string; balance: number }[]; refill: Refill }
+import type { BalanceSheet, SheetAccount } from '../../lib/api'
+import NessieChip from '../NessieChip'
 
 type Row = { id: string; name: string; bal: number; tags: [string, string?][]; dim?: boolean } | { group: string }
 
-function Spark({ data }: { data: number[] }) {
-  if (data.length < 2) return null
-  const w = 150, h = 46, lo = Math.min(...data) - 60, hi = Math.max(...data) + 10
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * (w - 4) + 2},${h - 4 - ((v - lo) / (hi - lo)) * (h - 10)}`).join(' ')
-  return (
-    <svg width={w} height={h} aria-label="card balance, last 24 months">
-      <polyline points={pts} fill="none" stroke="var(--bad)" strokeWidth="2" />
-      <text x="2" y={h} fontSize="9" fill="var(--muted)">{data.length} mo</text>
-    </svg>
-  )
-}
+/** Every account with a Nessie id is live there; linked ones (other banks, the brokerage) are mirrored. */
+const inNessie = (a: SheetAccount | undefined) => !!a && (!!a.nessie_id || a.source === 'nessie')
+const display = (a: SheetAccount | undefined, name: string) => (a && inNessie(a) && a.account_type === 'brokerage' ? 'Brokerage' : name)
 
-function Col({ title, total, rows }: { title: string; total: number; rows: Row[] }) {
+function Col({ title, total, rows, byId }: { title: string; total: number; rows: Row[]; byId: Map<string, SheetAccount> }) {
   return (
     <div className="card">
       <div className="col-head"><h2 style={{ margin: 0 }}>{title}</h2><span className="total">{usd(total)}</span></div>
       {rows.map((r, i) => 'group' in r
         ? <div key={'g' + i} className="group-label">{r.group}</div>
         : (
-          <div key={r.id} className={`lrow ${r.dim ? 'dim' : ''}`}>
-            <span className="name">{r.name}</span><span className="amt">{usd(r.bal)}</span>
-            {r.tags.length > 0 && <span className="sub">{r.tags.map(([t, c]) => <span key={t} className={`tag ${c ?? ''}`}>{t}</span>)}</span>}
-          </div>
+          <Line key={r.id} r={r} a={byId.get(r.id)} />
         ))}
     </div>
   )
 }
 
-export default function Snapshot({ sheet, summary }: { sheet: BalanceSheet; summary: Summary }) {
-  const card = sheet.accounts.find((a) => a.account_type === 'credit_card' && a.source !== 'linked')
-  const r = summary.refill
-  const refill = r.monthly_avg.new_spending + r.monthly_avg.interest + r.monthly_avg.fees
+function Line({ r, a }: { r: Exclude<Row, { group: string }>; a: SheetAccount | undefined }) {
+  const live = inNessie(a)
+  const mirrored = live && a?.source === 'linked'
+  return (
+    <div className={`lrow ${r.dim ? 'dim' : ''}`}>
+      <span className="name">{display(a, r.name)}{live && <> <NessieChip /></>}</span><span className="amt">{usd(r.bal)}</span>
+      {(r.tags.length > 0 || mirrored) && (
+        <span className="sub">
+          {r.tags.map(([t, c]) => <span key={t} className={`tag ${c ?? ''}`}>{t}</span>)}
+          {mirrored && <span className="small muted">linked, mirrored in Nessie</span>}
+        </span>
+      )}
+    </div>
+  )
+}
 
+/** What you own and what you owe, with rates. */
+export default function Snapshot({ sheet }: { sheet: BalanceSheet }) {
   // Have: the ladder order (what can be tapped, cheapest first), then what is never tapped.
   const byId = new Map<string, SheetAccount>(sheet.accounts.map((a) => [a.account_id, a]))
   const have: Row[] = []
   const tiers = sheet.ladder.tiers
   for (const t of tiers.filter((t) => t.proposable)) {
     for (const a of t.accounts) {
-      const tags: [string, string?][] = t.key === 'cash' ? [['buffer']] : t.cost_pct ? [[`~${t.cost_pct}% ${t.key === 'cd' ? 'penalty' : 'tax'}`]] : []
-      have.push({ id: a.account_id, name: a.name, bal: a.balance, tags })
+      have.push({ id: a.account_id, name: a.name, bal: a.balance, tags: [] })
     }
   }
   const untapped = tiers.filter((t) => !t.proposable).flatMap((t) => t.accounts)
@@ -68,26 +68,9 @@ export default function Snapshot({ sheet, summary }: { sheet: BalanceSheet; summ
   }
 
   return (
-    <>
-      <div className="card hero">
-        <div>
-          <div className="k">PNC card · {card?.apr_pct}%</div>
-          <div className="big num">{usd(card?.balance, 0)}</div>
-          <div className="flowrow">
-            <span>Pay <b>{usd(r.monthly_avg.payment)}</b>/mo</span>
-            <span className="eq">≈</span>
-            <span title={`Spending ${usd(r.monthly_avg.new_spending)} + interest ${usd(r.monthly_avg.interest)} + fees ${usd(r.monthly_avg.fees, 2)}`}>Refills <b>{usd(refill)}</b>/mo</span>
-          </div>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <Spark data={summary.card_history.map((h) => h.balance)} />
-          <div className={`small num ${r.net_change > 0 ? 'bad' : 'good'}`}>{r.net_change >= 0 ? '+' : ''}{usd(r.net_change)} / yr</div>
-        </div>
-      </div>
-      <div className="ledger">
-        <Col title="Have" total={sheet.totals.assets} rows={have} />
-        <Col title="Owe" total={sheet.totals.debts} rows={owe} />
-      </div>
-    </>
+    <div className="ledger">
+      <Col title="Have" total={sheet.totals.assets} rows={have} byId={byId} />
+      <Col title="Owe" total={sheet.totals.debts} rows={owe} byId={byId} />
+    </div>
   )
 }

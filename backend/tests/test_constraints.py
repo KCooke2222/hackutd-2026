@@ -114,3 +114,18 @@ def test_solved_plan_obeys_rules_by_construction():
     assert any(t["category"] == "dining" and t["target"] <= 380 for t in plan_["spending_targets"])
     assert C.check(plan_, cons, spend) == []
     validate_plan_v2(CID, plan_, live=False, constraints=cons)
+
+
+def test_protect_declines_suggested_cuts_and_relays_are_dropped():
+    from paidway.planning import solver
+
+    cons = {"protect_categories": ["travel"], "category_min": {"gifts_holidays": 300}}
+    inp, plan_, spend = _solve(cons, [{"category": "home_household", "target": 400, "source": "suggested"}])
+    assert inp["declined_cuts"] == ["travel"] and inp["category_min"] == {"gifts_holidays": 300}
+    assert inp["spending_targets"] == []  # the relayed suggestion is remade by the solver, not agreed
+    cats = {t["category"]: t for t in plan_["spending_targets"]}
+    assert "travel" not in cats
+    assert all(t["source"] == "suggested" for t in cats.values())
+    assert "gifts_holidays" not in cats or cats["gifts_holidays"]["target"] >= 300
+    assert C.check(plan_, cons, spend) == []
+    assert len(cats) <= solver.SUGGEST_MAX

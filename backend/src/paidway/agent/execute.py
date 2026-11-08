@@ -4,14 +4,20 @@ Called from the approve route only (never from graph.py or tools.py; test_safety
 1. Atomically claim pending -> executing (double clicks get 409, never a second transfer).
 2. Merge edits, re-validate with validate_plan_v2 (including the customer's own constraints, PR 4).
 3. Re-read balances; if they moved since the proposal, mark it stale.
-4. Nessie transfers only for cash lump sums into a Nessie-backed debt (the PNC card). Everything else
-   (CD / brokerage draws, linked debts, budget, redirects, cuts, autopay) is recorded as scheduled.
+4. What runs in Nessie (docs/agent-v3/actions.md): every account has a Nessie mirror (data/seed.py), so each
+   lump sum is a transfer from the source mirror to the debt mirror (plus the modelled tax of a sale), and each
+   monthly payment and autopay-in-full is a recurring bill on checking. Pausing contributions is the
+   customer's ("manual"); spending cuts are recorded and tracked by the check-in.
+5. Read the touched balances before and after, and record expected vs actual change.
 """
 
 from __future__ import annotations
 
+import json
+
 from ..config import NESSIE_KEY
 from ..data import balances, categories, store
+from ..nessie.calls import dollars
 from ..planning import balance_sheet, finance
 
 EDITABLE = ("monthly_debt_budget", "extra_order", "lump_sums", "redirects", "spending_targets",
@@ -24,36 +30,421 @@ class ApproveError(Exception):
         self.status, self.detail = status, detail
 
 
-def _debts(customer_id: str) -> dict[str, dict]:
-    return {d["account_id"]: d for d in balance_sheet.balance_sheet(customer_id)["priority"]["debts"]}
+def _debts(customer_id: str, live: bool = True) -> dict[str, dict]:
+    return {d["account_id"]: d for d in balance_sheet.balance_sheet(customer_id, live=live)["priority"]["debts"]}
 
 
-def schedule(customer_id: str, plan: dict) -> tuple[list[dict], list[dict]]:
-    """Split a plan into (nessie transfers, scheduled steps). Pure: no I/O beyond reading balances."""
-    debts = _debts(customer_id)
+# Every account has a Nessie mirror (data/seed.py), so every money move is a Nessie call: a lump sum is a transfer
+# from the source account's mirror to the debt's mirror, every monthly payment and autopay is a recurring bill
+# on checking. Selling an asset (brokerage, CD) leaves its mirror as the transfer plus the modelled tax/penalty.
+SOURCE_TYPES = {"cash": ("savings",), "brokerage": ("brokerage",), "cd": ("cd",), "ira": ("ira",)}
+SALE_NOTE = {"brokerage": "the sale's capital-gains tax is modelled by the solver and leaves the mirror too",
+             "cd": "the early-withdrawal penalty is modelled by the solver and leaves the mirror too",
+             "ira": "the early-withdrawal penalty and income tax are modelled and leave the mirror too"}
+VERB = {"cash": "Pay", "brokerage": "Sell", "cd": "Break CD", "ira": "Withdraw IRA"}
+MANUAL = {"pause": ("Lower or pause the contribution in your employer's benefits portal or at your broker.", None)}
+
+
+def _ids(customer_id: str) -> dict:
+    from ..data.seed import nessie_ids  # the id map only; seed's write import is lazy
+
+    return nessie_ids(customer_id)
+
+
+def mirrors(customer_id: str, rows: list[dict], ids: dict | None = None) -> dict[str, dict]:
+    """account_id -> {id, nickname} of its Nessie mirror. Unseeded accounts get a placeholder id "<account_id>"
+    (shown in the dry-run; approve sends nothing while any call has one)."""
+    from ..data.seed import PRIMARY, mirror_nickname
+
+    ids = ids if ids is not None else _ids(customer_id)
+    have = ids.get("accounts") or {}
+    out = {}
+    for r in rows:
+        m = have.get(r["account_id"])
+        key = PRIMARY.get(r["account_id"].replace(customer_id, "{cid}"))
+        nid = (m or {}).get("id") or (ids.get(key) if key else None)
+        out[r["account_id"]] = {"id": nid or f"<{r['account_id']}>", "name": r["name"], "debt": r.get("side") == "debt"
+                                or r["account_type"] in balance_sheet.DEBT_TYPES,
+                                "nickname": (m or {}).get("nickname") or mirror_nickname(customer_id, r)}
+    return out
+
+
+def _source_account(rows: list[dict], source: str) -> dict | None:
+    """The asset a lump sum leaves: the savings account for cash, else the largest account of that type."""
+    accs = [r for r in rows if r["side"] == "asset" and r["account_type"] in SOURCE_TYPES.get(source, ())]
+    return max(accs, key=lambda r: float(r["balance"] or 0), default=None)
+
+
+def _gross(source: str, net: float, acc: dict) -> float:
+    from ..planning import wealth
+
+    bal = float(acc.get("balance") or 0)
+    basis = acc.get("cost_basis")
+    gain_frac = max(bal - float(basis), 0.0) / bal if bal and basis is not None else 0.0
+    return round(wealth._gross_needed(source, net, {"assets": {"brokerage_gain_frac": gain_frac}}), 2)
+
+
+def _next_month(day_from: str | None = None) -> tuple[str, int]:
+    """(first payment date, day of month) for a recurring bill: one month from today (or the month after
+    `day_from` = "YYYY-MM"), day clamped to 28 so it exists every month."""
+    from datetime import date
+
+    t = date.fromisoformat(finance.today())
+    day = min(t.day, 28)
+    if day_from:
+        y, m = (int(x) for x in day_from.split("-"))
+    else:
+        y, m = t.year, t.month
+    y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return date(y, m, day).isoformat(), day
+
+
+def _mirror_note(row: dict, nick: str) -> str | None:
+    if row.get("source") == "linked" or row.get("institution") not in (None, "PNC"):
+        return f"Linked account ({row.get('institution') or 'other bank'}) mirrored in Nessie as \"{nick}\"; APR and terms stay in Paidway's data."
+    return None
+
+
+def current_payments(customer_id: str, months: int = 3) -> dict[str, float]:
+    """What the customer already pays each debt per month (average of the last `months` months of
+    debt_payment rows): PNC debts from their own payment rows, linked debts from checking rows named after
+    the lender. A plan bill equal to this changes nothing, so it is not sent to Nessie."""
+    from ..data import linked, pnc_data
+
+    txs = pnc_data.customer_transactions(customer_id, category="debt_payment")
+    keys = sorted({t["posted_date"][:7] for t in txs})[-months:]
+    win = [t for t in txs if t["posted_date"][:7] in keys and t["balance_change"] < 0]
+    n = max(len(keys), 1)
+    out: dict[str, float] = {}
+    for t in win:
+        if t["account_type"] != "checking":
+            out[t["account_id"]] = out.get(t["account_id"], 0.0) - t["balance_change"]
+    for r in linked.for_customer(customer_id):
+        if r["account_type"] not in balance_sheet.DEBT_TYPES:
+            continue
+        words = {r["account_type"].replace("_", " "), f"{r.get('kind') or ''} card".strip()}
+        paid = sum(-t["balance_change"] for t in win if t["account_type"] == "checking" and not t.get("transfer_id")
+                   and (r.get("institution") or "~") in t["description"]
+                   and any(w and f"({w})" in t["description"] for w in words))
+        if paid:
+            out[r["account_id"]] = paid
+    return {k: round(v / n, 2) for k, v in out.items()}
+
+
+def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: bool = True,
+             ids: dict | None = None) -> tuple[list[dict], list[dict]]:
+    """Split a plan into (transfers, steps). Pure: no I/O beyond reading balances and the Nessie id map.
+
+    Every step has `runs`: "nessie" (a real Nessie call on approve, in step["nessie"]), "recorded" (the app
+    tracks it) or "manual" (the customer does it; `how`, maybe `link`). `transfers` keeps its old shape
+    ({from, to, to_debt, amount}; to = "credit_card" for the PNC card, else the debt's account id), one per lump
+    sum. `sim` (the validated simulation) sizes the recurring bills; without it the monthly payments are
+    recorded only."""
+    rows = balance_sheet.accounts(customer_id, live=live)
+    by_id = {r["account_id"]: r for r in rows}
+    mir = mirrors(customer_id, rows, ids)
+    debts = _debts(customer_id, live=live)
+    sim_debts = {d["account_id"]: d for d in (sim or {}).get("debts") or []}
+    checking = next((r for r in rows if r["account_id"] == f"A-{customer_id}-CHECKING"), None) \
+        or next((r for r in rows if r["account_type"] == "checking"), None)
     transfers, steps = [], []
     for ls in plan.get("lump_sums") or []:
-        d = debts.get(ls["to_debt"], {})
+        d = debts.get(ls["to_debt"]) or by_id.get(ls["to_debt"]) or {}
         name = d.get("name", ls["to_debt"])
-        if ls["source"] == "cash" and d.get("account_type") == "credit_card" and d.get("source") in ("nessie", "pnc"):
-            transfers.append({"from": "savings", "to": "credit_card", "to_debt": ls["to_debt"], "amount": round(float(ls["amount"]), 2)})
-        else:
-            what = {"cash": "Move cash", "cd": "Break CD",
-                    "brokerage": "Sell from brokerage"}[ls["source"]]
-            steps.append({"kind": "lump_sum", "step": f"{what}: pay ${float(ls['amount']):,.2f} to {name}", **ls})
+        amt = round(float(ls["amount"]), 2)
+        src = _source_account(rows, ls["source"])
+        if src and ls["to_debt"] in mir:
+            amt = float(dollars(amt))  # Nessie moves whole dollars; the preview shows what is sent
+        if not src or ls["to_debt"] not in mir:
+            steps.append({"kind": "lump_sum", "step": f"Pay ${amt:,.2f} to {name}", "runs": "recorded", **ls})
+            continue
+        gross = float(dollars(_gross(ls["source"], amt, src))) if ls["source"] != "cash" else amt
+        to_m, from_m = mir[ls["to_debt"]], mir[src["account_id"]]
+        text = (f"Pay ${amt:,.0f} from savings to {name}" if ls["source"] == "cash" else
+                f"{VERB.get(ls['source'], 'Use')} ${gross:,.0f} from {src['name']}: pay ${amt:,.0f} to {name}")
+        notes = [n for n in (_mirror_note(src, from_m["nickname"]), _mirror_note(d, to_m["nickname"]),
+                             SALE_NOTE.get(ls["source"]) if gross - amt >= 0.01 else None) if n]
+        is_pnc_card = ls["to_debt"] == f"A-{customer_id}-CREDIT_CARD"
+        transfers.append({"from": "savings" if ls["source"] == "cash" else ls["source"],
+                          "to": "credit_card" if is_pnc_card else ls["to_debt"], "to_debt": ls["to_debt"],
+                          "from_account": src["account_id"], "amount": amt})
+        nessie = {"op": "transfer", "from": src["account_id"], "to": ls["to_debt"], "amount": amt,
+                  "local": [(ls["to_debt"], amt), (src["account_id"], gross)]}
+        if gross - amt >= 0.01:
+            nessie["tax"] = round(gross - amt, 2)
+        steps.append({"kind": "lump_sum", "step": text, "runs": "nessie", "debt_name": name, "gross": gross,
+                      "note": " ".join(notes) or None, "nessie": nessie, **ls})
     steps.append({"kind": "budget", "step": f"Pay ${plan['monthly_debt_budget']:,.2f}/mo across all debts, extra in order",
+                  "runs": "recorded",
                   "extra_order": [debts.get(a, {}).get("name", a) for a in plan.get("extra_order") or []]})
+    now_pay = current_payments(customer_id) if sim_debts else {}
+    first_bill, _ = _next_month()
+    # One recurring bill per payee: a card that autopays in full from the first bill month needs no payment bill.
+    autopay_now = {a for a in plan.get("autopay_full_cards") or []
+                   if (sim_debts.get(a) or {}).get("payoff_month") and _next_month(sim_debts[a]["payoff_month"])[0] <= first_bill}
+    for k, sd in sim_debts.items():
+        amt = round(float(sd.get("first_month_payment") or 0), 2)
+        d = debts.get(k) or by_id.get(k)
+        if amt < 1 or not d or k in autopay_now:
+            continue
+        name = d.get("name", k)
+        cur = now_pay.get(k)
+        if cur is not None and abs(cur - amt) <= 1:
+            steps.append({"kind": "payment", "step": f"{name}: already paying ${cur:,.0f}/mo, no change", "runs": "recorded",
+                          "account_id": k, "amount": amt, "current": cur})
+            continue
+        if checking and k in mir:
+            first, day = _next_month()
+            amt = float(dollars(amt))
+            steps.append({"kind": "payment", "step": f"Pay {name} ${amt:,.0f}/mo from checking", "runs": "nessie",
+                          "account_id": k, "amount": amt, "current": cur,
+                          "replaces": "Updates your current payment to this" if cur else None,
+                          "note": _mirror_note(d, mir[k]["nickname"]),
+                          "nessie": {"op": "bill", "from": checking["account_id"], "to": k, "payee": name,
+                                     "nickname": f"Paidway plan: {name}", "payment_date": first,
+                                     "recurring_date": day, "amount": amt}})
+        else:
+            steps.append({"kind": "payment", "step": f"Pay {name} ${amt:,.2f}/mo", "runs": "recorded",
+                          "account_id": k, "amount": amt})
     for r in plan.get("redirects") or []:
         meta = categories.flow_flag(r["flow"]) or {"flag": "redirect", "label": r["flow"]}
-        verb = "Pause" if meta["flag"] == categories.PAUSE else "Redirect"
-        steps.append({"kind": "redirect", "step": f"{verb} ${float(r['amount_per_month']):,.2f}/mo of {meta['label'].lower()} "
-                                                  f"to debt", **r})
+        paused = meta["flag"] == categories.PAUSE
+        verb = "Pause" if paused else "Redirect"
+        step = {"kind": "redirect", "step": f"{verb} ${float(r['amount_per_month']):,.2f}/mo of {meta['label'].lower()} "
+                                            f"to debt", "runs": "manual" if paused else "recorded", **r}
+        if paused:
+            step["how"], step["link"] = MANUAL["pause"]
+        steps.append(step)
     for t in plan.get("spending_targets") or []:
         steps.append({"kind": "spending_target", "step": f"{t['category']}: ${t['current']:,.0f} -> ${t['target']:,.0f}/mo",
-                      "category": t["category"], "target": t["target"], "how": t.get("how") or []})
+                      "runs": "recorded", "category": t["category"], "target": t["target"], "how": t.get("how") or []})
     for a in plan.get("autopay_full_cards") or []:
-        steps.append({"kind": "autopay", "step": f"Autopay full statement on {debts.get(a, {}).get('name', a)} once at $0", "account_id": a})
+        d = debts.get(a) or by_id.get(a) or {}
+        name = d.get("name", a)
+        step = {"kind": "autopay", "step": f"Autopay full statement on {name} once at $0", "account_id": a, "runs": "recorded"}
+        payoff = (sim_debts.get(a) or {}).get("payoff_month")
+        # New charges land on the PNC card (the simulation's card spending); other cards get no new charges.
+        stmt = round(float((sim or {}).get("monthly_card_spending") or 0), 2) if a == f"A-{customer_id}-CREDIT_CARD" else 0.0
+        has_bill = any(x.get("kind") == "payment" and x.get("account_id") == a and x["runs"] == "nessie" for x in steps)
+        if has_bill:  # one bill per payee: the payment bill switches to statement-in-full at payoff
+            step["note"] = "at payoff, the monthly check-in switches its bill to the statement in full"
+        elif checking and a in mir and payoff and stmt >= 1:
+            first, day = _next_month(payoff)
+            stmt = float(dollars(stmt))
+            step.update(runs="nessie", note=_mirror_note(d, mir[a]["nickname"]),
+                        nessie={"op": "bill", "from": checking["account_id"], "to": a,
+                                "payee": f"{name} (statement in full)", "nickname": f"Paidway autopay: {name}",
+                                "payment_date": first, "recurring_date": day, "amount": stmt})
+        elif payoff and stmt < 1:
+            step["note"] = "no new charges planned on this card, so there is no statement to pay"
+        steps.append(step)
     return transfers, steps
+
+
+def nessie_calls(customer_id: str, transfers: list[dict], steps: list[dict], ids: dict | None = None,
+                 *, live: bool = False) -> list[dict]:
+    """The exact Nessie write calls approve makes, in order (pure: builds them, sends nothing): one transfer per
+    lump sum (source mirror -> debt mirror), the modelled tax/penalty of an asset sale as a withdrawal from the
+    source mirror, then the recurring bills on checking. Each is {tool, method, path, body, from, to, amount,
+    recurring_date, step, local}; `from`/`to` are the accounts' names (`*_nickname`: their Nessie mirrors); `local` lists the linked balances
+    approve lowers in our store once the call succeeds. Unseeded accounts show as <account_id>."""
+    from ..nessie import calls
+
+    rows = balance_sheet.accounts(customer_id, live=live)
+    mir = mirrors(customer_id, rows, ids)
+    today = finance.today()
+    ops = [(s, s.get("nessie") or {}) for s in steps]
+    out = []
+    for i, (s, n) in enumerate(ops):
+        if n.get("op") == "transfer":  # this Nessie's transfer has no payee: out of the source, then a payment in
+            f, t = mir[n["from"]], mir[n["to"]]
+            names = {"from": f["name"], "to": t["name"], "from_nickname": f["nickname"], "to_nickname": t["nickname"],
+                     "amount": n["amount"], "recurring_date": None, "step": s["step"], "group": f"payoff-{i}"}
+            out.append({"tool": "nessie.write.create_transfer",
+                        **calls.transfer(f["id"], n["amount"], today, f"Paidway payoff to {s['debt_name']}"),
+                        **names, "leg": 1, "local": [], "expect": {n["from"]: -n["amount"]}})
+            out.append({"tool": "nessie.write.create_deposit",
+                        **calls.deposit(t["id"], n["amount"], today, f"Paidway payoff from {f['name']}"),
+                        **names, "leg": 2, "local": n["local"], "expect": {n["to"]: -n["amount"]}})
+    for i, (s, n) in enumerate(ops):
+        if n.get("tax"):  # the mirror keeps matching the asset's value: the modelled tax/penalty leaves it too
+            f = mir[n["from"]]
+            out.append({"tool": "nessie.write.create_withdrawal",
+                        **calls.withdrawal(f["id"], n["tax"], today, f"Paidway: estimated {s['source']} sale cost (modelled)"),
+                        "from": f["name"], "to": "Estimated tax / penalty (modelled)", "from_nickname": f["nickname"],
+                        "to_nickname": None, "amount": n["tax"],
+                        "recurring_date": None, "step": s["step"], "local": [], "expect": {n["from"]: -n["tax"]},
+                        "group": f"payoff-{i}"})
+    for s, n in ops:
+        if n.get("op") == "bill":
+            f = mir[n["from"]]
+            out.append({"tool": "nessie.write.create_bill",
+                        **calls.bill(f["id"], n["payee"], n["nickname"], n["payment_date"], n["recurring_date"], n["amount"]),
+                        "from": f["name"], "to": mir[n["to"]]["name"], "from_nickname": f["nickname"],
+                        "to_nickname": mir[n["to"]]["nickname"], "amount": n["amount"],
+                        "recurring_date": n["recurring_date"], "first_payment": n["payment_date"], "step": s["step"],
+                        "note": s.get("replaces") or ("autopay, statement in full" if s.get("kind") == "autopay" else None),
+                        "local": [], "expect": {}})
+    return out
+
+
+def _unseeded(call: dict) -> bool:
+    return "<" in call["path"] or "<" in str(call.get("body"))
+
+
+def _bill_sim(customer_id: str, plan: dict, constraints: dict | None) -> dict | None:
+    """The simulation that sizes the recurring bills, on local balances so the preview and approve agree."""
+    from .validator import PlanRejected, validate_plan_v2
+
+    try:
+        return validate_plan_v2(customer_id, plan, live=False, constraints=constraints)
+    except (PlanRejected, ValueError, KeyError, TypeError):
+        return None
+
+
+def _created_id(res) -> str | None:
+    return ((res or {}).get("objectCreated") or {}).get("_id") if isinstance(res, dict) else None
+
+
+RECEIPT_KEYS = ("tool", "method", "path", "body", "from", "to", "from_nickname", "to_nickname", "amount",
+                "recurring_date", "first_payment", "step", "note", "group", "leg", "local", "expect")
+MAX_REPAIRS = 2  # deterministic re-formats per call, then one model try
+
+
+def _llm_fix(call: dict, body: dict, err: str) -> dict | None:
+    """Last resort: one quick model call that rewrites the body from Nessie's error. Checked by repair.safe."""
+    try:
+        from .graph import _llm, parse_json
+
+        llm = _llm()
+        try:
+            llm = llm.bind(timeout=20)
+        except Exception:  # noqa: BLE001
+            pass
+        msg = llm.invoke(
+            "A banking API rejected this JSON request body. Return ONLY the corrected JSON body, no prose. "
+            "Keep every amount the same (whole dollars only), keep descriptions, drop fields it says are not "
+            f"permitted, add fields it says are required, and where it lists permitted values use one of them "
+            "exactly.\n\nRequest: {call['method']} {call['path']}\n"
+            f"Body: {json.dumps(body)}\nError: {err[:1500]}")
+        out = parse_json(getattr(msg, "content", msg))
+        return out if isinstance(out, dict) else None
+    except Exception:  # noqa: BLE001 - no model, or it failed: the call stays failed
+        return None
+
+
+def _send_one(c: dict, today: str) -> tuple[dict | None, dict, list[str], str | None]:
+    """Send one call; on a 400/422 validation error re-format the body from the message and retry (up to
+    MAX_REPAIRS times in code, then one model try). Returns (result, body sent last, repair notes, error)."""
+    from ..nessie import repair, write
+    from ..nessie._http import NessieError
+
+    body, notes, llm_tries = dict(c.get("body") or {}), [], 0
+    for _ in range(2 * MAX_REPAIRS + 1):
+        try:
+            return write.send({**c, "body": body}), body, notes, None
+        except NessieError as e:
+            err = str(e)
+            if e.status not in (400, 422):
+                return None, body, notes, err
+            fixed, what = repair.fix(body, e.text or err, today)
+            if fixed is not None and len([n for n in notes if n.startswith("reformatted")]) < MAX_REPAIRS:
+                notes.append(f"reformatted after {e.status}: {', '.join(what)}")
+                body = fixed
+                continue
+            if llm_tries >= MAX_REPAIRS:
+                return None, body, notes, err
+            llm_tries += 1
+            cand = _llm_fix(c, body, e.text or err)
+            if not cand or cand == body or not repair.safe(c.get("body") or {}, cand):
+                notes.append(f"model could not fix the {e.status}")
+                return None, body, notes, err
+            notes.append(f"rewritten by the model after {e.status}: {', '.join(sorted(set(cand) ^ set(body))) or 'values'}")
+            body = cand
+        except Exception as e:  # noqa: BLE001 - network or other: recorded, approve marks the call failed
+            return None, body, notes, str(e)
+    return None, body, notes, "gave up after repairs"
+
+
+def _send_all(planned: list[dict], *, today: str | None = None) -> list[dict]:
+    """Send each planned call; returns the receipt [{tool, method, path, body, status, id, repairs, ...}].
+    Calls are independent except the two legs of a payoff (same `group`): if the first leg fails, the second is
+    "skipped" so a debt is never credited with money that didn't leave. Everything else is still sent."""
+    # The only money-moving import in the app (lazy, approve path only; test_safety allows it here alone).
+    from ..nessie import write  # noqa: F401 - imported here so the approve path is the only one that loads it
+
+    today = today or finance.today()
+    receipt, broken = [], set()
+    for c in planned:
+        row = {k: c.get(k) for k in RECEIPT_KEYS}
+        if c.get("group") and c["group"] in broken:
+            receipt.append({**row, "status": "skipped", "id": None, "error": "first leg failed, not sent"})
+            continue
+        res, body, notes, err = _send_one(c, today)
+        row["body"], row["repairs"] = body, notes
+        if err:
+            receipt.append({**row, "status": "error", "id": None, "error": err})
+            if c.get("group"):
+                broken.add(c["group"])
+            continue
+        receipt.append({**row, "status": (res or {}).get("code", 201) if isinstance(res, dict) else 201, "id": _created_id(res)})
+        for account_id, amount in c.get("local") or []:  # linked balances live in our store: bring them down
+            store.pay_linked(account_id, amount)
+    return receipt
+
+
+def _ok(r: dict) -> bool:
+    return r.get("status") not in ("error", "not_sent", "skipped")
+
+
+def _read_balances(mir: dict[str, dict], account_ids: list[str]) -> dict[str, float] | dict:
+    """Ledger balance of each mirror, read from Nessie (raw balance plus Paidway's own transactions)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from ..nessie import read
+
+    try:
+        with ThreadPoolExecutor(8) as ex:
+            vals = list(ex.map(lambda k: read.ledger_balance(mir[k]["id"], mir[k]["debt"]), account_ids))
+        return {k: round(v, 2) for k, v in zip(account_ids, vals)}
+    except Exception as e:  # noqa: BLE001 - a failed re-read must not hide what already ran
+        return {"error": str(e)}
+
+
+def _check(planned: list[dict], receipt: list[dict], mir: dict, before: dict, after: dict) -> list[dict]:
+    """Expected vs actual balance change per touched mirror (Nessie's transfer-into-a-card direction is checked,
+    not assumed). Debts: positive balance owed, so a payment should lower it, same as an asset it leaves."""
+    exp: dict[str, float] = {}
+    for c, r in zip(planned, receipt):
+        if _ok(r):
+            for k, v in (c.get("expect") or {}).items():
+                exp[k] = round(exp.get(k, 0.0) + v, 2)
+    if "error" in before or "error" in after:
+        return []
+    return [{"account_id": k, "name": mir[k]["name"], "nickname": mir[k]["nickname"], "nessie_id": mir[k]["id"],
+             "debt": mir[k]["debt"], "before": before[k], "after": after[k],
+             "expected_change": exp.get(k, 0.0), "actual_change": round(after[k] - before[k], 2),
+             "ok": abs(after[k] - before[k] - exp.get(k, 0.0)) < 1.0}  # Nessie may keep whole dollars
+            for k in before]
+
+
+def preview(pid: str) -> dict:
+    """What approving this proposal would do, read-only and with no Nessie call at all (not even a GET):
+    the planned Nessie calls, then the recorded and manual steps."""
+    p = store.get_proposal(pid)
+    if not p:
+        raise ApproveError(404, "no such proposal")
+    if (p.get("plan") or {}).get("version") != 2:
+        raise ApproveError(422, "proposal is a v1 plan; re-run the agent")
+    cid, plan = p["customer_id"], dict(p["plan"])
+    sim = _bill_sim(cid, plan, p.get("constraints"))
+    transfers, steps = schedule(cid, plan, sim, live=False)
+    calls_ = nessie_calls(cid, transfers, steps, _ids(cid))
+    return {"proposal_id": pid, "customer_id": cid, "status": p["status"],
+            "nessie_enabled": bool(NESSIE_KEY), "seeded": not any(_unseeded(c) for c in calls_),
+            "nessie_calls": calls_,
+            "recorded": [s for s in steps if s["runs"] == "recorded"],
+            "manual": [s for s in steps if s["runs"] == "manual"]}
 
 
 def approve(pid: str, edits: dict | None = None) -> dict:
@@ -86,29 +477,89 @@ def approve(pid: str, edits: dict | None = None) -> dict:
         store.set_status(pid, "stale", {"error": "balances changed since the proposal; re-run the check", "diffs": diffs})
         raise ApproveError(409, "stale, re-run: balances changed since the proposal (" + "; ".join(diffs) + ")")
 
-    transfers, steps = schedule(cid, plan)
+    transfers, steps = schedule(cid, plan, _bill_sim(cid, plan, p.get("constraints")))
     record = {"plan": plan, "scheduled": steps, "simulation": {k: sim.get(k) for k in
               ("net_worth_24m", "baseline_net_worth_24m", "high_cost_debt_free", "interest_total")}}
-    total = round(sum(t["amount"] for t in transfers), 2)
-    if not transfers:
-        return store.set_status(pid, "approved", {**record, "mode": "local_only", "note": "no cash lump sum to a Nessie-backed card"})
+    planned = nessie_calls(cid, transfers, steps)
+    if not planned:
+        return store.set_status(pid, "approved", {**record, "mode": "local_only", "note": "no step runs in Nessie",
+                                                  "nessie_calls": []})
+    pending = {"transfers_pending": transfers, "nessie_pending": planned}
     if not NESSIE_KEY:
-        return store.set_status(pid, "approved", {**record, "mode": "local_only", "note": "NESSIE_KEY not set", "transfers_pending": transfers})
-
-    from ..data.seed import nessie_ids
-
-    ids = nessie_ids(cid)
-    if not ids.get("savings") or not ids.get("credit_card"):
-        return store.set_status(pid, "approved", {**record, "mode": "local_only", "note": "customer not seeded into Nessie (run reseed)",
-                                                  "transfers_pending": transfers})
-
-    # The only money-moving import in the app (lazy, approve path only; test_safety allows it here alone).
-    from ..nessie import write
-
+        return store.set_status(pid, "approved", {**record, "mode": "local_only", "note": "NESSIE_KEY not set", **pending})
+    if any(_unseeded(c) for c in planned):
+        return store.set_status(pid, "approved", {**record, "mode": "local_only",
+                                                  "note": "customer not seeded into Nessie (run reseed)", **pending})
+    mir = mirrors(cid, balance_sheet.accounts(cid, live=False))
+    shown = [k for k, m in mir.items() if not m["id"].startswith("<")]  # every mirrored account, for the Done screen
+    before = _read_balances(mir, shown)
     try:
-        res = write.create_transfer(ids["savings"], ids["credit_card"], total, finance.today(), "Zeroday approved payoff")
-    except Exception as e:  # noqa: BLE001
-        return store.set_status(pid, "failed", {**record, "error": str(e)})
+        receipt = _send_all(planned)
+    finally:
+        _mark_posted(cid, receipt)
+        balance_sheet.clear_cache()
+    return store.set_status(pid, *_outcome(cid, record, planned, receipt, mir, before, shown, transfers))
+
+
+def _mark_posted(cid: str, receipt: list[dict]) -> None:
+    from ..data.seed import mark_posted
+
+    nids = [r["path"].split("/")[2] for r in receipt if _ok(r) and not r["tool"].endswith("create_bill")]
+    if nids:
+        mark_posted(cid, nids)
+
+
+def _outcome(cid, record, planned, receipt, mir, before, shown, transfers) -> tuple[str, dict]:
+    """(status, execution). Any call that didn't go through leaves the plan approved (the dashboard tracks it)
+    with `retry_available`; all through is executed."""
+    after = _read_balances(mir, shown)
+    done = {"nessie_calls": receipt, "nessie_balances_before": before, "nessie_balances_after": after,
+            "nessie_check": _check(planned, receipt, mir, before, after), "nessie_planned": planned,
+            "bills": [{"payee": r["body"].get("payee"), "amount": r["body"].get("payment_amount"),
+                       "day": r["body"].get("recurring_date"), "first": r["body"].get("payment_date"), "id": r["id"],
+                       "from": r.get("from_nickname") or r.get("from")}
+                      for r in receipt if r["tool"].endswith("create_bill") and _ok(r)]}
+    bad = [r for r in receipt if not _ok(r)]
+    total = round(sum(t["amount"] for t in transfers), 2)
+    if bad:
+        errs = [r for r in bad if r["status"] == "error"]
+        return "approved", {**record, **done, "mode": "nessie_partial", "amount": total, "retry_available": True,
+                            "error": f"{len(bad)} of {len(receipt)} Nessie calls didn't go through"
+                                     + (f": {errs[0]['error']}" if errs else "")}
+    return "executed", {**record, **done, "mode": "nessie", "amount": total,
+                        "transfer": next((r for r in receipt if r["tool"].endswith("create_transfer")), None)}
+
+
+def retry(pid: str) -> dict:
+    """Send again only the calls of an approved plan that didn't go through (errors, and the second legs they
+    held back). Calls that went through are never sent twice."""
+    p = store.get_proposal(pid)
+    if not p:
+        raise ApproveError(404, "no such proposal")
+    ex = p.get("execution") or {}
+    receipt = ex.get("nessie_calls") or []
+    if not ex.get("retry_available") or not any(not _ok(r) for r in receipt):
+        raise ApproveError(409, "nothing to retry")
+    if not store.claim_retry(pid):
+        raise ApproveError(409, "a retry is already running")
+    cid = p["customer_id"]
+    mir = mirrors(cid, balance_sheet.accounts(cid, live=False))
+    shown = [k for k, m in mir.items() if not m["id"].startswith("<")]
+    todo = [i for i, r in enumerate(receipt) if not _ok(r)]
+    try:
+        again = _send_all([{**receipt[i], "body": (ex.get("nessie_planned") or receipt)[i].get("body") or receipt[i]["body"]}
+                           for i in todo])
+    except Exception:
+        store.set_status(pid, "approved")
+        raise
     finally:
         balance_sheet.clear_cache()
-    return store.set_status(pid, "executed", {**record, "mode": "nessie", "transfer": res, "amount": total})
+    for i, r in zip(todo, again):
+        r["retried"] = True
+        receipt[i] = r
+    _mark_posted(cid, again)
+    planned = ex.get("nessie_planned") or receipt
+    record = {k: ex.get(k) for k in ("plan", "scheduled", "simulation")}
+    transfers = [{"amount": r["amount"]} for r in planned if r.get("leg") == 1]
+    status, execution = _outcome(cid, record, planned, receipt, mir, ex.get("nessie_balances_before") or {}, shown, transfers)
+    return store.set_status(pid, status, execution)

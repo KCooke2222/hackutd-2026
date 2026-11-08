@@ -59,7 +59,9 @@ def _pnc_row(a: dict) -> dict:
 
 
 def _overlay_nessie(customer_id: str, rows: list[dict]) -> None:
-    """Replace PNC balances with live Nessie balances for the accounts we seeded there."""
+    """Replace every balance with the live balance of its Nessie mirror (one GET for all of them).
+
+    Nessie may round balances; the planner then works on Nessie's number, so the plan matches the bank."""
     from ..nessie import read
 
     if not read.enabled():
@@ -67,28 +69,65 @@ def _overlay_nessie(customer_id: str, rows: list[dict]) -> None:
     from ..data.seed import nessie_ids
 
     ids = nessie_ids(customer_id)
+    mirrors = {k: m["id"] for k, m in (ids.get("accounts") or {}).items()}
+    for r in rows:  # customers seeded before the full mirror: only the primary three
+        if r["account_id"] not in mirrors and r["source"] == "pnc" and ids.get(r["account_type"]) \
+                and r["account_type"] in NESSIE_TYPES:
+            mirrors[r["account_id"]] = ids[r["account_type"]]
+    if not mirrors:
+        return
+    posted = set(ids.get("posted") or [])
+    ledger: dict[str, tuple] = {}
+    try:
+        live = {a["_id"]: a for a in read.customer_accounts(ids["customer"])} if ids.get("customer") else {}
+    except Exception:  # noqa: BLE001 - Nessie down: fall back to our balances
+        live = {}
     for r in rows:
-        nid = ids.get(r["account_type"]) if r["account_type"] in NESSIE_TYPES else None
+        nid = mirrors.get(r["account_id"])
         if not nid:
             continue
-        try:
-            r["balance"] = round(float(read.account(nid)["balance"]), 2)
-            r["source"] = "nessie"
-            r["nessie_id"] = nid
-        except Exception:  # noqa: BLE001 - Nessie down: fall back to the PNC balance
-            r["nessie_error"] = True
+        acc = live.get(nid)
+        if acc is None:
+            try:
+                acc = read.account(nid)
+            except Exception:  # noqa: BLE001
+                r["nessie_error"] = True
+                continue
+        r["balance"] = round(float(acc["balance"]), 2)
+        if nid in posted:  # Paidway posted transactions here: Nessie keeps them off the balance, so add them
+            r["nessie_raw_balance"] = r["balance"]
+            ledger[r["account_id"]] = (nid, r["account_type"] in DEBT_TYPES, r["balance"])
+        r["nessie_id"] = nid
+        r["nessie_nickname"] = acc.get("nickname")
+        r["source"] = "nessie" if r["source"] == "pnc" else r["source"]
+        r["mirrored"] = True
+    if ledger:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(8) as ex:
+            got = dict(zip(ledger, ex.map(lambda v: _try_ledger(read, *v), ledger.values())))
+        for r in rows:
+            if got.get(r["account_id"]) is not None:
+                r["balance"] = max(got[r["account_id"]], 0.0) if r["account_type"] in DEBT_TYPES else got[r["account_id"]]
+
+
+def _try_ledger(read, nid: str, debt: bool, raw: float) -> float | None:
+    try:
+        return read.ledger_balance(nid, debt, raw)
+    except Exception:  # noqa: BLE001 - keep the raw balance
+        return None
 
 
 def accounts(customer_id: str, live: bool = True) -> list[dict]:
-    """Every account the customer has: PNC (Nessie-live where seeded) + linked external."""
+    """Every account the customer has: PNC + linked external, each on its live Nessie mirror where seeded."""
     key = f"{customer_id}:{live}"
     hit = _cache.get(key)
     if hit and time.time() - hit[0] < CACHE_SECONDS:
         return [dict(r) for r in hit[1]]
     rows = [_pnc_row(a) for a in pnc_data.customer_accounts(customer_id)]
+    rows += [dict(r) for r in linked.for_customer(customer_id)]
     if live:
         _overlay_nessie(customer_id, rows)
-    rows += [dict(r) for r in linked.for_customer(customer_id)]
     for r in rows:
         r["side"] = "debt" if r["account_type"] in DEBT_TYPES else "asset"
     _cache[key] = (time.time(), rows)

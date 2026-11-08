@@ -3,6 +3,7 @@ validate_plan_v2. Nothing here imports paidway.nessie.write; money moves only on
 """
 
 from __future__ import annotations
+import json
 
 from typing import Literal
 
@@ -34,6 +35,9 @@ class SpendingTarget(BaseModel):
     target: float = Field(description="new monthly target, not below the customer's own lowest month")
     proof_month: str = Field(description="YYYY-MM when the customer already spent at or below target")
     how: list[str] = Field(description="1-2 concrete actions, at most 8 words each, e.g. 'Cook at home two more nights a week'")
+    source: Literal["agreed", "suggested"] | None = Field(
+        None, description="suggested = the solver's proposal (it remakes these itself; no need to relay them); "
+                          "agreed / omitted = a cut the customer chose")
 
 
 class PlanArgs(BaseModel):
@@ -52,14 +56,20 @@ class Cut(BaseModel):
     how: list[str] = Field(default_factory=list, description="optional; 'Cancel <name>' for subscriptions")
 
 
+DECLINED = Field(default_factory=list, description="categories the customer said not to cut: never suggested")
+
+
 class OptimizeArgs(BaseModel):
     keep_emergency_months: float = Field(3.0, description="months of expenses kept as cash (min 2)")
-    spending_targets: list[Cut] = Field(default_factory=list, description="only cuts the person chose; the solver never adds any")
+    spending_targets: list[Cut] = Field(default_factory=list, description="only cuts the person chose; the solver "
+                                        "adds up to 3 suggested cuts of its own on top (source=suggested)")
+    declined_cuts: list[str] = DECLINED
     redirect_flows: list[str] | None = Field(None, description="limit which movable flows may go to debt; omit = all their flags allow")
 
 
 class ProposeArgs(PlanArgs):
     rationale: str = Field(description="one sentence, at most 15 words")
+    declined_cuts: list[str] = DECLINED
 
 
 def to_plan(args: dict) -> dict:
@@ -89,10 +99,54 @@ def sim_brief(sim: dict) -> dict:
     out["debts"] = [{k: d.get(k) for k in ("account_id", "name", "apr_pct", "payoff_month", "interest")} for d in sim.get("debts", [])]
     months = sim.get("months") or []
     out["cash_low"] = round(min((m.get("cash", 0) for m in months), default=0), 2)
+    b = sim.get("budget") or {}
+    if b.get("net_paydown_per_month") is not None:  # lead with net: gross minus this month's new card purchases
+        out["paydown"] = {k: b.get(k) for k in ("current_net_paydown_per_month", "net_paydown_per_month",
+                                                "current_debt_payments", "monthly_debt_budget",
+                                                "current_new_card_purchases", "new_card_purchases")}
+    if sim.get("no_cuts"):
+        out["no_cuts"] = sim["no_cuts"]
     return out
 
 
+def _declined(kwargs: dict, inputs: dict) -> list[str]:
+    """Categories never to suggest a cut in: the tool argument plus the customer's protect_categories."""
+    return sorted({str(x).strip().lower() for x in [*(kwargs.get("declined_cuts") or []), *(inputs.get("declined_cuts") or [])]
+                   if str(x).strip()})
+
+
 MAX_REJECTIONS = 2
+
+
+def _parent_plan(st: dict) -> dict | None:
+    """The plan a chat edit starts from (None on a first run)."""
+    pid = st.get("parent_id")
+    if not pid:
+        return None
+    try:
+        return (store.get_proposal(pid) or {}).get("plan")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _pin_parent_cuts(inputs: dict, parent_plan: dict, protect: set[str], cmax: dict, cmin: dict) -> None:
+    """A chat edit changes only what was asked: every cut of the previous plan that the request didn't touch
+    carries over as is (suggested ones keep their tag and `buys`), and the solver suggests no new ones."""
+    have = {str(t.get("category", "")).lower() for t in inputs.get("spending_targets") or []}
+    kept = []
+    for t in parent_plan.get("spending_targets") or []:
+        cat = str(t.get("category", "")).lower()
+        if cat in have or cat in protect:
+            continue
+        target = float(t["target"])
+        if cat in cmax:
+            target = min(target, float(cmax[cat]))
+        if cat in cmin:
+            target = max(target, float(cmin[cat]))
+        kept.append({**t, "category": cat, "target": round(target, 2), "source": "kept",
+                     "was": t.get("source") or "agreed"})
+    inputs["spending_targets"] = [*(inputs.get("spending_targets") or []), *kept]
+    inputs["suggest_cuts"] = False
 
 
 def _try(fn):
@@ -213,18 +267,52 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
         from ..planning import solver
 
         given = to_plan(kwargs)
+        # Never re-propose the exact inputs that were just rejected: the same inputs get the same answer.
+        key = json.dumps(kwargs, sort_keys=True, default=str)
+        if key in st.setdefault("rejected_inputs", set()):
+            st["stop"] = True
+            return {"saved": False, "reasons": st.get("last_reasons") or ["same inputs as a rejected plan"],
+                    "stop": "same inputs as the rejected plan; stop and explain"}
         try:
             # The customer's rules become solver inputs, so the solved plan obeys them by construction;
             # validate_plan_v2(constraints=...) re-checks them as a safety net.
             from ..planning import wealth
-            from .constraints import solver_inputs
-            inputs = solver_inputs(cons, given["keep_emergency_months"], given["spending_targets"],
-                                   wealth.context(customer_id)["spend"] if cons else None)
+            from .constraints import clamp_caps, solver_inputs
+            spend = wealth.context(customer_id)["spend"]
+            # A cut deeper than the category allows is raised to the deepest allowed one, not rejected.
+            asked = {str(t.get("category", "")).lower(): float(t["target"]) for t in given["spending_targets"] or []
+                     if t.get("target") is not None}
+            clamped, notes = clamp_caps({"category_max": asked}, spend)
+            for t in given["spending_targets"] or []:
+                cat = str(t.get("category", "")).lower()
+                if cat in clamped.get("category_max", {}):
+                    t["target"] = clamped["category_max"][cat]
+            st.setdefault("cap_notes", [])
+            st["cap_notes"] += [n for n in notes if n not in st["cap_notes"]]
+            keep = given["keep_emergency_months"]
+            parent_plan = _parent_plan(st)
+            if parent_plan:  # a chat edit: the previous plan's cushion holds unless a rule moves it
+                keep = float(parent_plan.get("keep_emergency_months") or keep)
+            inputs = solver_inputs(cons, keep, given["spending_targets"], spend if cons else None)
+            declined = _declined(kwargs, inputs)
+            inputs["declined_cuts"] = declined
+            if parent_plan:
+                _pin_parent_cuts(inputs, parent_plan, set(declined) | set((cons or {}).get("protect_categories") or []),
+                                 (cons or {}).get("category_max") or {}, (cons or {}).get("category_min") or {})
             solved = solver.solve(customer_id, inputs, with_tradeoffs=False)
             plan = solved["plan"]
+            if parent_plan:  # carried-over cuts keep the tag they had (suggested + buys, or agreed)
+                was = {t["category"]: t for t in inputs["spending_targets"] if t.get("source") == "kept"}
+                plan = {**plan, "spending_targets": [
+                    {**t, **{k: was[t["category"]][k] for k in ("lumpy", "buys") if k in was[t["category"]]},
+                     "source": was[t["category"]]["was"]} if t["category"] in was else t
+                    for t in plan["spending_targets"]]}
             sim = validate_plan_v2(customer_id, plan, constraints=cons) if cons else solved["sim"]
+            if solved["sim"].get("no_cuts"):
+                sim = {**sim, "no_cuts": solved["sim"]["no_cuts"]}
         except (PlanRejected, ValueError, KeyError, TypeError, AttributeError) as e:
             st["rejections"] += 1
+            st["rejected_inputs"].add(key)
             reasons = list(getattr(e, "reasons", None) or [str(e)])
             st["last_reasons"] = reasons
             if st["rejections"] > MAX_REJECTIONS:
@@ -235,7 +323,7 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
         sim = dict(sim)
         try:  # optional cuts, priced on top of this plan: the customer's tradeoffs, never required
             from ..planning.wealth import cut_options
-            protect = set(cons.get("protect_categories") or [])
+            protect = set(cons.get("protect_categories") or []) | set(declined)
             sim["cut_options"] = [o for o in cut_options(customer_id, plan, sim=sim) if o.get("category") not in protect]
         except Exception:  # noqa: BLE001
             sim["cut_options"] = []
@@ -255,10 +343,12 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
 
     @tool(args_schema=OptimizeArgs)
     def optimize_plan(**kwargs) -> dict:
-        """The optimal plan for the person's soft inputs (buffer months, cuts they chose, flows they allow):
-        lump sums, monthly budget and order, payoff month per debt, net worth vs baseline, interest saved, and
-        `tradeoffs`: what cutting each flexible category to its floor would buy (months sooner, $ net worth).
-        Deterministic and read-only; it never adds cuts. propose_plan uses the same solver."""
+        """The optimal plan for the person's soft inputs (buffer months, cuts they chose, cuts they declined,
+        flows they allow): lump sums, monthly budget and order, payoff month per debt, net worth vs baseline,
+        interest saved, `paydown` (net = what actually shrinks the debt each month, after new card purchases),
+        up to 3 SUGGESTED cuts (spending_targets with source=suggested, each with `buys`; `no_cuts` is the plan
+        without them) and `tradeoffs`: what cutting each flexible category to its floor would buy.
+        Deterministic and read-only. propose_plan uses the same solver and keeps the suggestions."""
         from ..planning import solver
 
         def go():
@@ -271,6 +361,7 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
                 from .constraints import solver_inputs
                 inp.update(solver_inputs(cons, inp["keep_emergency_months"], inp["spending_targets"],
                                          wealth.context(customer_id)["spend"]))
+            inp["declined_cuts"] = _declined(kwargs, inp)
             r = solver.solve(customer_id, inp)
             return {"plan": r["plan"], "brief": r["brief"]}
 

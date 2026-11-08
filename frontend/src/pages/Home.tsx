@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
+import { Check } from 'lucide-react'
 import { api, fmtDuration } from '../lib/api'
-import type { BalanceSheet, Proposal, RealityCheck as RC, ReplayMeta, ReplayRun, Tracking } from '../lib/api'
+import type { AppliedOption, ApprovePreview, BalanceSheet, Proposal, RealityCheck as RC, ReplayMeta, ReplayRun, SimV2, Tracking } from '../lib/api'
 import { isV2, knobsFrom, planFrom } from '../lib/flow'
-import type { Knobs, Preview } from '../lib/flow'
+import type { Knobs, Preview, Schedule } from '../lib/flow'
 import Snapshot from '../components/flow/Snapshot'
-import type { Summary } from '../components/flow/Snapshot'
 import Thinking from '../components/flow/Thinking'
 import type { RunMeta } from '../components/flow/Thinking'
-import PlanEditor from '../components/flow/PlanEditor'
 import Outcome from '../components/flow/Outcome'
-import PlanTimeline from '../components/flow/PlanTimeline'
-import Chat from '../components/flow/Chat'
+import PlanReport from '../components/flow/PlanReport'
+import AgentActions, { callsFor } from '../components/flow/AgentActions'
+import ChatDrawer from '../components/flow/ChatDrawer'
 import RealityCheck from '../components/flow/RealityCheck'
+import UnderwaterOptions from '../components/flow/UnderwaterOptions'
 import Scenarios from '../components/flow/Scenarios'
 import IncomeExpense from '../components/IncomeExpense'
 import Brand from '../components/Brand'
@@ -37,16 +38,10 @@ function storeRun(c: string, id: string | null) {
   } catch { /* private window: re-attach falls back to /agent/runs/latest */ }
 }
 
-const firstSentence = (s: string) => {
-  const w = (s.match(/^.*?[.!?](\s|$)/)?.[0] ?? s).trim().split(/\s+/)
-  return w.length > 12 ? `${w.slice(0, 12).join(' ')}…` : w.join(' ')
-}
-
 export default function Home() {
   const [cid, setCid] = useState(() => new URLSearchParams(location.search).get('customer') ?? 'C001')
   const [health, setHealth] = useState<Health | null>(null)
   const [sheet, setSheet] = useState<BalanceSheet | null>(null)
-  const [summary, setSummary] = useState<Summary | null>(null)
   const [screen, setScreen] = useState(0)
   const [reached, setReached] = useState(0)
   const [runKey, setRunKey] = useState(0)
@@ -59,7 +54,6 @@ export default function Home() {
   const lastPending = past.find((p) => p.status === 'pending') ?? null
   const urlPlan = useRef(new URLSearchParams(location.search).get('plan'))
   const urlReplay = useRef(new URLSearchParams(location.search).get('replay'))
-  const [final, setFinal] = useState('')
   const [knobs, setKnobs] = useState<Knobs | null>(null)
   const [outlook, setOutlook] = useState<Preview | null>(null)
   const [approved, setApproved] = useState<Proposal | null>(null)
@@ -80,7 +74,16 @@ export default function Home() {
     return on
   }
   const [reality, setReality] = useState<RC | null>(null)
-  const [planTab, setPlanTab] = useState<'time' | 'whatif'>('time')
+  // Options the customer chose to close an underwater gap; the agent plans with them.
+  const [applied, setApplied] = useState<AppliedOption[]>([])
+  function loadReality(c: string) {
+    api<RC>(`/customers/${c}/reality-check`).then(setReality).catch(() => setReality(null))
+    api<{ options: AppliedOption[] }>(`/customers/${c}/options/applied`).then((r) => setApplied(r.options)).catch(() => setApplied([]))
+  }
+  const [planTab, setPlanTab] = useState<'plan' | 'whatif'>('plan')
+  // For the plan page: approve's exact Nessie calls, and the same plan without its suggested cuts (net worth chart).
+  const [pv, setPv] = useState<ApprovePreview | null>(null)
+  const [extras, setExtras] = useState<{ no_cuts: SimV2 | null; schedule: Schedule | null } | null>(null)
   const [replays, setReplays] = useState<ReplayMeta[]>([])
   const [replay, setReplay] = useState<ReplayRun | null>(null)
   const pendingReplay = useRef<ReplayRun & { customer_id: string } | null>(null)
@@ -113,7 +116,7 @@ export default function Home() {
   }
 
   useEffect(() => {
-    setSheet(null); setSummary(null); setReality(null); setAi(null); setKnobs(null); setOutlook(null); setApproved(null); setErr(null)
+    setSheet(null); setReality(null); setAi(null); setKnobs(null); setOutlook(null); setApproved(null); setErr(null)
     setScreen(0); setReached(0); setRunKey(0); setAttach(null); setThinkingDone(false); setTrack(null); trackRef.current = null
     const n = ++epoch.current
     const tracked = loadTrack(!urlPlan.current && !urlReplay.current)
@@ -131,8 +134,7 @@ export default function Home() {
       })
     }
     api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch((e) => setErr(e.message))
-    api<Summary>(`/customers/${cid}/summary`).then(setSummary).catch((e) => setErr(e.message))
-    api<RC>(`/customers/${cid}/reality-check`).then(setReality).catch(() => setReality(null))
+    setApplied([]); loadReality(cid)
     api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => {
       const v2 = ps.filter((p) => isV2(p)).sort((a, b) => b.created_at.localeCompare(a.created_at))
       setPast(v2)
@@ -141,7 +143,7 @@ export default function Home() {
       if (want) {
         urlPlan.current = null
         const hit = want === 'last' ? v2.find((p) => p.status === 'pending') ?? v2[0] : v2.find((p) => p.id === want)
-        if (hit) openPlan(hit, '')
+        if (hit) openPlan(hit)
       }
     })
     setReplays([])
@@ -162,19 +164,29 @@ export default function Home() {
     return () => clearTimeout(t)
   }, [knobs, cid, ai])
 
+  useEffect(() => {
+    setPv(null); setExtras(null)
+    if (!ai) return
+    let live = true
+    api<ApprovePreview>(`/proposals/${ai.id}/preview`).then((r) => live && setPv(r)).catch(() => {})
+    api<{ no_cuts: SimV2 | null; schedule: Schedule | null }>(`/customers/${ai.customer_id}/plan/extras`, { method: 'POST', body: JSON.stringify({ plan: ai.plan }) })
+      .then((r) => live && setExtras(r)).catch(() => {})
+    return () => { live = false }
+  }, [ai?.id])
+
   function go(i: number) {
     setView('flow'); setScreen(i); setReached((r) => Math.max(r, i)); setErr(null)
   }
 
-  function openPlan(p: Proposal, why: string) {
-    setAi(p); setFinal(why); setKnobs(knobsFrom(p)); setApproved(null); go(2)
+  function openPlan(p: Proposal) {
+    setAi(p); setKnobs(knobsFrom(p)); setApproved(null); go(2)
   }
 
   /** Talk to the plan produced a new pending plan (or Undo restored the previous one). */
   function adjusted(p: Proposal) {
     const prev = ai?.id
     setPast((ps) => [p, ...ps.filter((x) => x.id !== p.id).map((x) => (x.id === prev ? { ...x, status: 'superseded' } : x))])
-    setAi(p); setFinal(''); setKnobs(knobsFrom(p)); setApproved(null); setErr(null)
+    setAi(p); setKnobs(knobsFrom(p)); setApproved(null); setErr(null)
   }
 
   /** Start a live agent run, or (with `rp`) replay a recorded one through the same Thinking screen. */
@@ -214,17 +226,22 @@ export default function Home() {
     const v2 = ps.filter((p) => isV2(p)).sort((a, b) => b.created_at.localeCompare(a.created_at))
     setPast(v2)
     const hit = v2.find((p) => p.id === id)
-    if (hit) { setReached(2); openPlan(hit, '') }
+    if (hit) { setReached(2); openPlan(hit) }
   }
 
-  /** Logo click: the dashboard if there's an approved plan, else the Snapshot step. A run in progress keeps going. */
+  /** Logo click: the dashboard if there's an approved plan, else the landing page. */
   function home() {
     setNote(null)
-    if (trackRef.current) { setErr(null); setView('dash') } else go(0)
+    if (trackRef.current) { setErr(null); setView('dash') } else window.location.assign('/')
   }
 
   const dash = view === 'dash' && track != null
   const canGo = (j: number) => j <= reached && (j !== 3 || approved != null) && (j !== 2 || ai != null)
+
+  // The snapshot reads live Nessie balances: refetch each time it is shown, so a demo reset shows up.
+  useEffect(() => {
+    if (screen === 0) api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch(() => {})
+  }, [screen, cid])
 
   return (
     <div className="app">
@@ -234,7 +251,7 @@ export default function Home() {
           <nav className="dots" aria-label="Steps">
             {NAMES.map((n, j) => (
               <button key={n} className={!dash && j === screen ? 'on' : j < reached ? 'done' : ''} disabled={!canGo(j)} onClick={() => go(j)} aria-current={!dash && j === screen ? 'step' : undefined}>
-                <span className="n">{j < reached && (dash || j !== screen) ? '✓' : j + 1}</span>{n}
+                <span className="n">{j < reached && (dash || j !== screen) ? <Check size={12} strokeWidth={3} /> : j + 1}</span>{n}
               </button>
             ))}
           </nav>
@@ -260,47 +277,70 @@ export default function Home() {
       )}
       <div style={{ display: dash ? 'none' : 'block' }}>
 
-      {screen === 0 && sheet && summary && <Snapshot sheet={sheet} summary={summary} />}
-      {screen === 0 && reality && <RealityCheck rc={reality} />}
+      {screen === 0 && sheet && <Snapshot sheet={sheet} />}
       {screen === 0 && <IncomeExpense cid={cid} />}
       {runKey > 0 && (
         // Stays mounted after the run so Back/Next doesn't start another one.
         <div style={{ display: screen === 1 ? 'block' : 'none' }}>
           <Thinking key={cid} cid={cid} model={replay ? (replays.find((r) => r.id === replay.id)?.model ?? health?.model ?? '') : health?.model ?? ''} runKey={runKey} replay={replay} attach={attach}
             onRun={(m) => storeRun(m.customer_id, m.run_id)}
-            onDone={(p, f) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setFinal(f); setKnobs(knobsFrom(p)); setPast((ps) => [p, ...ps.filter((x) => x.id !== p.id)]); setReached((r) => Math.max(r, 2)) } }} />
+            onDone={(p) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setKnobs(knobsFrom(p)); setPast((ps) => [p, ...ps.filter((x) => x.id !== p.id)]); setReached((r) => Math.max(r, 2)) } }} />
         </div>
       )}
       {screen === 1 && thinkingDone && !ai && reality && !reality.realistic && <RealityCheck rc={reality} />}
-      {screen === 2 && reality && <RealityCheck rc={reality} />}
-      {screen === 2 && ai && knobs && (
-        <PlanEditor ai={ai} headline={ai.simulation.explain?.headline ?? (final ? firstSentence(final) : firstSentence(ai.rationale))} knobs={knobs} setKnobs={setKnobs}
-          preview={outlook} busy={busy} error={err} onApprove={approve} onReject={reject}
-          chat={<Chat ai={ai} onAdjusted={adjusted} onRules={setAi} />} />
-      )}
       {screen === 2 && ai && knobs && (
         <div className="seg plan-tabs" role="tablist">
-          <button role="tab" className={planTab === 'time' ? 'on' : ''} onClick={() => setPlanTab('time')}>Over time</button>
+          <button role="tab" className={planTab === 'plan' ? 'on' : ''} onClick={() => setPlanTab('plan')}>Plan</button>
           <button role="tab" className={planTab === 'whatif' ? 'on' : ''} onClick={() => setPlanTab('whatif')}>What if</button>
         </div>
       )}
-      {screen === 2 && ai && knobs && planTab === 'time' && <PlanTimeline cid={cid} plan={planFrom(ai, knobs)} />}
+      {screen === 2 && !ai && reality && !reality.realistic && <RealityCheck rc={reality} />}
+      {screen === 2 && ai && knobs && planTab === 'plan' && (
+        <PlanReport ai={ai} baseline={outlook?.baseline ?? null} noCuts={extras?.no_cuts ?? null} preview={pv} schedule={extras?.schedule ?? null}
+          underwater={reality && !reality.realistic ? (
+            <UnderwaterOptions key={cid} cid={cid} gap={reality.gap_per_month} cards={ai.simulation.explain?.underwater_options} noHelp={ai.simulation.explain?.underwater_not_helping}
+              onApplied={() => { loadReality(cid); findPlan() }} />
+          ) : undefined}
+          builtOn={applied.length ? (
+            <div className="card">
+              <h2 style={{ margin: '0 0 4px' }}>Built on what you'll do</h2>
+              <ol className="pr-steps">
+                {applied.map((o) => (
+                  <li key={o.key}><span><b>{o.title}</b></span><span className="runs"><span className="tag warn">You do it</span></span>
+                    <span className="sub">{o.how}{o.link && <> · <a href={o.link} target="_blank" rel="noreferrer">where</a></>}</span></li>
+                ))}
+              </ol>
+            </div>
+          ) : undefined}>
+          <AgentActions title={ai.status === 'pending' ? 'What the agent will do on approve' : 'What approve does'} {...callsFor(pv, extras?.schedule)}
+            note={pv && (!pv.nessie_enabled || !pv.seeded) ? "This customer isn't set up in Nessie yet: approve records these calls without sending them." : undefined}>
+            {outlook && !outlook.valid && <div className="error">{outlook.reasons.join('; ')}</div>}
+            {err && <div className="error">{err}</div>}
+            {ai.status === 'pending' && (
+              <div className="actions" style={{ marginTop: 14 }}>
+                <button className="primary big" onClick={approve} disabled={busy || (outlook != null && !outlook.valid)}>{busy ? 'Approving…' : 'Approve'}</button>
+                <button className="big" onClick={reject} disabled={busy}>Reject</button>
+              </div>
+            )}
+          </AgentActions>
+        </PlanReport>
+      )}
       {screen === 2 && ai && knobs && planTab === 'whatif' && <Scenarios cid={cid} plan={planFrom(ai, knobs)} />}
-      {screen === 3 && approved && <Outcome preview={outlook} approved={approved} />}
+      {screen === 3 && approved && <Outcome preview={outlook} approved={approved} planned={pv} sheet={sheet} onChange={(p) => { setApproved(p); loadTrack(false) }} />}
 
       <div className="flow-nav">
         <button disabled={screen === 0} style={{ visibility: screen === 0 ? 'hidden' : 'visible' }} onClick={() => go(screen - 1)}>Back</button>
         {screen === 0 && (
           <span className="flow-actions">
             {past.length > 0 && (
-              <select aria-label="Previous runs" value="" onChange={(e) => { const p = past.find((x) => x.id === e.target.value); if (p) openPlan(p, '') }}>
+              <select aria-label="Previous runs" value="" onChange={(e) => { const p = past.find((x) => x.id === e.target.value); if (p) openPlan(p) }}>
                 <option value="">Previous runs ({past.length})</option>
                 {past.map((p) => (
                   <option key={p.id} value={p.id}>{new Date(p.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {p.status}{p.simulation?.explain?.headline ? ` · ${p.simulation.explain.headline}` : ''}</option>
                 ))}
               </select>
             )}
-            {lastPending && <button className="ghost" onClick={() => openPlan(lastPending, '')}>Open last plan</button>}
+            {lastPending && <button className="ghost" onClick={() => openPlan(lastPending)}>Open last plan</button>}
             {replays.length > 0 && (
               <select value="" aria-label="Load cached run" title="Replay a recorded agent run (no model call), sped up 8×"
                 onChange={(e) => { const r = replays.find((x) => x.id === e.target.value); if (r) findPlan({ id: r.id, speed: 8, duration_ms: r.duration_ms }) }}>
@@ -317,12 +357,13 @@ export default function Home() {
         {screen === 3 && (
           <span className="flow-actions">
             <button onClick={() => { setNote(null); go(0) }}>Start over</button>
-            <button className="primary" onClick={() => loadTrack(true)}>Go to dashboard</button>
+            {track && <button className="primary" onClick={() => loadTrack(true)}>Go to dashboard</button>}
           </span>
         )}
       </div>
       </div>
       </main>
+      <ChatDrawer cid={cid} ai={ai} onAdjusted={adjusted} onRules={setAi} onSeePlan={(p) => { setPlanTab('plan'); openPlan(p) }} />
     </div>
   )
 }

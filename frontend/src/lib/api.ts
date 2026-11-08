@@ -27,7 +27,8 @@ export type Refill = {
 
 export type LumpSum = { source: 'cash' | 'cd' | 'brokerage'; amount: number; to_debt: string }
 export type Redirect = { flow: string; amount_per_month: number }
-export type SpendingTarget = { category: string; current: number; target: number; proof_month: string; how: string[] }
+export type CutBuys = { net_worth_gain: number; months_sooner: number | null; high_cost_debt_free: string | null; interest_saved: number }
+export type SpendingTarget = { category: string; current: number; target: number; proof_month: string; how: string[]; source?: 'agreed' | 'suggested'; lumpy?: boolean; buys?: CutBuys }
 
 export type PlanV2 = {
   version: 2
@@ -40,8 +41,8 @@ export type PlanV2 = {
   keep_emergency_months: number
 }
 
-export type SimDebt = { account_id: string; name: string; apr_pct: number; balance: number; min_payment?: number; high_cost?: boolean; payoff_month: string | null; interest: number }
-export type SimMonth = { month: string; total_debt: number; high_cost_debt: number; cash: number; invested: number; net_worth: number }
+export type SimDebt = { account_id: string; name: string; apr_pct: number; balance: number; min_payment?: number; high_cost?: boolean; payoff_month: string | null; interest: number; first_month_payment?: number }
+export type SimMonth = { month: string; total_debt: number; high_cost_debt: number; cash: number; invested: number; net_worth: number; balances?: { debts: Record<string, number>; assets: Record<string, number> } }
 
 export type SimV2 = {
   feasible: boolean
@@ -54,17 +55,51 @@ export type SimV2 = {
   baseline_interest_total: number
   high_cost_debt_free: string | null
   upfront_cost: number
-  budget?: { current_debt_payments: number; redirects: number; checking_cuts: number; card_cuts: number; max_monthly_debt_budget: number; minimums: number }
+  budget?: {
+    current_debt_payments: number; redirects: number; checking_cuts: number; card_cuts: number; max_monthly_debt_budget: number; minimums: number
+    monthly_debt_budget?: number; net_paydown_per_month?: number; current_net_paydown_per_month?: number
+    new_card_purchases?: number; current_new_card_purchases?: number
+  }
+  /** The same plan without its suggested cuts (solver), and what the cuts buy together. */
+  no_cuts?: { net_worth_24m: number; high_cost_debt_free: string | null; interest_total: number; monthly_debt_budget: number; net_paydown_per_month: number; suggested_cut_per_month?: number; suggested_buys?: CutBuys }
+  baseline_high_cost_debt_free?: string | null
+  monthly_card_spending?: number
 }
 
 export type Explain = {
   headline: string
   levers?: { kind: string; label: string; amount?: number }[]
-  cuts?: { category: string; how: string }[]
+  cuts?: { category: string; how: string; why?: string; suggested?: boolean; buys?: string; from?: number; to?: number }[]
+  // agent v3 first run: the agent's words; every figure is written by code from the saved plan
+  summary?: string
+  driver?: string
+  buffer_months?: number
+  buffer_why?: string
+  lumps_why?: string
+  downsides?: string[]
+  underwater?: string
+  underwater_options?: OptionCard[]
+  underwater_gap?: number
+  underwater_not_helping?: { key: string; title: string; why: string }[]
   warning?: string | null // talk to the plan: the cost of a worse change, written in code
   request?: string
   options?: { category: string; label: string; buys: string }[]
 }
+
+/** Underwater: one thing that could close the monthly gap. Figures from code; why/downside from the agent. */
+export type OptionCard = {
+  key: string; title: string; detail: string; modelled: boolean
+  closes_per_month: number | null; closes_gap?: boolean; cash_runs_out: string | null
+  amount?: number; new_payment?: number
+  why?: string; downside?: string; recommended?: boolean; agent_skipped?: boolean; never_recommend?: boolean
+}
+export type OptionsCheck = {
+  picked: string[]; gap_before: number; gap_after: number; closes: boolean
+  cash_runs_out: string | null; principal_paydown: number | null; message: string; not_modelled: string[]
+  steps?: { key: string; title: string; closes: number; gap_after: number }[]
+}
+/** An option the customer chose to plan with (saved server-side); the plan is built on it. */
+export type AppliedOption = { key: string; title: string; how: string; link: string | null }
 
 // ---------- talk to the plan (PR 4) ----------
 
@@ -100,9 +135,35 @@ export type Proposal = {
     amount?: number
     transfer?: unknown
     transfers_pending?: { to_debt: string; amount: number }[]
-    scheduled?: { kind: string; step: string; how?: string[] }[]
+    scheduled?: { kind: string; step: string; how?: string[]; runs?: string; link?: string }[]
     error?: string
+    /** The receipt: each Nessie write call approve sent, with its status and the id Nessie created. */
+    nessie_calls?: NessieCall[]
+    /** Planned but not sent (no key, or the customer isn't seeded into Nessie). */
+    nessie_pending?: NessieCall[]
+    nessie_balances_after?: Record<string, number | string>
+    /** Every mirrored account's Nessie balance before and after approve (ledger: raw + Paidway's transactions). */
+    nessie_check?: { account_id: string; name: string; nickname: string; nessie_id: string; debt: boolean; before: number; after: number; expected_change: number; actual_change: number; ok: boolean }[]
+    /** The recurring bills approve created. */
+    bills?: { payee: string; amount: number; day: number; first?: string; id?: string | null; from?: string }[]
+    /** Some calls didn't go through: POST /proposals/{id}/retry sends just those. */
+    retry_available?: boolean
   }
+}
+
+/** One Nessie write call: planned (preview) or sent (receipt, with status and id). */
+export type NessieCall = {
+  tool: string; method: string; path: string; body?: Record<string, unknown>
+  from?: string; to?: string; amount: number; recurring_date?: number | null; first_payment?: string; step?: string
+  status?: number | string; id?: string | null; error?: string; note?: string | null
+  /** How approve re-formatted the body after a validation error, e.g. "reformatted after 400: dropped payee_id". */
+  repairs?: string[]; retried?: boolean; leg?: number; group?: string
+}
+export type ApprovePreview = {
+  proposal_id: string; customer_id: string; status: string; nessie_enabled: boolean; seeded: boolean
+  nessie_calls: NessieCall[]
+  recorded: { kind: string; step: string; runs?: string; how?: string[] }[]
+  manual: { kind: string; step: string; runs?: string; how?: string[] | string; link?: string }[]
 }
 
 export type Source = 'pnc' | 'nessie' | 'linked'
@@ -114,6 +175,7 @@ export type SheetAccount = {
   kind: string | null
   institution: string | null
   source: Source
+  nessie_id?: string | null
   side: 'asset' | 'debt'
   balance: number
   apr_pct: number
@@ -234,6 +296,12 @@ export type SwitchOption = {
   available?: number; needed?: number; why?: string
   new_month?: string | null; months_later?: number; monthly_debt_budget?: number; net_worth_24m?: number
 }
+/** Agent v3 monthly check-in: code's facts, the agent's read and pick; a fix is saved as a PENDING proposal. */
+export type Checkin = {
+  level: string; facts: string[]; drift: string; pick: string | null; why: string
+  proposal_id: string | null; headline: string | null
+}
+
 export type Tracking = {
   active: true
   proposal: { id: string; created_at: string; headline?: string | null }

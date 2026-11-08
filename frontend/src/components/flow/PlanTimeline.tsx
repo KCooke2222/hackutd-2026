@@ -3,12 +3,10 @@ import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Too
 import { api, usd } from '../../lib/api'
 import type { PlanV2, Timeline, TimelineAccount, TimelineChange } from '../../lib/api'
 import { ym, ymShort } from '../../lib/flow'
+import { ArrowRight, Equal } from 'lucide-react'
 import CashflowAhead from './CashflowAhead'
-import { GREY } from './NetWorth'
+import { ASSET_COLORS, C, DEBT_COLORS, GREY, short } from '../../lib/chart'
 
-const DEBT_COLORS = ['var(--d1)', 'var(--d2)', 'var(--d3)', 'var(--d4)', 'var(--d5)', 'var(--d6)']
-const ASSET_COLORS = ['var(--a1)', 'var(--a2)', 'var(--a3)', 'var(--a4)', 'var(--muted)', 'var(--a6)']
-const short = (v: number) => (Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`)
 
 /** The home page again, but over time: accounts by month, payments, income vs spending, every change. */
 export default function PlanTimeline({ cid, plan }: { cid: string; plan: PlanV2 }) {
@@ -94,11 +92,11 @@ function Col({ title, accounts, colors, t, at }: { title: string; accounts: Time
       })}
       <ResponsiveContainer width="100%" height={150}>
         <LineChart data={data} margin={{ top: 12, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke="var(--line)" vertical={false} />
-          <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} axisLine={{ stroke: 'var(--line)' }} />
-          <YAxis tickFormatter={short} tick={{ fontSize: 10, fill: 'var(--muted)' }} width={40} tickLine={false} axisLine={false} />
+          <CartesianGrid stroke={C.grid} vertical={false} />
+          <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 10, fill: C.tick }} tickLine={false} axisLine={{ stroke: C.grid }} />
+          <YAxis tickFormatter={short} tick={{ fontSize: 10, fill: C.tick }} width={40} tickLine={false} axisLine={false} />
           <Tooltip formatter={(v, n) => [usd(Number(v)), nameOf(accounts, String(n))]} labelFormatter={(mo) => ym(String(mo))} />
-          <ReferenceLine x={t.months[at]} stroke="var(--text)" strokeDasharray="2 3" />
+          <ReferenceLine x={t.months[at]} stroke={C.marker} strokeDasharray="2 3" />
           {hover && <Line dataKey={`${hover}~`} stroke={GREY} strokeDasharray="5 4" strokeWidth={2} dot={false} isAnimationActive={false} />}
           {accounts.map((a, i) => (
             <Line key={a.id} dataKey={a.id} stroke={colors[i % colors.length]} strokeWidth={hover === a.id ? 3 : 2}
@@ -164,7 +162,7 @@ function Changes({ changes }: { changes: TimelineChange[] }) {
             <div className="group-label">{g}</div>
             {rows.map((c) => (
               <div key={c.label} className="move">
-                {c.changed ? <span className="ok" style={{ color: 'var(--accent)' }}>→</span> : <span className="same">=</span>}
+                {c.changed ? <span className="ok" style={{ color: 'var(--accent)' }}><ArrowRight size={14} strokeWidth={2} className="ic-inline" /></span> : <span className="same"><Equal size={14} strokeWidth={2} className="ic-inline" /></span>}
                 <span><b>{c.label}</b>: <span className={c.changed ? '' : 'muted'}>{c.text}</span></span>
                 <span />
                 {c.sub && <span className="sub">{c.sub}</span>}
@@ -174,7 +172,7 @@ function Changes({ changes }: { changes: TimelineChange[] }) {
         )
       })}
       <div className="small muted" style={{ marginTop: 6 }}>
-        <span style={{ color: 'var(--accent)' }}>→</span> changes under the plan · = keep doing what you do now
+        <span style={{ color: 'var(--accent)' }}><ArrowRight size={14} strokeWidth={2} className="ic-inline" /></span> changes under the plan · <Equal size={14} strokeWidth={2} className="ic-inline" /> keep doing what you do now
       </div>
     </div>
   )

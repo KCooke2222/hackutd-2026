@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api, usd } from '../../lib/api'
 import type { SwitchOption } from '../../lib/api'
 import { ym } from '../../lib/flow'
+import { ArrowRight } from 'lucide-react'
 
 /** Off track: two server-computed ways back. Choosing one saves a PENDING plan; nothing is approved or moved. */
 export default function SwitchPlan({ cid, sw, onChose, onReplan }: {
@@ -59,7 +60,7 @@ function Option({ o, busy, onChoose }: { o: SwitchOption; busy: string | null; o
           <div className="small muted">{o.feasible ? 'to debt, from:' : o.why}</div>
           {(o.sources ?? []).filter((s) => s.amount >= 1).map((s) => (
             <div key={s.label} className="move">
-              <span className="ok" style={{ color: 'var(--accent)' }}>→</span>
+              <span className="ok" style={{ color: 'var(--accent)' }}><ArrowRight size={14} strokeWidth={2} className="ic-inline" /></span>
               <span>{s.label}{s.detail && <span className="small muted"> · {s.detail}</span>}</span>
               <b className="num">{usd(s.amount)}</b>
             </div>

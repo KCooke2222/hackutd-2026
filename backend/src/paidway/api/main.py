@@ -41,6 +41,12 @@ app.include_router(_tracking_router)
 from .scenarios import router as _scenarios_router  # noqa: E402
 
 app.include_router(_scenarios_router)
+from .plan_view import router as _plan_view_router  # noqa: E402
+
+app.include_router(_plan_view_router)
+from .approve_view import router as _approve_view_router  # noqa: E402
+
+app.include_router(_approve_view_router)
 
 
 def _need_customer(cid: str) -> dict:
@@ -89,6 +95,55 @@ def customer_reality_check(cid: str) -> dict:
     from ..planning import wealth
 
     return wealth.reality_check(cid)
+
+
+class OptionsIn(BaseModel):
+    keys: list[str] = []
+    extra_income: float | None = None
+
+
+@app.get("/api/customers/{cid}/options")
+def customer_options(cid: str) -> dict:
+    """Underwater option cards: what each closes of the monthly gap (solver-checked) or that it can't be modelled."""
+    _need_customer(cid)
+    from ..planning import options
+
+    return options.underwater_options(cid)
+
+
+@app.post("/api/customers/{cid}/options/check")
+def customer_options_check(cid: str, body: OptionsIn) -> dict:
+    """Re-run the reality check with the picked options together: does the gap close? Read-only."""
+    _need_customer(cid)
+    from ..planning import options
+
+    return options.check(cid, body.keys, body.extra_income)
+
+
+@app.get("/api/customers/{cid}/options/applied")
+def customer_options_applied(cid: str) -> dict:
+    """The options this customer chose to plan with (the plan assumes them; the customer does each one)."""
+    _need_customer(cid)
+    from ..planning import options
+
+    return {"options": options.applied_cards(cid)}
+
+
+@app.post("/api/customers/{cid}/options/apply")
+def customer_options_apply(cid: str, body: OptionsIn) -> dict:
+    """Plan with these options: saved only when, together, they close the gap. Empty keys = plan without any."""
+    _need_customer(cid)
+    from ..planning import options
+
+    keys = [k for k in body.keys if k in options.APPLYABLE]
+    if not keys:
+        options.save_applied(cid, [])
+        return {"options": [], "check": None}
+    r = options.check(cid, keys)
+    if not r["closes"]:
+        raise HTTPException(422, f"Those still leave ${r['gap_after']:,.0f}/mo short")
+    options.save_applied(cid, keys)
+    return {"options": options.applied_cards(cid), "check": r}
 
 
 # ---------- agent-facing numbers ----------
@@ -293,6 +348,17 @@ def approve_proposal(pid: str, edits: EditIn | None = None) -> dict:
         raise HTTPException(e.status, e.detail)
 
 
+@app.post("/api/proposals/{pid}/retry")
+def retry_proposal(pid: str) -> dict:
+    """Send again the Nessie calls of an approved plan that didn't go through (never the ones that did)."""
+    from ..agent.execute import ApproveError, retry
+
+    try:
+        return retry(pid)
+    except ApproveError as e:
+        raise HTTPException(e.status, e.detail)
+
+
 @app.post("/api/proposals/{pid}/reject")
 def reject_proposal(pid: str) -> dict:
     p = store.get_proposal(pid)
@@ -315,7 +381,7 @@ def _adjust_events(pid: str, message: str):
         msgs = ev.pop("messages", None)
         if msgs and p:
             store.log_run(p["customer_id"], msgs)
-        if ev["type"] == "done":
+        if ev["type"] in ("done", "saved"):  # `saved`: the new plan, before its headline is written
             ev["proposal"] = store.get_proposal(ev["proposal_id"]) if ev.get("proposal_id") else None
         yield ev
 

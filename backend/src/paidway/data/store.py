@@ -185,6 +185,19 @@ def claim(pid: str) -> bool:
         return cur.rowcount == 1
 
 
+def claim_retry(pid: str) -> bool:
+    """Atomically flip approved -> executing for a retry of failed Nessie calls (double clicks get False)."""
+    with _conn() as c:
+        cur = c.execute("update proposals set status = 'executing' where id = ? and status = 'approved'", (pid,))
+        return cur.rowcount == 1
+
+
+def delete_proposal(pid: str) -> None:
+    """Remove one proposal row (scripts/approve_stress.py cleans up the proposals it made)."""
+    with _conn() as c:
+        c.execute("delete from proposals where id = ?", (pid,))
+
+
 def release(pid: str) -> None:
     """executing -> pending, for a recoverable refusal (e.g. an invalid edit)."""
     with _conn() as c:
@@ -207,6 +220,23 @@ def replace_linked_accounts(rows: list[dict]) -> int:
             [tuple(r.get(k) for k in LINKED_COLS) for r in rows],
         )
     return len(rows)
+
+
+def replace_linked_for(customer_id: str, rows: list[dict]) -> int:
+    """Replace one customer's linked accounts (demo reset puts back what approve paid down)."""
+    with _conn() as c:
+        c.execute("delete from linked_accounts where customer_id = ?", (customer_id,))
+        c.executemany(
+            f"insert into linked_accounts ({','.join(LINKED_COLS)}) values ({','.join('?' * len(LINKED_COLS))})",
+            [tuple(r.get(k) for k in LINKED_COLS) for r in rows],
+        )
+    return len(rows)
+
+
+def pay_linked(account_id: str, amount: float) -> None:
+    """Lower a linked account's balance after approve moved money for it (a debt paid, brokerage sold)."""
+    with _conn() as c:
+        c.execute("update linked_accounts set balance = max(balance - ?, 0) where account_id = ?", (amount, account_id))
 
 
 def linked_count() -> int:

@@ -158,8 +158,9 @@ def _label(i: int) -> str:
     return f"{k // 12}-{k % 12 + 1:02d}"
 
 
-def context(customer_id: str, keep_months: float | None = None, live: bool = True) -> dict:
-    """Everything the simulator and validator need, computed once."""
+def context(customer_id: str, keep_months: float | None = None, live: bool = True, with_options: bool = True) -> dict:
+    """Everything the simulator and validator need, computed once. `with_options`: apply the underwater options
+    the customer chose to plan with (options.applied: e.g. an IDR payment, a hardship rate); False = as the data is."""
     keep = A.get("default_emergency_months") if keep_months is None else float(keep_months)
     prof = pnc_data.profile(customer_id) or {}
     rows = balance_sheet.accounts(customer_id, live=live)
@@ -228,7 +229,12 @@ def context(customer_id: str, keep_months: float | None = None, live: bool = Tru
         # Lump-sum limit: cash above the buffer.
         "lump_available": {"cash": round(min(cash, cash_avail), 2), "cash_total": round(cash_avail, 2)},
         "hurdle_pct": hurdle,
+        "applied_options": [],
     }
+    if with_options:
+        from . import options
+
+        options.apply_saved(ctx, customer_id)
     ctx["movable_flows"] = movable_flows(ctx)
     ctx["flexible_monthly"] = flexible_monthly(ctx)
     return ctx
@@ -389,7 +395,12 @@ def cut_split(ctx: dict, targets: list[dict]) -> dict:
         c = ctx["spend"].get(t.get("category"))
         if not c:
             continue
-        save = max(c["avg"] - float(t.get("target", c["avg"])), 0.0)
+        # Count the cut from the plan's own `current` (what the solver sized the budget on and the screen shows)
+        # when it is within 5% of today's average, so the solver and the approve-time validator agree even if
+        # the monthly averages moved a little since; otherwise from today's average.
+        cur = float(t.get("current") or c["avg"])
+        base = cur if c["avg"] and abs(cur - c["avg"]) <= 0.05 * c["avg"] else c["avg"]
+        save = max(base - float(t.get("target", base)), 0.0)
         if c["avg"] > 0:
             card_cut += save * c["card_avg"] / c["avg"]
             cash_cut += save * c["cash_avg"] / c["avg"]
@@ -412,16 +423,31 @@ def plan_flows(ctx: dict, plan: dict) -> dict:
 
 
 def budget_limit(ctx: dict, plan: dict) -> dict:
+    """Where the monthly debt budget comes from, and how much of it actually shrinks the debt.
+
+    Gross payments include paying off this month's new PNC card purchases, which is spending, not paydown:
+        current_net_paydown_per_month = current_debt_payments - current_new_card_purchases
+        net_paydown_per_month         = monthly_debt_budget - new_card_purchases (after card cuts)
+    (month 1; interest is not subtracted). The simulator adds the purchases to the card balance and pays them
+    from the gross budget, so nothing is counted twice."""
     pf = plan_flows(ctx, plan)
     cuts = cut_split(ctx, plan.get("spending_targets") or [])
+    max_budget = ctx["current_debt_payments"] + pf["total"] + cuts["cash"]
+    budget = float(plan.get("monthly_debt_budget") or 0) or max_budget
+    charges = max(ctx["card_spend"] - cuts["card"], 0.0)
     return {
+        "current_net_paydown_per_month": round(ctx["current_debt_payments"] - ctx["card_spend"], 2),
+        "net_paydown_per_month": round(budget - charges, 2),
+        "current_new_card_purchases": round(ctx["card_spend"], 2),
+        "new_card_purchases": round(charges, 2),
+        "monthly_debt_budget": round(budget, 2),
         "current_debt_payments": ctx["current_debt_payments"],
         "redirects": round(pf["total"], 2),
         "surplus_redirected": round(pf["surplus"], 2),
         "contributions_paused": round(sum(pf["paused"].values()), 2),
         "checking_cuts": round(cuts["cash"], 2),
         "card_cuts": round(cuts["card"], 2),
-        "max_monthly_debt_budget": round(ctx["current_debt_payments"] + pf["total"] + cuts["cash"], 2),
+        "max_monthly_debt_budget": round(max_budget, 2),
         "minimums": round(sum(d["min_payment"] for d in ctx["debts"]), 2),
     }
 
@@ -546,6 +572,9 @@ def _reality(ctx: dict, plan: dict) -> dict:
     }
 
 
+PAYOFF_SEARCH_MONTHS = 60  # how far past the horizon to look for the high-cost $0 month
+
+
 def simulate_plan(customer_id: str, plan: dict | None, *, live: bool = True, ctx: dict | None = None) -> dict:
     """Month-by-month: every debt, cash, invested, net worth. plan None = baseline (current behaviour)."""
     keep = (plan or {}).get("keep_emergency_months")
@@ -654,9 +683,14 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
                           "debts": {k: round(d["bal"]) for k, d in debts.items()}}}
 
     months = [snapshot(0)]
+    first_pay: dict[str, float] = {}  # month-1 payment per debt (the recurring bills set up on approve)
     high_free = 0 if months[0]["high_cost_debt"] <= 0.01 else None
     short_reported = False
-    for i in range(1, H + 1):
+    # Past the horizon, keep stepping (up to PAYOFF_SEARCH_MONTHS) only to find when high-cost debt reaches $0;
+    # the reported months, net worth, interest and problems stay within the horizon.
+    for i in range(1, max(H, PAYOFF_SEARCH_MONTHS) + 1):
+        if i > H and high_free is not None:
+            break
         cash *= 1 + a["cash_yield_pct"] / 1200
         for k in inv:
             inv[k] *= 1 + (rets[k] or 0) / 1200
@@ -665,7 +699,8 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
         for d in debts.values():
             it = d["bal"] * d["apr_pct"] / 1200
             d["bal"] += it
-            d["interest"] += it
+            if i <= H:
+                d["interest"] += it
             if d["is_pnc_card"]:
                 d["bal"] += charges
         left = 0.0
@@ -677,16 +712,20 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
             for k, d in debts.items():  # autopay statement in full, then minimums
                 due = d["bal"] if (k in autopay and k in was_zero) else min(d["min_payment"], d["bal"])
                 pay = min(due, left)
-                if pay + 0.005 < due and not short_reported:
+                if pay + 0.005 < due and not short_reported and i <= H:
                     problems.append(f"{_label(i)}: budget can't cover {d['name']}'s payment")
                     short_reported = True
                 d["bal"] -= pay
                 left -= pay
+                if i == 1:
+                    first_pay[k] = first_pay.get(k, 0.0) + pay
             for k in order:
                 d = debts[k]
                 pay = min(d["bal"], left)
                 d["bal"] -= pay
                 left -= pay
+                if i == 1:
+                    first_pay[k] = first_pay.get(k, 0.0) + pay
         cash += saved + left  # the residual (and any unused budget) stays in cash
         for d in debts.values():
             if d["bal"] <= 0.005:
@@ -697,6 +736,10 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
                 d["payoff"] = None  # card refilled
         # A plan may not take cash below the buffer, nor lower than where current behaviour already leaves it
         # (a household that is already short is not made shorter; a plan cannot fix a negative monthly residual).
+        if i > H:
+            if sum(d["bal"] for d in debts.values() if d["high_cost"]) <= 0.01:
+                high_free = i
+            continue
         floor_i = min(floor, base_cash[i] - 1) if base_cash else floor
         if plan is not None and cash < floor_i and not cash_problem:
             problems.append(f"{_label(i)}: cash ${cash:,.0f} falls below the {ctx['keep_months']:g}-month buffer "
@@ -716,7 +759,8 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
         "debts": [{"account_id": d["account_id"], "name": d["name"], "apr_pct": d["apr_pct"], "balance": d["balance"],
                    "min_payment": d["min_payment"], "high_cost": d["high_cost"],
                    "payoff_month": _label(d["payoff"]) if d["payoff"] is not None else None,
-                   "interest": round(d["interest"], 2)} for d in debts.values()],
+                   "interest": round(d["interest"], 2),
+                   "first_month_payment": round(first_pay.get(d["account_id"], 0.0), 2)} for d in debts.values()],
         "months": months,
         "net_worth_24m": months[-1]["net_worth"],
         "net_worth_now": months[0]["net_worth"] + (upfront if plan else 0.0),
