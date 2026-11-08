@@ -119,6 +119,15 @@ def create_proposal(customer_id: str, plan: dict, simulation: dict, rationale: s
     return get_proposal(pid)
 
 
+def retire_plans(customer_id: str) -> int:
+    """A demo reset recreated the customer's Nessie accounts: every plan from before it (pending, approved or
+    executed) refers to moves and bills that no longer exist, so it becomes superseded. Returns how many."""
+    with _conn() as c:
+        cur = c.execute("update proposals set status = 'superseded', decided_at = ? where customer_id = ? "
+                        "and status in ('pending', 'approved', 'executed')", (_now(), customer_id))
+    return cur.rowcount
+
+
 def restore(pid: str) -> dict | None:
     """"Keep previous": the adjusted child becomes superseded and its parent is pending again. Only from the
     pending child of a superseded parent; returns the parent, or None if that isn't the state."""

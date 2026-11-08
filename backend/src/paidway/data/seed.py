@@ -285,10 +285,15 @@ def reset_customer(customer_id: str) -> dict:
 
     Deletes every Nessie mirror of the customer (their transfers, withdrawals and bills go with them), mirrors
     every account again from our data (same Nessie customer, new account ids, balances as in the data) and
-    restores the customer's linked balances locally. Local proposals are left alone (`make reset-local`)."""
+    restores the customer's linked balances locally. Earlier plans become superseded (they point at accounts and
+    bills that are gone, and the dashboard would track the newest approved one) and the options the customer
+    chose to plan with (IDR, pause IRA...) are cleared. Other local rows stay (`make reset-local`)."""
+    from ..planning import options
     from . import linked, store
 
     store.replace_linked_for(customer_id, linked.generate_customer(customer_id))
+    retired = store.retire_plans(customer_id)
+    options.save_applied(customer_id, [])
     if not NESSIE_KEY:
         return {"customer": customer_id, "nessie": "NESSIE_KEY not set; linked balances restored only"}
     from ..nessie import write
@@ -301,7 +306,7 @@ def reset_customer(customer_id: str) -> dict:
     ids[customer_id] = {"customer": entry["customer"]} if entry.get("customer") else {}
     IDS_PATH.write_text(json.dumps(ids, indent=2))
     fresh = seed([customer_id], reload_local=False).get(customer_id, {})
-    return {"customer": customer_id, "deleted_accounts": len(nids),
+    return {"customer": customer_id, "deleted_accounts": len(nids), "plans_superseded": retired,
             "mirrors": {k: {"id": v["id"], "nickname": v["nickname"], "balance": v.get("balance_nessie")}
                         for k, v in (fresh.get("accounts") or {}).items()}}
 
