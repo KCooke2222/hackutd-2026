@@ -283,7 +283,12 @@ export type TrackStatus = {
   reasons: string[]; breaks: string[]; nudges: string[]
   over: { account_id: string; name: string; actual: number; expected: number; pct: number }[]
 }
-export type TrackPoint = { month: string; expected: number; band: number; expected_total: number; actual?: number; actual_total?: number; projected?: number }
+export type TrackPoint = { month: string; expected: number; band: number; expected_total: number; actual?: number; actual_total?: number; projected?: number; projected_total?: number }
+/** Before approve: pre-plan balances, and the debts the month-0 lump sums paid off. */
+export type TrackStart = {
+  month: string; date: string; high_cost_debt: number; total_debt: number; net_worth: number
+  paid_at_approve: { account_id: string; name: string; apr_pct: number; high_cost: boolean; balance: number }[]
+}
 export type TrackDebt = {
   account_id: string; name: string; apr_pct: number; high_cost: boolean; start: number; actual: number; expected: number
   goal_month: string | null; projected_month: string | null; done: boolean; late_months: number
@@ -304,8 +309,9 @@ export type Checkin = {
 
 export type Tracking = {
   active: true
-  proposal: { id: string; created_at: string; headline?: string | null }
+  proposal: { id: string; created_at: string; decided_at?: string | null; headline?: string | null }
   month_index: number; horizon: number; now: string
+  start?: TrackStart
   goal: { label: string; month: string; net_worth_24m: number; projected_net_worth_24m: number | null }
   status: TrackStatus
   path: TrackPoint[]

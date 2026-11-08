@@ -28,7 +28,7 @@ export default function DemoPanel({ cid, t, onData }: { cid: string; t: Tracking
     <div className="demo">
       <div className="demo-row">
         <span className="tag warn">Simulation</span>
-        <span className="small muted">Demo months, not real transactions · {t.month_index === 0 ? 'month 0' : `month ${t.month_index}, ${ym(t.now)}`}</span>
+        <span className="small muted">Demo months, not real transactions · {t.month_index === 0 ? 'starts at approve' : `month ${t.month_index} of ${t.horizon}, ${ym(t.now)}`}</span>
       </div>
       <div className="demo-row">
         <select aria-label="scenario" value={scenario} onChange={(e) => setScenario(e.target.value)}>
