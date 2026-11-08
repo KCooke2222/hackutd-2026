@@ -232,6 +232,11 @@ export default function Home() {
   const dash = view === 'dash' && track != null
   const canGo = (j: number) => j <= reached && (j !== 3 || approved != null) && (j !== 2 || ai != null)
 
+  // The snapshot reads live Nessie balances: refetch each time it is shown, so a demo reset shows up.
+  useEffect(() => {
+    if (screen === 0) api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch(() => {})
+  }, [screen, cid])
+
   return (
     <div className="app">
       <header className="masthead">
@@ -293,7 +298,7 @@ export default function Home() {
             </>
           ) : undefined}>
           <AgentActions title={ai.status === 'pending' ? 'What the agent will do on approve' : 'What approve does'} {...callsFor(pv, extras?.schedule)}
-            note={pv && (!pv.nessie_enabled || !pv.seeded) ? "This customer isn't set up in Nessie yet: approve records these calls without sending them." : 'Nothing is sent until you approve. Each row is one real Nessie API call.'}>
+            note={pv && (!pv.nessie_enabled || !pv.seeded) ? "This customer isn't set up in Nessie yet: approve records these calls without sending them." : undefined}>
             {outlook && !outlook.valid && <div className="error">{outlook.reasons.join('; ')}</div>}
             {err && <div className="error">{err}</div>}
             {ai.status === 'pending'

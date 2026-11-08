@@ -214,7 +214,7 @@ function NetWorthCompare({ sim, base, noCuts }: { sim: SimV2; base: SimV2 | null
           <CartesianGrid stroke={C.grid} vertical={false} />
           <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 11, fill: C.tick }} tickLine={false} axisLine={{ stroke: C.grid }} />
           <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: C.tick }} width={48} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
-          <Tooltip formatter={(v, n) => [money(Number(v)), names[String(n)] ?? String(n)]} labelFormatter={(m) => ym(String(m))} />
+          <Tooltip itemSorter={(it) => -Number(it.value ?? 0)} formatter={(v, n) => [money(Number(v)), names[String(n)] ?? String(n)]} labelFormatter={(m) => ym(String(m))} />
           {base && <Line dataKey="base" stroke={GREY} strokeDasharray="5 4" strokeWidth={2} dot={false} isAnimationActive={false} />}
           {noCuts && <Line dataKey="bare" stroke={ACCENT} strokeDasharray="2 4" strokeWidth={2} dot={false} isAnimationActive={false} />}
           <Line dataKey="plan" stroke={ACCENT} strokeWidth={3} dot={false} isAnimationActive={false} />

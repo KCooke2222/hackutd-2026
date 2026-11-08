@@ -8,7 +8,12 @@ import { title } from '../../lib/flow'
 type Quiet = { step: string; how?: string[] | string; link?: string }
 
 /** "gifts_holidays: $316 -> $190/mo" -> "Gifts holidays: $316 → $190/mo" */
-const pretty = (s: string) => s.replace(/^([a-z_]+):/, (_, k: string) => `${title(k)}:`).replace(/->/g, '→')
+const CAT: Record<string, string> = { gifts_holidays: 'Gifts and holidays', home_household: 'Home and household', car_maintenance: 'Car upkeep', annual_bills: 'Annual bills' }
+const pretty = (s: string) => s
+  .replace(/^([a-z_]+):/, (_, k: string) => `${CAT[k] ?? title(k)}:`)
+  .replace(/->/g, '→')
+  .replace(/ across all debts, extra in order$/, ' to debt, highest rate first')
+  .replace(/^Autopay full statement on (.+) once at \$0$/, 'Autopay $1 in full once it hits $0')
 const tool = (t: string) => t.replace(/^nessie\.write\./, '')
 const nth = (d: number) => `${d}${d % 10 === 1 && d !== 11 ? 'st' : d % 10 === 2 && d !== 12 ? 'nd' : d % 10 === 3 && d !== 13 ? 'rd' : 'th'}`
 const day = (s?: string) => (s ? new Date(s + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '')
@@ -59,15 +64,15 @@ export default function AgentActions({ title, calls, recorded = [], manual = [],
         {calls.length > 0 && <span className="small muted">{calls.length} Nessie call{calls.length > 1 ? 's' : ''}</span>}
       </div>
       {note && <div className="small muted" style={{ margin: '0 0 6px' }}>{note}</div>}
-      {calls.length === 0 && <div className="small muted">No step runs in Nessie; everything below is recorded or yours to do.</div>}
+      {calls.length === 0 && <div className="small muted">Nothing runs in Nessie; the steps below are tracked or yours to do.</div>}
       {calls.map((c, i) => {
         const w = what(c)
         return (
           <div key={i} className="act">
-            <NessieChip label={w.verb} />
+            <NessieChip label={w.verb} title={`Nessie API: ${c.method} ${tool(c.tool)}`} />
             <div style={{ minWidth: 0 }}>
               <div className="what">{w.text}</div>
-              <code>{c.method} {tool(c.tool)}</code>
+              {c.note && <div className="small muted">{c.note}</div>}
             </div>
             <div className="amt">{usd(c.amount)}<small>{w.when}</small></div>
             {receipt && <div className="rcpt">{status(c)}{c.id && <code>id {c.id}</code>}{c.error && <span className="bad">{c.error}</span>}</div>}
@@ -76,7 +81,7 @@ export default function AgentActions({ title, calls, recorded = [], manual = [],
       })}
       {(recorded.length > 0 || manual.length > 0) && (
         <div className="quiet">
-          {recorded.length > 0 && (<><h3>Recorded, tracked each month</h3><ul>{recorded.map((s, i) => <li key={i}>{pretty(s.step)}</li>)}</ul></>)}
+          {recorded.length > 0 && (<><h3>Tracked each month</h3><ul>{recorded.map((s, i) => <li key={i}>{pretty(s.step)}</li>)}</ul></>)}
           {manual.length > 0 && (<><h3>You do it</h3><ul>{manual.map((s, i) => (
             <li key={i}>{pretty(s.step)}{s.how && <> · {Array.isArray(s.how) ? s.how.join(' · ') : s.how}</>}{s.link && <> · <a href={s.link} target="_blank" rel="noreferrer">link</a></>}</li>
           ))}</ul></>)}

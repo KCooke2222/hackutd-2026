@@ -146,7 +146,7 @@ export type Proposal = {
 export type NessieCall = {
   tool: string; method: string; path: string; body?: Record<string, unknown>
   from?: string; to?: string; amount: number; recurring_date?: number | null; first_payment?: string; step?: string
-  status?: number | string; id?: string | null; error?: string
+  status?: number | string; id?: string | null; error?: string; note?: string | null
 }
 export type ApprovePreview = {
   proposal_id: string; customer_id: string; status: string; nessie_enabled: boolean; seeded: boolean
