@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zeroday flow mock</title>
+<style>
+/* ---- Zeroday app stylesheet: frontend/src/index.css, verbatim ---- */
+:root {
+  --bg: #f6f7f9; --panel: #fff; --text: #111827; --muted: #6b7280; --line: #e5e7eb;
+  --accent: #ea580c; --good: #16a34a; --bad: #dc2626;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: var(--text); background: var(--bg); font-size: 14px; line-height: 1.45;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+.topbar { display: flex; align-items: center; gap: 24px; padding: 10px 24px; background: #111827; color: #fff; position: sticky; top: 0; z-index: 10; }
+.brand { font-weight: 700; letter-spacing: .02em; color: #fb923c; }
+.topbar nav a { color: #d1d5db; text-decoration: none; margin-right: 16px; padding: 4px 0; }
+.topbar nav a.active { color: #fff; border-bottom: 2px solid #fb923c; }
+.page { max-width: 1280px; margin: 0 auto; padding: 20px 24px 60px; }
+.page-head h1 { margin: 0 0 4px; font-size: 22px; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.muted { color: var(--muted); } .small { font-size: 12px; } .mono { font-family: ui-monospace, monospace; font-size: 12px; } .nowrap { white-space: nowrap; }
+.tabs { display: flex; gap: 4px; margin: 16px 0; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: none; padding: 8px 14px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; font: inherit; }
+.tabs button.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 16px 0; }
+.card h2 { font-size: 15px; margin: 0 0 10px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid2 > .card { margin: 0; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin: 16px 0; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.stat-value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+.stat-sub { font-size: 12px; color: var(--muted); }
+.stat.bad .stat-value, .bad { color: var(--bad); } .stat.good .stat-value, .good { color: var(--good); }
+.callout { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 16px; margin: 8px 0 0; }
+.notice { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 10px 14px; margin: 12px 0; }
+.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 10px; padding: 10px 14px; margin: 12px 0; }
+.table-wrap { overflow-x: auto; } .table-wrap.scroll { max-height: 360px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; background: #fafafa; position: sticky; top: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.neg { color: var(--bad); } td.pos { color: var(--good); }
+table.clickable tbody tr { cursor: pointer; } table.clickable tbody tr:hover { background: #fff7ed; }
+table.compact td { padding: 4px 6px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #f3f4f6; color: #374151; }
+.tag.good, .status-approved, .status-executed { background: #dcfce7; color: #166534; }
+.status-pending { background: #fef3c7; color: #92400e; } .status-rejected, .status-failed { background: #fee2e2; color: #991b1b; }
+.picker { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+select, input { font: inherit; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
+input[type=number] { width: 120px; text-align: right; }
+button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.danger { color: var(--bad); border-color: #fecaca; }
+button.link { border: 0; background: none; color: #2563eb; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.pager { display: flex; gap: 12px; align-items: center; justify-content: flex-end; margin-top: 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chip { border-radius: 999px; padding: 2px 10px; font-size: 12px; border-width: 1px; }
+.chip.off { opacity: .4; }
+.stackbar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; margin: 8px 0 12px; background: #f3f4f6; }
+.compare { display: flex; gap: 24px; margin-top: 12px; padding: 10px; background: #f9fafb; border-radius: 8px; }
+.actions { display: flex; gap: 8px; margin-top: 12px; }
+.trace { border-top: 1px solid var(--line); padding: 6px 0; } .trace pre { white-space: pre-wrap; font-size: 12px; margin: 4px 0; }
+.markdown h2 { font-size: 18px; } .markdown h3 { font-size: 15px; margin-top: 20px; }
+.markdown code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+.markdown pre { background: #f3f4f6; padding: 10px; border-radius: 6px; overflow-x: auto; }
+.src { display: inline-block; font-size: 10px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.src-nessie { border-color: #93c5fd; color: #1d4ed8; background: #eff6ff; }
+.src-linked { border-color: #d8b4fe; color: #7e22ce; background: #faf5ff; }
+.src-pnc { border-color: #fdba74; color: #c2410c; background: #fff7ed; }
+tr.dim td { color: var(--muted); }
+.ladder-bar { display: flex; height: 10px; border-radius: 4px; overflow: hidden; background: #f3f4f6; min-width: 80px; }
+.tap { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; padding: 10px; background: #f9fafb; border-radius: 8px; }
+.section-head { font-size: 17px; margin: 28px 0 0; }
+
+/* ---- ledger (from mockups/dashboard) ---- */
+.ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; position: relative; }
+.ledger > .card { margin: 0; }
+.lrow { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; padding: 6px 4px; border-bottom: 1px solid var(--line); border-radius: 6px; }
+.lrow:last-child { border-bottom: 0; }
+.lrow .amt { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.lrow .sub { grid-column: 1 / 3; font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
+.lrow.dim .name, .lrow.dim .amt { color: var(--muted); font-weight: 400; }
+.group-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 10px 4px 2px; }
+.col-head { display: flex; justify-content: space-between; align-items: baseline; }
+.col-head .total { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tag.warn { background: #fef3c7; color: #92400e; } .tag.red { background: #fee2e2; color: #991b1b; }
+/* ---- flow mock ---- */
+.page { max-width: 760px; }
+@media (max-width: 760px) { .ledger { grid-template-columns: 1fr; } .page { padding: 16px 16px 48px; } }
+.dots { display: flex; gap: 6px; align-items: center; margin: 4px 0 4px; }
+.dots button { border: 0; background: none; font: inherit; font-size: 12px; color: var(--muted); padding: 4px 8px; border-radius: 999px; cursor: pointer; }
+.dots button.on { background: #111827; color: #fff; }
+.dots button.done { color: var(--text); }
+.screen { display: none; } .screen.on { display: block; }
+.nav { display: flex; justify-content: space-between; margin-top: 16px; }
+.nav button, .primary { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+.primary, .nav .next { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.nav button:disabled { visibility: hidden; }
+.num { font-variant-numeric: tabular-nums; }
+.k { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+/* hero */
+.hero { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; align-items: center; }
+.hero .big { font-size: 34px; font-weight: 700; line-height: 1.1; }
+.hero .flowrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 15px; }
+.hero .flowrow b { font-variant-numeric: tabular-nums; }
+.eq { color: var(--bad); font-weight: 700; }
+/* trace */
+.step { display: grid; grid-template-columns: 22px 1fr auto; gap: 2px 8px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--line); animation: in .25s ease; }
+.step:last-child { border-bottom: 0; }
+.step .ic { width: 22px; height: 22px; border-radius: 6px; background: #f3f4f6; display: grid; place-items: center; font-size: 12px; }
+.step.run .ic { background: #fff7ed; }
+.step .res { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.step.run .res { color: var(--muted); font-weight: 400; }
+.step .why { grid-column: 2 / 4; font-size: 12px; color: var(--muted); display: none; }
+.step.open .why { display: block; }
+.step .tog { border: 0; background: none; color: var(--muted); font-size: 11px; cursor: pointer; padding: 0 0 0 6px; }
+.spin { width: 12px; height: 12px; border: 2px solid #fed7aa; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes in { from { opacity: 0; transform: translateY(4px); } }
+/* sliders */
+.sl { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.sl:last-of-type { border-bottom: 0; }
+.sl .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.sl .val { font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+.sl .meta { font-size: 12px; color: var(--muted); }
+.track { position: relative; margin-top: 16px; }
+.track input { width: 100%; accent-color: var(--accent); margin: 0; }
+.tick { position: absolute; top: -5px; width: 2px; height: 8px; background: #111827; transform: translateX(-1px); pointer-events: none; }
+.tick::after { content: 'AI'; position: absolute; top: -12px; left: -5px; font-size: 9px; color: var(--muted); }
+.ba { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.ba > div { background: #f9fafb; border-radius: 8px; padding: 8px 10px; }
+.ba .from { color: var(--muted); font-size: 12px; text-decoration: line-through; }
+.ba .to { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) { .ba { gap: 6px; } .ba > div { padding: 6px 8px; } .ba .to { font-size: 14px; } .ba .to .small { display: block; } }
+.why1 { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+/* done */
+.move { display: grid; grid-template-columns: 20px 1fr auto; gap: 2px 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.move:last-child { border-bottom: 0; }
+.move .ok { color: var(--good); font-weight: 700; }
+.move .sub { grid-column: 2 / 4; font-size: 12px; color: var(--muted); }
+.outs { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 6px; }
+.outs .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+.watch { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; }
+.bar { grid-column: 1 / 3; height: 8px; background: #f3f4f6; border-radius: 99px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--good); border-radius: 99px; }
+svg text { font-family: inherit; }
+</style>
+</head>
+<body>
+<header class="topbar"><span class="brand">Zeroday</span><nav><a class="active">Agent</a><a>PNC data</a></nav></header>
+<div class="page">
+  <div class="row"><div class="dots" id="dots"></div><span class="small muted">C001</span></div>
+
+  <!-- 1 snapshot -->
+  <section class="screen" data-s="0">
+    <div class="card hero">
+      <div>
+        <div class="k">PNC card</div>
+        <div class="big num" id="h-bal"></div>
+        <div class="flowrow" style="margin-top:6px">
+          <span>Pay <b id="h-pay"></b>/mo</span><span class="eq">≈</span>
+          <span title="" id="h-refill-t">Refills <b id="h-refill"></b>/mo</span>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <svg id="spark" width="150" height="46"></svg>
+        <div class="small bad num" id="h-delta"></div>
+      </div>
+    </div>
+    <div class="ledger" id="ledger"></div>
+  </section>
+
+  <!-- 2 thinking -->
+  <section class="screen" data-s="1">
+    <div class="card">
+      <div class="col-head"><h2 style="margin:0">Finding a plan</h2><span class="small muted" id="t-model">Nemotron 3.5 Super</span></div>
+      <div id="trace" style="margin-top:6px"></div>
+    </div>
+  </section>
+
+  <!-- 3 plan -->
+  <section class="screen" data-s="2">
+    <div class="card">
+      <div class="col-head"><h2 style="margin:0">Plan</h2><button class="small" id="reset" style="border:0;background:none;color:var(--muted);cursor:pointer;font:inherit;font-size:12px">Reset to AI</button></div>
+      <p class="why1" id="why1"></p>
+      <div id="sliders"></div>
+      <div class="ba" id="ba"></div>
+      <div class="actions" style="margin-top:14px;display:flex;gap:8px"><button class="primary" id="approve">Approve</button><button class="nav-btn" style="font:inherit;padding:8px 16px;border-radius:8px;border:1px solid var(--line);background:var(--panel)">Reject</button></div>
+    </div>
+  </section>
+
+  <!-- 4 done -->
+  <section class="screen" data-s="3">
+    <div class="card">
+      <div class="col-head"><h2 style="margin:0">Card balance</h2>
+        <div class="legend"><span><i style="background:#9ca3af"></i>Current path</span><span><i style="background:var(--accent)"></i>With plan</span></div></div>
+      <svg id="chart" viewBox="0 0 700 260" style="width:100%;height:auto;margin-top:6px"></svg>
+      <div class="outs" id="outs"></div>
+    </div>
+    <div class="card"><h2>Done</h2><div id="moves"></div></div>
+    <div class="card watch">
+      <div><div class="k">Weekly check</div><b class="good">On track</b></div>
+      <div class="num small" id="w-num"></div>
+      <div class="bar"><div id="w-bar"></div></div>
+    </div>
+  </section>
+
+  <div class="nav"><button id="back">Back</button><button class="next" id="next">Next</button></div>
+</div>
+
+<script>
+// ---- C001, from localhost:8710/api/customers/C001/{summary,refill,balance-sheet} and proposal 9929b2b98db7, 2026-11-07 ----
+const C = {
+  card: 6571.00, apr: 22.5, pay: 1541.12, spend: 1422.79, interest: 122.55, fees: 1.25, net12: 65.72,
+  history: [6446,6451,6456,6462,6467,6473,6478,6484,6489,6495,6500,6506,6511,6517,6522,6528,6533,6539,6544,6550,6555,6560,6566,6571],
+  netWorth: 20053.73, assets: 47315.56, debts: 27261.83,
+  brokerage: 9800, brokerageTaxPct: 4.2, cashAboveBuffer: 0, buffer: 19079.61,
+  ai: { draw: 6571, pay: 1541.12, cap: 500 },
+  have: [
+    { name: 'PNC Checking', bal: 1604.00, tags: ['buffer'] },
+    { name: 'PNC Savings', bal: 17417.00, tags: ['buffer'] },
+    { name: 'Brokerage', bal: 9800.00, tags: ['~4.2% tax'] },
+    { group: 'Not tapped' },
+    { name: 'PNC IRA', bal: 6994.56, dim: true },
+    { name: 'Honda Civic', bal: 11500.00, dim: true },
+  ],
+  owe: [
+    { name: 'Store card', bal: 1240.55, apr: 27.24 },
+    { name: 'PNC card', bal: 6571.00, apr: 22.5, hl: true },
+    { name: 'Personal loan', bal: 1050.28, apr: 11.0 },
+    { group: 'Minimum only' },
+    { name: 'Federal loan', bal: 18400.00, apr: 4.99, dim: true, tags: [['garnishment risk', 'warn']] },
+  ],
+};
+const usd = (n, d = 0) => (n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const monthLabel = (m) => { const t = 2026 * 12 + 10 + m; return MON[t % 12] + ' ' + Math.floor(t / 12); }; // month 0 = Nov 2026
+const $ = (id) => document.getElementById(id);
+
+// Same algorithm as backend finance.simulate_payoff
+function simulate(balance, apr, pay, spend, lump = 0) {
+  const r = apr / 100 / 12; let b = Math.max(balance - lump, 0), tot = 0, i12 = 0, m = 0; const s = [b];
+  while (b > 0.005 && m < 600) {
+    const i = b * r; tot += i; if (m < 12) i12 += i;
+    b = Math.max(b + i + spend - pay, 0); m++; s.push(b);
+    if (m >= 12 && b > 0.005 && b >= s[m - 12] - 0.005) return { pays_off: false, months: null, i12, schedule: s };
+  }
+  return { pays_off: b <= 0.005, months: m, total: tot, i12, schedule: s };
+}
+// Fixed-horizon path for the chart (keeps going after the stuck check)
+function path(balance, apr, pay, spend, lump, n) {
+  const r = apr / 100 / 12; let b = Math.max(balance - lump, 0), int = 0; const s = [b];
+  for (let m = 0; m < n; m++) { const i = b * r; int += i; b = Math.max(b + i + spend - pay, 0); s.push(b); }
+  return { s, int };
+}
+
+// ---------- 1 snapshot ----------
+$('h-bal').textContent = usd(C.card);
+$('h-pay').textContent = usd(C.pay);
+const refill = C.spend + C.interest + C.fees;
+$('h-refill').textContent = usd(refill);
+$('h-refill-t').title = `Spending ${usd(C.spend)} + interest ${usd(C.interest)} + fees ${usd(C.fees, 2)}`;
+$('h-delta').textContent = '+' + usd(C.net12) + ' / yr';
+(function spark() {
+  const h = C.history, w = 150, ht = 46, lo = Math.min(...h) - 60, hi = Math.max(...h) + 10;
+  const pts = h.map((v, i) => `${(i / (h.length - 1)) * (w - 4) + 2},${ht - 4 - ((v - lo) / (hi - lo)) * (ht - 10)}`).join(' ');
+  $('spark').innerHTML = `<polyline points="${pts}" fill="none" stroke="#dc2626" stroke-width="2"/><text x="2" y="${ht}" font-size="9" fill="#6b7280">24 mo</text>`;
+})();
+const tagHtml = (t) => Array.isArray(t) ? `<span class="tag ${t[1]}">${t[0]}</span>` : `<span class="tag">${t}</span>`;
+function col(title, total, rows, owe) {
+  let h = `<div class="card"><div class="col-head"><h2 style="margin:0">${title}</h2><span class="total">${usd(total)}</span></div>`;
+  for (const r of rows) {
+    if (r.group) { h += `<div class="group-label">${r.group}</div>`; continue; }
+    const tags = [...(owe ? [`${r.apr}%`] : []), ...(r.tags || [])];
+    h += `<div class="lrow ${r.dim ? 'dim' : ''}"><span class="name">${r.name}</span><span class="amt">${usd(r.bal)}</span>${tags.length ? `<span class="sub">${tags.map(tagHtml).join('')}</span>` : ''}</div>`;
+  }
+  return h + '</div>';
+}
+$('ledger').innerHTML = col('Have', C.assets, C.have, false) + col('Owe', C.debts, C.owe, true);
+
+// ---------- 2 thinking ----------
+const base = simulate(C.card, C.apr, C.pay, C.spend);
+const optPay = simulate(C.card, C.apr, C.pay + 500, C.spend);
+const optCap = simulate(C.card, C.apr, C.pay, C.ai.cap);
+const STEPS = [
+  { ic: '↻', name: 'Refill breakdown', res: '100% refilled', why: 'New spending plus interest is about equal to the payment, so the balance never falls.' },
+  { ic: '⚖', name: 'Balance sheet', res: 'net worth ' + usd(C.netWorth), why: 'Positive net worth. The card debt is a cash-flow problem, not a solvency one.' },
+  { ic: '#', name: 'Debt ranking', res: '#1 Store card 27%', why: 'Store card has the highest APR; the PNC card (22.5%) is second. Federal loan stays at minimum.' },
+  { ic: '▤', name: 'Cash ladder', res: 'brokerage ' + usd(C.brokerage), why: 'No cash above the 3-month buffer and no CDs. Brokerage is the cheapest source left.' },
+  { ic: '∿', name: 'Simulate +$500/mo', res: optPay.pays_off ? '$0 in ' + optPay.months + ' mo' : 'never', why: 'Paying more works but takes over a year of tight months.' },
+  { ic: '∿', name: 'Simulate cap $500', res: optCap.pays_off ? '$0 in ' + optCap.months + ' mo' : 'never', why: 'Capping spending alone gets there, slowly.' },
+  { ic: '∿', name: 'Simulate sell brokerage', res: '$0 now · tax ' + usd(C.ai.draw * C.brokerageTaxPct / 100), why: 'One-time tax is far below the yearly card interest. Add the cap so it does not refill.' },
+  { ic: '✓', name: 'Propose plan', res: 'saved', why: 'Plan saved as pending. Nothing moves until you approve.' },
+];
+let traceTimer = null;
+function runTrace() {
+  clearTimeout(traceTimer); const el = $('trace'); el.innerHTML = ''; let i = 0; $('next').disabled = true;
+  const tick = () => {
+    const prev = el.lastElementChild; if (prev) { prev.classList.remove('run'); const st = STEPS[i - 1]; prev.querySelector('.res').textContent = st.res; prev.querySelector('.ic').textContent = st.ic; }
+    if (i >= STEPS.length) { $('next').disabled = false; return; }
+    const s = STEPS[i++], d = document.createElement('div');
+    d.className = 'step run';
+    d.innerHTML = `<span class="ic"><span class="spin"></span></span><span>${s.name}<button class="tog">why</button></span><span class="res">…</span><span class="why">${s.why}</span>`;
+    d.querySelector('.tog').onclick = () => d.classList.toggle('open');
+    el.appendChild(d); traceTimer = setTimeout(tick, 650);
+  };
+  tick();
+}
+
+// ---------- 3 plan ----------
+const maxDraw = Math.min(C.brokerage + C.cashAboveBuffer, C.card);
+const SL = [
+  { key: 'draw', label: 'Sell brokerage → card', min: 0, max: maxDraw, step: 50, fmt: (v) => usd(v), meta: (v) => v ? 'tax ' + usd(v * C.brokerageTaxPct / 100) : 'none' },
+  { key: 'pay', label: 'Monthly payment', min: 200, max: 3000, step: 10, fmt: (v) => usd(v) + '/mo', meta: () => 'now ' + usd(C.pay) },
+  { key: 'cap', label: 'Card spending cap', min: 0, max: 1800, step: 10, fmt: (v) => usd(v) + '/mo', meta: () => 'now ' + usd(C.spend) },
+];
+const plan = { ...C.ai };
+$('why1').textContent = 'Card refills as fast as you pay; brokerage tax is far below the interest.';
+function buildSliders() {
+  $('sliders').innerHTML = SL.map((s) => {
+    const p = (C.ai[s.key] - s.min) / (s.max - s.min);
+    return `<div class="sl"><div class="top"><span>${s.label}</span><span class="val" id="v-${s.key}"></span></div>
+      <div class="track"><input type="range" id="r-${s.key}" min="${s.min}" max="${s.max}" step="${s.step}" value="${plan[s.key]}">
+      <span class="tick" style="left:calc(8px + (100% - 16px) * ${p})"></span></div><div class="meta" id="m-${s.key}"></div></div>`;
+  }).join('');
+  for (const s of SL) $('r-' + s.key).oninput = (e) => { plan[s.key] = +e.target.value; update(); };
+}
+function compute() {
+  const after = simulate(C.card, C.apr, plan.pay, plan.cap, plan.draw);
+  const tax = plan.draw * C.brokerageTaxPct / 100;
+  return { after, tax, saved12: base.i12 - after.i12, nw: C.netWorth - tax };
+}
+function update() {
+  for (const s of SL) { $('v-' + s.key).textContent = s.fmt(plan[s.key]); $('m-' + s.key).textContent = s.meta(plan[s.key]); }
+  const { after, saved12, nw } = compute();
+  const payoff = after.pays_off ? (after.months === 0 ? 'Now' : monthLabel(after.months)) : 'Never';
+  $('ba').innerHTML = `
+    <div><div class="k">Card $0</div><div class="from">Never</div><div class="to ${after.pays_off ? 'good' : 'bad'}">${payoff}</div></div>
+    <div><div class="k">Interest / yr</div><div class="from">${usd(base.i12)}</div><div class="to">${usd(after.i12)} <span class="small good">−${usd(saved12)}</span></div></div>
+    <div><div class="k">Net worth</div><div class="from">${usd(C.netWorth)}</div><div class="to">${usd(nw)}</div></div>`;
+  $('approve').disabled = !after.pays_off;
+}
+$('reset').onclick = () => { Object.assign(plan, C.ai); buildSliders(); update(); };
+$('approve').onclick = () => go(3);
+
+// ---------- 4 done ----------
+function renderDone() {
+  const N = 24, cur = path(C.card, C.apr, C.pay, C.spend, 0, N), wp = path(C.card, C.apr, plan.pay, plan.cap, plan.draw, N);
+  const { after, tax } = compute();
+  const saved = cur.int - wp.int;
+  const W = Math.max(340, Math.min(700, $('chart').parentElement.clientWidth - 32)), H = 260;
+  $('chart').setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const L = 52, R = 14, T = 16, B = 30, hi = Math.ceil(Math.max(...cur.s, ...wp.s) / 1000) * 1000;
+  const x = (m) => L + (m / N) * (W - L - R), y = (v) => T + (1 - v / hi) * (H - T - B);
+  const line = (s) => s.map((v, m) => `${m ? 'L' : 'M'}${x(m).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  const gap = line(cur.s) + wp.s.map((v, m) => `L${x(N - m).toFixed(1)},${y(wp.s[N - m]).toFixed(1)}`).join('') + 'Z';
+  let g = '';
+  for (let v = 0; v <= hi; v += hi / 4) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#e5e7eb"/><text x="${L - 6}" y="${y(v) + 4}" font-size="11" fill="#6b7280" text-anchor="end">${usd(v)}</text>`;
+  for (const m of (W < 500 ? [0, 12, 24] : [0, 6, 12, 18, 24])) g += `<text x="${x(m)}" y="${H - 10}" font-size="11" fill="#6b7280" text-anchor="${m === 0 ? 'start' : m === 24 ? 'end' : 'middle'}">${monthLabel(m)}</text>`;
+  g += `<path d="${gap}" fill="#ea580c" opacity=".08"/>`;
+  g += `<path d="${line(cur.s)}" fill="none" stroke="#9ca3af" stroke-width="2.5"/>`;
+  g += `<path d="${line(wp.s)}" fill="none" stroke="#ea580c" stroke-width="3"/>`;
+  if (after.pays_off) {
+    const mx = x(after.months);
+    g += `<line x1="${mx}" x2="${mx}" y1="${T}" y2="${H - B}" stroke="#16a34a" stroke-dasharray="4 3"/><circle cx="${mx}" cy="${y(0)}" r="5" fill="#16a34a"/>
+      <text x="${mx + 8}" y="${y(0) - 8}" font-size="12" font-weight="700" fill="#16a34a">$0 ${after.months === 0 ? 'now' : monthLabel(after.months)}</text>`;
+  }
+  const midY = (y(cur.s[16]) + y(wp.s[16])) / 2;
+  g += `<text x="${x(16)}" y="${midY}" font-size="14" font-weight="700" fill="#ea580c" text-anchor="middle">${usd(saved)} interest saved</text>`;
+  $('chart').innerHTML = g;
+  const paydown = plan.pay - plan.cap;
+  $('outs').innerHTML = `
+    <div><div class="k">Debt-free</div><div class="v good">${after.months === 0 ? 'Now' : monthLabel(after.months)}</div></div>
+    <div><div class="k">Interest saved</div><div class="v">${usd(saved)}</div><div class="small muted">24 mo · tax ${usd(tax)}</div></div>
+    <div><div class="k">${after.months === 0 ? 'Freed / mo' : 'Paydown / mo'}</div><div class="v">${usd(paydown)}</div></div>`;
+  const mv = [];
+  if (plan.draw) {
+    mv.push(['Sold brokerage', usd(plan.draw), 'Linked account · you confirm the sale']);
+    mv.push(['Nessie transfer → PNC card', usd(plan.draw), 'Executed · Checking → Credit Card · ' + monthLabel(0).replace(' ', ' 7, ')]);
+  }
+  mv.push(['Card spending cap', usd(plan.cap) + '/mo', 'Alerts at 80%']);
+  if (Math.abs(plan.pay - C.pay) > 1) mv.push(['Autopay on payday', usd(plan.pay) + '/mo', 'Nessie bill · recurring']);
+  $('moves').innerHTML = mv.map(([a, b, c]) => `<div class="move"><span class="ok">✓</span><span>${a}</span><b class="num">${b}</b><span class="sub">${c}</span></div>`).join('');
+  const wk = plan.cap / 4.33, spent = Math.round(wk * 0.62);
+  $('w-num').textContent = `${usd(spent)} of ${usd(wk)} this week`;
+  $('w-bar').style.width = Math.min(100, (spent / wk) * 100) + '%';
+}
+
+// ---------- nav ----------
+const NAMES = ['Snapshot', 'Thinking', 'Plan', 'Done'];
+let cur = 0;
+function go(i) {
+  cur = Math.max(0, Math.min(3, i));
+  document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('on', +s.dataset.s === cur));
+  $('dots').innerHTML = NAMES.map((n, j) => `<button class="${j === cur ? 'on' : j < cur ? 'done' : ''}" data-j="${j}">${j + 1} ${n}</button>`).join('');
+  $('dots').querySelectorAll('button').forEach((b) => (b.onclick = () => go(+b.dataset.j)));
+  $('back').disabled = cur === 0;
+  $('next').style.visibility = cur >= 2 ? 'hidden' : 'visible';
+  $('next').disabled = false;
+  $('next').textContent = cur === 0 ? 'Find a plan' : 'See plan';
+  if (cur === 1) runTrace(); else clearTimeout(traceTimer);
+  if (cur === 3) renderDone();
+  history.replaceState(null, '', '#' + (cur + 1));
+}
+$('back').onclick = () => go(cur - 1);
+$('next').onclick = () => go(cur + 1);
+document.addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT') return; if (e.key === 'ArrowRight' && !$('next').disabled && cur < 2) go(cur + 1); if (e.key === 'ArrowLeft') go(cur - 1); });
+buildSliders(); update();
+go(Math.max(0, (parseInt(location.hash.slice(1)) || 1) - 1));
+</script>
+</body>
+</html>

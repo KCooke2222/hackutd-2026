@@ -43,6 +43,7 @@ Without keys everything still runs on the local PNC CSVs: the explorer and chart
 ```bash
 make seed        # add C001-C003 to Nessie (skips ones already seeded)
 make reseed      # wipe this key's accounts, seed again, rewrite the id map
+make linked      # (re)load linked external accounts into SQLite (seed/reseed do this too)
 ```
 
 Nessie assigns new ids on every seed; the PNC-id → Nessie-id map lives in
@@ -75,3 +76,20 @@ empty `PNC <id>` customers.
   gets 409 instead of a second transfer.
 - Approve re-reads the card and savings balances (PNC and Nessie). If they changed since the
   proposal, it is marked `stale` and you re-run the check.
+
+## Balance sheet: PNC + Nessie + linked accounts
+
+Nessie only has Checking / Savings / Credit Card accounts (plus home/auto/small-business loans), and
+PNC's data has no student loans, brokerage or property. Those are **linked external accounts**:
+deterministic synthetic rows (`zeroday/linked.py`, `backend/scripts/extend_data.py`) stored in the
+SQLite `linked_accounts` table. `balance_sheet.py` merges PNC (with live Nessie balances where seeded)
+and linked accounts, then computes:
+
+- **Liquidity ladder**: 1 cash above the emergency buffer (free), 2 CDs (~6 months' interest),
+  3 brokerage (15% tax on the gain), 4 IRA (flag only), 5 property equity (mention only).
+  Plans may draw from tiers 1-3; the validator checks each draw and its one-time cost.
+- **Debt priority**: every minimum, ordered by consequence (secured, federal student loan,
+  unsecured), then extra money to the highest APR. Secured or <8% APR debt gets minimums only.
+
+API: `/api/customers/{id}/balance-sheet`, `/ladder?amount=`, `/debts`, `/api/linked`.
+CD and brokerage draws can't run in Nessie; approval records them as manual steps.

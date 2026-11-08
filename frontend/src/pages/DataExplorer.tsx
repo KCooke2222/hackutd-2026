@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ACCOUNT_COLORS, api, pct, usd } from '../lib/api'
-import type { Account, Profile, Statement, Totals } from '../lib/api'
+import type { Account, LinkedAccount, Profile, Statement, Totals } from '../lib/api'
+import { SourceTag } from '../components/BalanceSheet'
 import Markdown from '../lib/Markdown'
 
 type Overview = {
@@ -24,8 +25,9 @@ type Overview = {
   }[]
 }
 
-type CustomerRow = Profile & { net_worth: number; card_balance: number; liquid: number }
-type CustomerDetail = { profile: Profile; accounts: Account[]; totals: Totals; statements: Statement[] }
+type CustomerRow = Profile & { net_worth: number; card_balance: number; liquid: number; net_worth_all: number; linked_count: number }
+type CustomerDetail = { profile: Profile; accounts: Account[]; totals: Totals; statements: Statement[]; linked_accounts: LinkedAccount[] }
+type LinkedOverview = { count: number; types: { account_type: string; kind: string; count: number; total_balance: number; apr_min: number | null; apr_max: number | null }[] }
 type Tx = {
   transaction_id: string
   account_id: string
@@ -117,6 +119,8 @@ function OverviewTab({ onPick }: { onPick: (c: string) => void }) {
         {Object.entries(o.counts).map(([k, v]) => <Stat key={k} label={k} value={v.toLocaleString()} />)}
         <Stat label="history" value={`${o.date_range.from} → ${o.date_range.to}`} />
       </div>
+
+      <LinkedTypes />
 
       <section className="card">
         <h2>Account types</h2>
@@ -238,7 +242,7 @@ function CustomerTab({ cid, onPick }: { cid: string; onPick: (c: string) => void
         <select value={cid} onChange={(e) => onPick(e.target.value)}>
           {(list ?? [{ customer_id: cid } as CustomerRow]).map((c) => (
             <option key={c.customer_id} value={c.customer_id}>
-              {c.customer_id}{c.card_balance != null ? ` · card ${usd(c.card_balance)} · net worth ${usd(c.net_worth)}` : ''}
+              {c.customer_id}{c.card_balance != null ? ` · card ${usd(c.card_balance)} · net worth ${usd(c.net_worth_all ?? c.net_worth)}` : ''}
             </option>
           ))}
         </select>
@@ -252,7 +256,7 @@ function CustomerTab({ cid, onPick }: { cid: string; onPick: (c: string) => void
             <Stat label="Credit limit" value={usd(d.profile.credit_limit)} />
             <Stat label="Assets" value={usd(d.totals.assets)} />
             <Stat label="Debts" value={usd(d.totals.debts)} tone="bad" />
-            <Stat label="Net worth" value={usd(d.totals.net_worth)} />
+            <Stat label="Net worth (PNC only)" value={usd(d.totals.net_worth)} sub={`${d.linked_accounts.length} linked accounts not included`} />
             <Stat label="Card interest, last 12 mo" value={usd(d.totals.card_interest_last_12m)} tone="bad" />
           </div>
 
@@ -278,6 +282,8 @@ function CustomerTab({ cid, onPick }: { cid: string; onPick: (c: string) => void
               </table>
             </div>
           </section>
+
+          <LinkedTable rows={d.linked_accounts} />
 
           <section className="card">
             <h2>Balance over time (monthly statement closing balance)</h2>
@@ -312,6 +318,63 @@ function CustomerTab({ cid, onPick }: { cid: string; onPick: (c: string) => void
         </>
       )}
     </>
+  )
+}
+
+function LinkedTypes() {
+  const { data } = useApi<LinkedOverview>('/linked')
+  if (!data) return null
+  return (
+    <section className="card">
+      <h2>Linked external accounts <span className="muted small">({data.count}, generated, stored in SQLite)</span></h2>
+      <p className="muted small">PNC's data has no student loans, brokerage or property, and Nessie only holds checking, savings and card accounts. These are synthetic "linked" accounts so the balance sheet is complete.</p>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Type</th><th>Kind</th><th className="num">Count</th><th className="num">Total balance</th><th className="num">APR range</th></tr></thead>
+          <tbody>
+            {data.types.map((t) => (
+              <tr key={`${t.account_type}:${t.kind}`}>
+                <td><span className="dot" style={{ background: ACCOUNT_COLORS[t.account_type] }} />{t.account_type}</td>
+                <td>{t.kind}</td>
+                <td className="num">{t.count}</td>
+                <td className="num">{usd(t.total_balance)}</td>
+                <td className="num">{t.apr_min == null ? '—' : t.apr_min === t.apr_max ? pct(t.apr_min) : `${t.apr_min}–${t.apr_max}%`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+function LinkedTable({ rows }: { rows: LinkedAccount[] }) {
+  return (
+    <section className="card">
+      <h2>Linked accounts <span className="muted small">(external, stored in SQLite)</span></h2>
+      {rows.length === 0 ? <p className="muted">None for this customer.</p> : (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Account</th><th>Name</th><th>Type</th><th>Source</th><th className="num">Balance / value</th><th className="num">APR</th><th className="num">Min payment</th><th className="num">Cost basis</th><th>Notes</th></tr></thead>
+            <tbody>
+              {rows.map((a) => (
+                <tr key={a.account_id}>
+                  <td className="mono">{a.account_id}</td>
+                  <td>{a.name}<div className="small muted">{a.institution}</div></td>
+                  <td><span className="dot" style={{ background: ACCOUNT_COLORS[a.account_type] }} />{a.account_type}{a.kind ? ` · ${a.kind}` : ''}</td>
+                  <td><SourceTag source={a.source} /></td>
+                  <td className="num">{usd(a.balance, 2)}</td>
+                  <td className="num">{a.apr_pct ? pct(a.apr_pct) : '—'}</td>
+                  <td className="num">{a.min_payment ? usd(a.min_payment, 2) : '—'}</td>
+                  <td className="num">{a.cost_basis != null ? usd(a.cost_basis, 2) : '—'}</td>
+                  <td className="small muted">{a.secures_account_id ? `secures ${a.secures_account_id}` : a.consequence_tier ? `consequence tier ${a.consequence_tier}` : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   )
 }
 

@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: install backend frontend test seed reseed
+.PHONY: install backend frontend test seed reseed linked
 
 install:
 	cd backend && $(UV) sync
@@ -22,3 +22,7 @@ seed:
 # DELETE all Nessie data for this key, seed C001-C003 again, rewrite the id map.
 reseed:
 	cd backend && $(UV) run python -m zeroday.seed reseed
+
+# Regenerate the linked external accounts (student loans, brokerage, property, other cards) in SQLite.
+linked:
+	cd backend && $(UV) run python scripts/extend_data.py

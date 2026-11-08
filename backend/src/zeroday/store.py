@@ -1,4 +1,4 @@
-"""Our own small state: pending proposals and agent run log. Nessie stays the bank of record."""
+"""Our own small state: proposals, agent run log, linked external accounts. Nessie stays the bank of record."""
 
 from __future__ import annotations
 
@@ -27,7 +27,33 @@ create table if not exists agent_runs (
   started_at text not null,
   messages json not null
 );
+-- Accounts Nessie can't hold (student loans, brokerage, property, other banks' cards). See linked.py.
+create table if not exists linked_accounts (
+  account_id text primary key,
+  customer_id text not null,
+  account_type text not null,   -- student_loan | brokerage | property | credit_card
+  kind text,                    -- federal/private, taxable, home/vehicle, store
+  name text not null,
+  institution text,
+  balance real not null,        -- debt: amount owed; asset: market value
+  apr_pct real not null default 0,
+  annual_yield_pct real not null default 0,
+  min_payment real not null default 0,
+  cost_basis real,              -- brokerage only
+  secured integer not null default 0,
+  consequence_tier integer,     -- debts only: 1 secured, 2 federal student loan, 3 unsecured
+  secures_account_id text,      -- property backing a PNC mortgage / auto loan
+  source text not null default 'linked',
+  as_of_date text
+);
+create index if not exists linked_accounts_customer on linked_accounts (customer_id);
 """
+
+LINKED_COLS = [
+    "account_id", "customer_id", "account_type", "kind", "name", "institution", "balance", "apr_pct",
+    "annual_yield_pct", "min_payment", "cost_basis", "secured", "consequence_tier", "secures_account_id",
+    "source", "as_of_date",
+]
 
 
 def _conn() -> sqlite3.Connection:
@@ -84,6 +110,18 @@ def set_status(pid: str, status: str, execution: dict | None = None) -> dict | N
     return get_proposal(pid)
 
 
+def annotate(pid: str, **fields) -> dict | None:
+    """Merge display fields (e.g. explain labels) into a proposal's simulation json."""
+    with _conn() as c:
+        r = c.execute("select simulation from proposals where id = ?", (pid,)).fetchone()
+        if not r:
+            return None
+        sim = json.loads(r["simulation"] or "{}")
+        sim.update(fields)
+        c.execute("update proposals set simulation = ? where id = ?", (json.dumps(sim), pid))
+    return get_proposal(pid)
+
+
 def claim(pid: str) -> bool:
     """Atomically flip pending -> executing. False if someone else already claimed it (double click)."""
     with _conn() as c:
@@ -103,3 +141,32 @@ def log_run(customer_id: str, messages: list[dict]) -> str:
         c.execute("insert into agent_runs (id, customer_id, started_at, messages) values (?,?,?,?)",
                   (rid, customer_id, _now(), json.dumps(messages)))
     return rid
+
+
+def replace_linked_accounts(rows: list[dict]) -> int:
+    with _conn() as c:
+        c.execute("delete from linked_accounts")
+        c.executemany(
+            f"insert into linked_accounts ({','.join(LINKED_COLS)}) values ({','.join('?' * len(LINKED_COLS))})",
+            [tuple(r.get(k) for k in LINKED_COLS) for r in rows],
+        )
+    return len(rows)
+
+
+def linked_count() -> int:
+    with _conn() as c:
+        return c.execute("select count(*) from linked_accounts").fetchone()[0]
+
+
+def linked_accounts(customer_id: str | None = None) -> list[dict]:
+    with _conn() as c:
+        if customer_id:
+            rows = c.execute("select * from linked_accounts where customer_id = ? order by account_type, account_id", (customer_id,)).fetchall()
+        else:
+            rows = c.execute("select * from linked_accounts order by customer_id, account_type, account_id").fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["secured"] = bool(d["secured"])
+        out.append(d)
+    return out

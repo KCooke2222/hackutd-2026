@@ -47,3 +47,42 @@ def test_refill_breakdown_no_card():
     if not no_card:
         pytest.skip("every customer has a card")
     assert finance.refill_breakdown(no_card[0])["has_card"] is False
+
+
+def test_project_stuck_card_stays_flat():
+    # C001-like: payment barely covers spending plus interest.
+    r = finance.project(6571, 22.5, 1541.12, 1422.79, months=24)
+    assert len(r["balances"]) == 25
+    assert r["payoff_month"] is None
+    assert r["balances"][-1] == pytest.approx(6571, abs=200)
+    assert r["interest"] == pytest.approx(24 * 123, abs=150)
+
+
+def test_project_lump_sum_with_paid_in_full_stays_at_zero():
+    r = finance.project(6571, 22.5, 1541.12, 500, lump_sum=6571)
+    assert r["payoff_month"] == 0
+    assert r["relapse_month"] is None
+    assert max(r["balances"]) == 0
+    assert r["interest"] == 0
+
+
+def test_project_refills_when_spending_beats_payment():
+    # Paid off by the lump sum, but $400 > $300 payment: the card refills.
+    r = finance.project(2000, 24, 300, 400, lump_sum=2000, months=12)
+    assert r["payoff_month"] == 0
+    assert r["relapse_month"] == 1
+    assert r["balances"][1] == pytest.approx(100)
+    assert r["end_balance"] > 1000
+
+
+def test_project_matches_simulate_payoff_until_zero():
+    sim = finance.simulate_payoff(6400, 22.5, 500, 250, lump_sum=3000)
+    r = finance.project(6400, 22.5, 500, 250, lump_sum=3000, months=24)
+    assert r["payoff_month"] == sim["months_to_zero"] == 16
+    assert [p["balance"] for p in sim["schedule"]] == r["balances"][:17]
+    assert r["interest"] == pytest.approx(sim["total_interest"], abs=0.05)
+
+
+def test_project_autopay_full_keeps_card_at_zero():
+    p = finance.project(1000, 24, 100, 300, lump_sum=1000, months=6, autopay_full=True)
+    assert p["payoff_month"] == 0 and p["relapse_month"] is None and p["end_balance"] == 0
