@@ -23,6 +23,8 @@ const day = (s?: string) => (s ? new Date(s + 'T12:00:00').toLocaleDateString([]
 /** One planned (or sent) Nessie call in plain words. */
 export function what(c: NessieCall): { verb: string; text: string; when: string } {
   const desc = typeof c.body?.description === 'string' ? (c.body.description as string) : ''
+  if (c.tool.endsWith('delete_bill'))
+    return { verb: 'Bill paused', text: c.step ? pretty(c.step) : `${c.from ?? 'Checking'} → ${c.to ?? 'PNC IRA'} paused`, when: '/mo · stops now' }
   if (c.tool.endsWith('create_bill'))
     return { verb: 'Recurring bill', text: `${c.from ?? 'Checking'} pays ${c.to ?? 'the debt'}`, when: `/mo · the ${nth(c.recurring_date ?? 1)}${c.first_payment ? `, from ${day(c.first_payment)}` : ''}` }
   if (c.tool.endsWith('create_transfer'))
@@ -58,9 +60,7 @@ export function callsFor(pv: ApprovePreview | null, schedule: Schedule | null | 
 /** "Each month: debt shrinks $196 · $1,423 covers new card purchases · $759 stays in cash". */
 export function MonthLine({ s }: { s?: MonthSplit | null }) {
   if (!s || s.paid == null) return null
-  const bits = [<><b>{usd(Math.round(s.paid))}/mo</b> goes to your debts</>]
-  if ((s.new_purchases ?? 0) >= 1) bits.push(<>{usd(Math.round(s.new_purchases!))} of it covers new card purchases</>)
-  bits.push(<>debt shrinks <b>{usd(Math.round(s.net_paydown ?? 0))}/mo</b></>)
+  const bits = [<>debt shrinks <b>{usd(Math.round(s.net_paydown ?? 0))}/mo</b></>]
   if ((s.left_over ?? 0) >= 1) bits.push(<>{usd(Math.round(s.left_over!))}/mo left over stays in cash</>)
   return <div className="small month-line">Each month: {bits.map((b, i) => <span key={i}>{i ? ' · ' : ''}{b}</span>)}</div>
 }
@@ -106,8 +106,8 @@ export function PlanSteps({ recorded = [], manual = [], agent = [] }: { recorded
   if (!recorded.length && !manual.length && !agent.length) return null
   return (
     <div className="quiet">
-      {agent.length > 0 && (<><h3>The agent watches these</h3><ul>{agent.map((s, i) => (
-        <li key={i}>{pretty(s.step)}{s.watch && <span className="muted"> · {s.watch}</span>}</li>
+      {agent.length > 0 && (<><h3>The agent checks these monthly</h3><ul>{agent.map((s, i) => (
+        <li key={i}>{pretty(s.step)}</li>
       ))}</ul></>)}
       {recorded.length > 0 && (<><h3>Recorded with the plan</h3><ul>{recorded.map((s, i) => <li key={i}>{pretty(s.step)}</li>)}</ul></>)}
       {manual.length > 0 && (<><h3>You do it</h3><ul>{manual.map((s, i) => (

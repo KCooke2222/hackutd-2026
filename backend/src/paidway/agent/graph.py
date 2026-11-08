@@ -456,8 +456,7 @@ def _explain_v3(p: dict, d: dict, under: dict | None = None) -> dict:
     net, gross, cur = b.get("net_paydown_per_month"), b.get("monthly_debt_budget"), b.get("current_net_paydown_per_month")
     buys, left = b.get("new_card_purchases") or 0, b.get("unused_per_month") or 0
     paid = b.get("paid_to_debt_per_month", gross)
-    summary = (f"Each month {_usd(paid)} goes to your debts: {_usd(net)} shrinks the balance (was {_usd(cur)})"
-               + (f", {_usd(buys)} pays off new card purchases" if buys >= 1 else "")
+    summary = (f"Each month {_usd(net)} pays your debts down (was {_usd(cur)})"
                + (f"; {_usd(left)} left over stays in cash, not debt" if left >= 1 else "") + ".") if net is not None else ""
     pp = (rc.get("monthly") or {}).get("principal_paydown")
     if rc.get("realistic") is False and pp is not None and pp < 0:  # underwater: "net" would overstate it

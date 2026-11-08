@@ -51,7 +51,8 @@ function steps(ai: Proposal, calls: NessieCall[], manual: { step: string; how?: 
   for (const c of bills) out.push({ text: c.step ? pretty(c.step) : <>{c.from} pays {c.to} <b>{money(c.amount)}/mo</b></>, sub: c.note ?? undefined, runs: 'bill' })
   if (!bills.length && !summary) {
     const order = pl.extra_order.map(name)
-    out.push({ text: <>Pay <b>{money(pl.monthly_debt_budget)}/mo</b> to debt</>, sub: order.length ? <>Extra goes {order.join(' → ')}</> : undefined, runs: 'recorded' })
+    const net = sim.budget?.net_paydown_per_month ?? pl.monthly_debt_budget
+    out.push({ text: <>Pay <b>{money(net)}/mo</b> toward debt</>, sub: order.length ? <>Extra goes {order.join(' → ')}</> : undefined, runs: 'recorded' })
   }
   for (const a of agent.filter((x) => x.kind === 'leftover')) out.push({ text: pretty(a.step), sub: brief(a.watch, 60) || undefined, runs: 'agent' })
   const red = pl.redirects.reduce((a, r) => a + r.amount_per_month, 0)
@@ -86,9 +87,9 @@ function honest(b: SimV2['budget'], s: MonthSplit | null): SimV2['budget'] {
 }
 /** Same words as graph._explain_v3's summary, from the honest numbers. */
 function splitLine(b: Budget): string {
-  const buys = b.new_card_purchases ?? 0, left = b.unused_per_month ?? 0
-  return `Each month ${money(b.paid_to_debt_per_month ?? 0)} goes to your debts: ${money(b.net_paydown_per_month ?? 0)} shrinks the balance (was ${money(b.current_net_paydown_per_month ?? 0)})`
-    + (buys >= 1 ? `, ${money(buys)} pays off new card purchases` : '') + (left >= 1 ? `; ${money(left)} left over stays in cash, not debt` : '') + '.'
+  const buys = 0, left = b.unused_per_month ?? 0
+  return `Each month ${money(b.net_paydown_per_month ?? 0)} pays your debts down (was ${money(b.current_net_paydown_per_month ?? 0)})`
+    + (buys >= 1 ? '' : '') + (left >= 1 ? `; ${money(left)} left over stays in cash, not debt` : '') + '.'
 }
 
 function Kpis({ sim, base, b }: { sim: SimV2; base: SimV2 | null; b: SimV2['budget'] }) {
@@ -109,18 +110,18 @@ function Kpis({ sim, base, b }: { sim: SimV2; base: SimV2 | null; b: SimV2['budg
 
 function PaydownBar({ b }: { b: SimV2['budget'] }) {
   if (!b?.monthly_debt_budget || b.net_paydown_per_month == null) return null
-  const buys = b.new_card_purchases ?? 0, shrink = Math.max(0, b.net_paydown_per_month), left = b.unused_per_month ?? 0
+  // Card purchases are the user's own spending, never part of the plan: only paydown and what stays in cash.
+  const buys = 0, shrink = Math.max(0, b.net_paydown_per_month), left = b.unused_per_month ?? 0
   const tot = buys + shrink + left || 1
   return (
     <div style={{ marginTop: 16 }}>
-      <div className="col-head"><h3 style={{ margin: 0 }}>Where the {money(b.monthly_debt_budget)}/mo goes</h3></div>
+      <div className="col-head"><h3 style={{ margin: 0 }}>Where the {money(shrink + left)}/mo goes</h3></div>
       <div className="pd-bar" role="img" aria-label={`${money(buys)} covers new card purchases, ${money(shrink)} shrinks the debt${left >= 1 ? `, ${money(left)} stays in cash` : ''}`}>
         <div style={{ width: `${(buys / tot) * 100}%`, background: GREY }} />
         <div style={{ width: `${(shrink / tot) * 100}%`, background: GOOD }} />
         {left >= 1 && <div style={{ width: `${(left / tot) * 100}%`, background: C.leftOver }} />}
       </div>
       <div className="legend">
-        <span><i className="sw" style={{ background: GREY }} />New card purchases {money(buys)}</span>
         <span><i className="sw" style={{ background: GOOD }} />Shrinks the debt {money(shrink)}</span>
         {left >= 1 && <span><i className="sw" style={{ background: C.leftOver }} />Left over, stays in cash {money(left)}</span>}
       </div>

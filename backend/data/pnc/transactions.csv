@@ -835,86 +835,86 @@ T0000833,C001,A-C001-CHECKING,checking,2026-10-26,withdrawal,groceries,H-E-B,244
 T0000834,C001,A-C001-CHECKING,checking,2026-10-26,payment,home_household,Ashley Furniture,691.62,-691.62,3613.50,expense,
 T0000835,C001,A-C001-CHECKING,checking,2026-10-27,payment,home_household,IKEA,475.09,-475.09,3138.41,expense,
 T0000836,C001,A-C001-CHECKING,checking,2026-10-28,payment,debt_payment,Synthetic linked credit card payment,1534.41,-1534.41,1604.00,internal_transfer,X-C001-credit_card-23-payment
-T0000837,C001,A-C001-SAVINGS,savings,2024-11-01,paycheck,payroll,Split-payroll deposit to savings,55.54,55.54,25036.23,income,
-T0000838,C001,A-C001-SAVINGS,savings,2024-11-05,deposit,savings_contribution,Deposit,55.55,55.55,25091.78,internal_transfer,X-C001-savings-00-deposit
-T0000839,C001,A-C001-SAVINGS,savings,2024-11-22,payment,other_spending,Lowe's,28.00,-28.00,25063.78,expense,
-T0000840,C001,A-C001-SAVINGS,savings,2024-11-30,interest_accrual,asset_interest,Interest accrual,52.22,52.22,25116.00,non_cash,
-T0000841,C001,A-C001-SAVINGS,savings,2024-12-01,paycheck,payroll,Split-payroll deposit to savings,36.76,36.76,25152.76,income,
-T0000842,C001,A-C001-SAVINGS,savings,2024-12-05,deposit,savings_contribution,Deposit,36.77,36.77,25189.53,internal_transfer,X-C001-savings-01-deposit
-T0000843,C001,A-C001-SAVINGS,savings,2024-12-31,interest_accrual,asset_interest,Interest accrual,52.48,52.48,25242.01,non_cash,
-T0000844,C001,A-C001-SAVINGS,savings,2025-01-01,paycheck,payroll,Split-payroll deposit to savings,28.80,28.80,25270.81,income,
-T0000845,C001,A-C001-SAVINGS,savings,2025-01-05,deposit,savings_contribution,Deposit,28.81,28.81,25299.62,internal_transfer,X-C001-savings-02-deposit
-T0000846,C001,A-C001-SAVINGS,savings,2025-01-31,interest_accrual,asset_interest,Interest accrual,52.71,52.71,25352.33,non_cash,
-T0000847,C001,A-C001-SAVINGS,savings,2025-02-01,paycheck,payroll,Split-payroll deposit to savings,31.43,31.43,25383.76,income,
-T0000848,C001,A-C001-SAVINGS,savings,2025-02-05,deposit,savings_contribution,Deposit,31.44,31.44,25415.20,internal_transfer,X-C001-savings-03-deposit
-T0000849,C001,A-C001-SAVINGS,savings,2025-02-22,withdrawal,savings_withdrawal,Withdrawal,28.00,-28.00,25387.20,internal_transfer,X-C001-savings-03-withdrawal
-T0000850,C001,A-C001-SAVINGS,savings,2025-02-28,interest_accrual,asset_interest,Interest accrual,52.89,52.89,25440.09,non_cash,
-T0000851,C001,A-C001-SAVINGS,savings,2025-03-01,paycheck,payroll,Split-payroll deposit to savings,40.40,40.40,25480.49,income,
-T0000852,C001,A-C001-SAVINGS,savings,2025-03-05,deposit,savings_contribution,Deposit,40.40,40.40,25520.89,internal_transfer,X-C001-savings-04-deposit
-T0000853,C001,A-C001-SAVINGS,savings,2025-03-31,interest_accrual,asset_interest,Interest accrual,53.17,53.17,25574.06,non_cash,
-T0000854,C001,A-C001-SAVINGS,savings,2025-04-01,paycheck,payroll,Split-payroll deposit to savings,40.20,40.20,25614.26,income,
-T0000855,C001,A-C001-SAVINGS,savings,2025-04-05,deposit,savings_contribution,Deposit,40.21,40.21,25654.47,internal_transfer,X-C001-savings-05-deposit
-T0000856,C001,A-C001-SAVINGS,savings,2025-04-30,interest_accrual,asset_interest,Interest accrual,53.45,53.45,25707.92,non_cash,
-T0000857,C001,A-C001-SAVINGS,savings,2025-05-01,paycheck,payroll,Split-payroll deposit to savings,44.45,44.45,25752.37,income,
-T0000858,C001,A-C001-SAVINGS,savings,2025-05-05,deposit,savings_contribution,Deposit,44.45,44.45,25796.82,internal_transfer,X-C001-savings-06-deposit
-T0000859,C001,A-C001-SAVINGS,savings,2025-05-22,payment,other_spending,Dollar General,28.00,-28.00,25768.82,expense,
-T0000860,C001,A-C001-SAVINGS,savings,2025-05-31,interest_accrual,asset_interest,Interest accrual,53.69,53.69,25822.51,non_cash,
-T0000861,C001,A-C001-SAVINGS,savings,2025-06-01,paycheck,payroll,Split-payroll deposit to savings,35.88,35.88,25858.39,income,
-T0000862,C001,A-C001-SAVINGS,savings,2025-06-05,deposit,savings_contribution,Deposit,35.88,35.88,25894.27,internal_transfer,X-C001-savings-07-deposit
-T0000863,C001,A-C001-SAVINGS,savings,2025-06-30,interest_accrual,asset_interest,Interest accrual,53.95,53.95,25948.22,non_cash,
-T0000864,C001,A-C001-SAVINGS,savings,2025-07-01,paycheck,payroll,Split-payroll deposit to savings,50.89,50.89,25999.11,income,
-T0000865,C001,A-C001-SAVINGS,savings,2025-07-05,deposit,savings_contribution,Deposit,50.90,50.90,26050.01,internal_transfer,X-C001-savings-08-deposit
-T0000866,C001,A-C001-SAVINGS,savings,2025-07-31,interest_accrual,asset_interest,Interest accrual,54.27,54.27,26104.28,non_cash,
-T0000867,C001,A-C001-SAVINGS,savings,2025-08-01,paycheck,payroll,Split-payroll deposit to savings,45.49,45.49,26149.77,income,
-T0000868,C001,A-C001-SAVINGS,savings,2025-08-05,deposit,savings_contribution,Deposit,45.49,45.49,26195.26,internal_transfer,X-C001-savings-09-deposit
-T0000869,C001,A-C001-SAVINGS,savings,2025-08-22,withdrawal,savings_withdrawal,Withdrawal,28.00,-28.00,26167.26,internal_transfer,X-C001-savings-09-withdrawal
-T0000870,C001,A-C001-SAVINGS,savings,2025-08-31,interest_accrual,asset_interest,Interest accrual,54.52,54.52,26221.78,non_cash,
-T0000871,C001,A-C001-SAVINGS,savings,2025-09-01,paycheck,payroll,Split-payroll deposit to savings,24.82,24.82,26246.60,income,
-T0000872,C001,A-C001-SAVINGS,savings,2025-09-05,deposit,savings_contribution,Deposit,24.82,24.82,26271.42,internal_transfer,X-C001-savings-10-deposit
-T0000873,C001,A-C001-SAVINGS,savings,2025-09-30,interest_accrual,asset_interest,Interest accrual,54.73,54.73,26326.15,non_cash,
-T0000874,C001,A-C001-SAVINGS,savings,2025-10-01,paycheck,payroll,Split-payroll deposit to savings,34.07,34.07,26360.22,income,
-T0000875,C001,A-C001-SAVINGS,savings,2025-10-05,deposit,savings_contribution,Deposit,34.07,34.07,26394.29,internal_transfer,X-C001-savings-11-deposit
-T0000876,C001,A-C001-SAVINGS,savings,2025-10-31,interest_accrual,asset_interest,Interest accrual,54.99,54.99,26449.28,non_cash,
-T0000877,C001,A-C001-SAVINGS,savings,2025-11-01,paycheck,payroll,Split-payroll deposit to savings,44.39,44.39,26493.67,income,
-T0000878,C001,A-C001-SAVINGS,savings,2025-11-05,deposit,savings_contribution,Deposit,44.39,44.39,26538.06,internal_transfer,X-C001-savings-12-deposit
-T0000879,C001,A-C001-SAVINGS,savings,2025-11-22,payment,other_spending,Dollar General,28.00,-28.00,26510.06,expense,
-T0000880,C001,A-C001-SAVINGS,savings,2025-11-30,interest_accrual,asset_interest,Interest accrual,55.23,55.23,26565.29,non_cash,
-T0000881,C001,A-C001-SAVINGS,savings,2025-12-01,paycheck,payroll,Split-payroll deposit to savings,48.61,48.61,26613.90,income,
-T0000882,C001,A-C001-SAVINGS,savings,2025-12-05,deposit,savings_contribution,Deposit,48.62,48.62,26662.52,internal_transfer,X-C001-savings-13-deposit
-T0000883,C001,A-C001-SAVINGS,savings,2025-12-31,interest_accrual,asset_interest,Interest accrual,55.55,55.55,26718.07,non_cash,
-T0000884,C001,A-C001-SAVINGS,savings,2026-01-01,paycheck,payroll,Split-payroll deposit to savings,52.35,52.35,26770.42,income,
-T0000885,C001,A-C001-SAVINGS,savings,2026-01-05,deposit,savings_contribution,Deposit,52.35,52.35,26822.77,internal_transfer,X-C001-savings-14-deposit
-T0000886,C001,A-C001-SAVINGS,savings,2026-01-31,interest_accrual,asset_interest,Interest accrual,55.88,55.88,26878.65,non_cash,
-T0000887,C001,A-C001-SAVINGS,savings,2026-02-01,paycheck,payroll,Split-payroll deposit to savings,30.22,30.22,26908.87,income,
-T0000888,C001,A-C001-SAVINGS,savings,2026-02-05,deposit,savings_contribution,Deposit,30.22,30.22,26939.09,internal_transfer,X-C001-savings-15-deposit
-T0000889,C001,A-C001-SAVINGS,savings,2026-02-22,withdrawal,savings_withdrawal,Withdrawal,28.00,-28.00,26911.09,internal_transfer,X-C001-savings-15-withdrawal
-T0000890,C001,A-C001-SAVINGS,savings,2026-02-28,interest_accrual,asset_interest,Interest accrual,56.06,56.06,26967.15,non_cash,
-T0000891,C001,A-C001-SAVINGS,savings,2026-03-01,paycheck,payroll,Split-payroll deposit to savings,34.11,34.11,27001.26,income,
-T0000892,C001,A-C001-SAVINGS,savings,2026-03-05,deposit,savings_contribution,Deposit,34.11,34.11,27035.37,internal_transfer,X-C001-savings-16-deposit
-T0000893,C001,A-C001-SAVINGS,savings,2026-03-31,interest_accrual,asset_interest,Interest accrual,56.32,56.32,27091.69,non_cash,
-T0000894,C001,A-C001-SAVINGS,savings,2026-04-01,paycheck,payroll,Split-payroll deposit to savings,45.18,45.18,27136.87,income,
-T0000895,C001,A-C001-SAVINGS,savings,2026-04-05,deposit,savings_contribution,Deposit,45.19,45.19,27182.06,internal_transfer,X-C001-savings-17-deposit
-T0000896,C001,A-C001-SAVINGS,savings,2026-04-30,interest_accrual,asset_interest,Interest accrual,56.63,56.63,27238.69,non_cash,
-T0000897,C001,A-C001-SAVINGS,savings,2026-05-01,paycheck,payroll,Split-payroll deposit to savings,52.68,52.68,27291.37,income,
-T0000898,C001,A-C001-SAVINGS,savings,2026-05-05,deposit,savings_contribution,Deposit,52.68,52.68,27344.05,internal_transfer,X-C001-savings-18-deposit
-T0000899,C001,A-C001-SAVINGS,savings,2026-05-22,payment,other_spending,Dollar General,28.00,-28.00,27316.05,expense,
-T0000900,C001,A-C001-SAVINGS,savings,2026-05-31,interest_accrual,asset_interest,Interest accrual,56.91,56.91,27372.96,non_cash,
-T0000901,C001,A-C001-SAVINGS,savings,2026-06-01,paycheck,payroll,Split-payroll deposit to savings,35.88,35.88,27408.84,income,
-T0000902,C001,A-C001-SAVINGS,savings,2026-06-05,deposit,savings_contribution,Deposit,35.88,35.88,27444.72,internal_transfer,X-C001-savings-19-deposit
-T0000903,C001,A-C001-SAVINGS,savings,2026-06-30,interest_accrual,asset_interest,Interest accrual,57.18,57.18,27501.90,non_cash,
-T0000904,C001,A-C001-SAVINGS,savings,2026-07-01,paycheck,payroll,Split-payroll deposit to savings,40.79,40.79,27542.69,income,
-T0000905,C001,A-C001-SAVINGS,savings,2026-07-05,deposit,savings_contribution,Deposit,40.80,40.80,27583.49,internal_transfer,X-C001-savings-20-deposit
-T0000906,C001,A-C001-SAVINGS,savings,2026-07-31,interest_accrual,asset_interest,Interest accrual,57.47,57.47,27640.96,non_cash,
-T0000907,C001,A-C001-SAVINGS,savings,2026-08-01,paycheck,payroll,Split-payroll deposit to savings,28.07,28.07,27669.03,income,
-T0000908,C001,A-C001-SAVINGS,savings,2026-08-05,deposit,savings_contribution,Deposit,28.07,28.07,27697.10,internal_transfer,X-C001-savings-21-deposit
-T0000909,C001,A-C001-SAVINGS,savings,2026-08-22,withdrawal,savings_withdrawal,Withdrawal,28.00,-28.00,27669.10,internal_transfer,X-C001-savings-21-withdrawal
-T0000910,C001,A-C001-SAVINGS,savings,2026-08-31,interest_accrual,asset_interest,Interest accrual,57.64,57.64,27726.74,non_cash,
-T0000911,C001,A-C001-SAVINGS,savings,2026-09-01,paycheck,payroll,Split-payroll deposit to savings,34.72,34.72,27761.46,income,
-T0000912,C001,A-C001-SAVINGS,savings,2026-09-05,deposit,savings_contribution,Deposit,34.72,34.72,27796.18,internal_transfer,X-C001-savings-22-deposit
-T0000913,C001,A-C001-SAVINGS,savings,2026-09-30,interest_accrual,asset_interest,Interest accrual,57.91,57.91,27854.09,non_cash,
-T0000914,C001,A-C001-SAVINGS,savings,2026-10-01,paycheck,payroll,Split-payroll deposit to savings,43.85,43.85,27897.94,income,
-T0000915,C001,A-C001-SAVINGS,savings,2026-10-05,deposit,savings_contribution,Deposit,43.85,43.85,27941.79,internal_transfer,X-C001-savings-23-deposit
-T0000916,C001,A-C001-SAVINGS,savings,2026-10-31,interest_accrual,asset_interest,Interest accrual,58.21,58.21,28000.00,non_cash,
+T0000837,C001,A-C001-SAVINGS,savings,2024-11-01,paycheck,payroll,Split-payroll deposit to savings,55.54,55.54,7036.23,income,
+T0000838,C001,A-C001-SAVINGS,savings,2024-11-05,deposit,savings_contribution,Deposit,55.55,55.55,7091.78,internal_transfer,X-C001-savings-00-deposit
+T0000839,C001,A-C001-SAVINGS,savings,2024-11-22,payment,other_spending,Lowe's,28.00,-28.00,7063.78,expense,
+T0000840,C001,A-C001-SAVINGS,savings,2024-11-30,interest_accrual,asset_interest,Interest accrual,52.22,52.22,7116.00,non_cash,
+T0000841,C001,A-C001-SAVINGS,savings,2024-12-01,paycheck,payroll,Split-payroll deposit to savings,36.76,36.76,7152.76,income,
+T0000842,C001,A-C001-SAVINGS,savings,2024-12-05,deposit,savings_contribution,Deposit,36.77,36.77,7189.53,internal_transfer,X-C001-savings-01-deposit
+T0000843,C001,A-C001-SAVINGS,savings,2024-12-31,interest_accrual,asset_interest,Interest accrual,52.48,52.48,7242.01,non_cash,
+T0000844,C001,A-C001-SAVINGS,savings,2025-01-01,paycheck,payroll,Split-payroll deposit to savings,28.80,28.80,7270.81,income,
+T0000845,C001,A-C001-SAVINGS,savings,2025-01-05,deposit,savings_contribution,Deposit,28.81,28.81,7299.62,internal_transfer,X-C001-savings-02-deposit
+T0000846,C001,A-C001-SAVINGS,savings,2025-01-31,interest_accrual,asset_interest,Interest accrual,52.71,52.71,7352.33,non_cash,
+T0000847,C001,A-C001-SAVINGS,savings,2025-02-01,paycheck,payroll,Split-payroll deposit to savings,31.43,31.43,7383.76,income,
+T0000848,C001,A-C001-SAVINGS,savings,2025-02-05,deposit,savings_contribution,Deposit,31.44,31.44,7415.20,internal_transfer,X-C001-savings-03-deposit
+T0000849,C001,A-C001-SAVINGS,savings,2025-02-22,withdrawal,savings_withdrawal,Withdrawal,28.00,-28.00,7387.20,internal_transfer,X-C001-savings-03-withdrawal
+T0000850,C001,A-C001-SAVINGS,savings,2025-02-28,interest_accrual,asset_interest,Interest accrual,52.89,52.89,7440.09,non_cash,
+T0000851,C001,A-C001-SAVINGS,savings,2025-03-01,paycheck,payroll,Split-payroll deposit to savings,40.40,40.40,7480.49,income,
+T0000852,C001,A-C001-SAVINGS,savings,2025-03-05,deposit,savings_contribution,Deposit,40.40,40.40,7520.89,internal_transfer,X-C001-savings-04-deposit
+T0000853,C001,A-C001-SAVINGS,savings,2025-03-31,interest_accrual,asset_interest,Interest accrual,53.17,53.17,7574.06,non_cash,
+T0000854,C001,A-C001-SAVINGS,savings,2025-04-01,paycheck,payroll,Split-payroll deposit to savings,40.20,40.20,7614.26,income,
+T0000855,C001,A-C001-SAVINGS,savings,2025-04-05,deposit,savings_contribution,Deposit,40.21,40.21,7654.47,internal_transfer,X-C001-savings-05-deposit
+T0000856,C001,A-C001-SAVINGS,savings,2025-04-30,interest_accrual,asset_interest,Interest accrual,53.45,53.45,7707.92,non_cash,
+T0000857,C001,A-C001-SAVINGS,savings,2025-05-01,paycheck,payroll,Split-payroll deposit to savings,44.45,44.45,7752.37,income,
+T0000858,C001,A-C001-SAVINGS,savings,2025-05-05,deposit,savings_contribution,Deposit,44.45,44.45,7796.82,internal_transfer,X-C001-savings-06-deposit
+T0000859,C001,A-C001-SAVINGS,savings,2025-05-22,payment,other_spending,Dollar General,28.00,-28.00,7768.82,expense,
+T0000860,C001,A-C001-SAVINGS,savings,2025-05-31,interest_accrual,asset_interest,Interest accrual,53.69,53.69,7822.51,non_cash,
+T0000861,C001,A-C001-SAVINGS,savings,2025-06-01,paycheck,payroll,Split-payroll deposit to savings,35.88,35.88,7858.39,income,
+T0000862,C001,A-C001-SAVINGS,savings,2025-06-05,deposit,savings_contribution,Deposit,35.88,35.88,7894.27,internal_transfer,X-C001-savings-07-deposit
+T0000863,C001,A-C001-SAVINGS,savings,2025-06-30,interest_accrual,asset_interest,Interest accrual,53.95,53.95,7948.22,non_cash,
+T0000864,C001,A-C001-SAVINGS,savings,2025-07-01,paycheck,payroll,Split-payroll deposit to savings,50.89,50.89,7999.11,income,
+T0000865,C001,A-C001-SAVINGS,savings,2025-07-05,deposit,savings_contribution,Deposit,50.90,50.90,8050.01,internal_transfer,X-C001-savings-08-deposit
+T0000866,C001,A-C001-SAVINGS,savings,2025-07-31,interest_accrual,asset_interest,Interest accrual,54.27,54.27,8104.28,non_cash,
+T0000867,C001,A-C001-SAVINGS,savings,2025-08-01,paycheck,payroll,Split-payroll deposit to savings,45.49,45.49,8149.77,income,
+T0000868,C001,A-C001-SAVINGS,savings,2025-08-05,deposit,savings_contribution,Deposit,45.49,45.49,8195.26,internal_transfer,X-C001-savings-09-deposit
+T0000869,C001,A-C001-SAVINGS,savings,2025-08-22,withdrawal,savings_withdrawal,Withdrawal,28.00,-28.00,8167.26,internal_transfer,X-C001-savings-09-withdrawal
+T0000870,C001,A-C001-SAVINGS,savings,2025-08-31,interest_accrual,asset_interest,Interest accrual,54.52,54.52,8221.78,non_cash,
+T0000871,C001,A-C001-SAVINGS,savings,2025-09-01,paycheck,payroll,Split-payroll deposit to savings,24.82,24.82,8246.60,income,
+T0000872,C001,A-C001-SAVINGS,savings,2025-09-05,deposit,savings_contribution,Deposit,24.82,24.82,8271.42,internal_transfer,X-C001-savings-10-deposit
+T0000873,C001,A-C001-SAVINGS,savings,2025-09-30,interest_accrual,asset_interest,Interest accrual,54.73,54.73,8326.15,non_cash,
+T0000874,C001,A-C001-SAVINGS,savings,2025-10-01,paycheck,payroll,Split-payroll deposit to savings,34.07,34.07,8360.22,income,
+T0000875,C001,A-C001-SAVINGS,savings,2025-10-05,deposit,savings_contribution,Deposit,34.07,34.07,8394.29,internal_transfer,X-C001-savings-11-deposit
+T0000876,C001,A-C001-SAVINGS,savings,2025-10-31,interest_accrual,asset_interest,Interest accrual,54.99,54.99,8449.28,non_cash,
+T0000877,C001,A-C001-SAVINGS,savings,2025-11-01,paycheck,payroll,Split-payroll deposit to savings,44.39,44.39,8493.67,income,
+T0000878,C001,A-C001-SAVINGS,savings,2025-11-05,deposit,savings_contribution,Deposit,44.39,44.39,8538.06,internal_transfer,X-C001-savings-12-deposit
+T0000879,C001,A-C001-SAVINGS,savings,2025-11-22,payment,other_spending,Dollar General,28.00,-28.00,8510.06,expense,
+T0000880,C001,A-C001-SAVINGS,savings,2025-11-30,interest_accrual,asset_interest,Interest accrual,55.23,55.23,8565.29,non_cash,
+T0000881,C001,A-C001-SAVINGS,savings,2025-12-01,paycheck,payroll,Split-payroll deposit to savings,48.61,48.61,8613.90,income,
+T0000882,C001,A-C001-SAVINGS,savings,2025-12-05,deposit,savings_contribution,Deposit,48.62,48.62,8662.52,internal_transfer,X-C001-savings-13-deposit
+T0000883,C001,A-C001-SAVINGS,savings,2025-12-31,interest_accrual,asset_interest,Interest accrual,55.55,55.55,8718.07,non_cash,
+T0000884,C001,A-C001-SAVINGS,savings,2026-01-01,paycheck,payroll,Split-payroll deposit to savings,52.35,52.35,8770.42,income,
+T0000885,C001,A-C001-SAVINGS,savings,2026-01-05,deposit,savings_contribution,Deposit,52.35,52.35,8822.77,internal_transfer,X-C001-savings-14-deposit
+T0000886,C001,A-C001-SAVINGS,savings,2026-01-31,interest_accrual,asset_interest,Interest accrual,55.88,55.88,8878.65,non_cash,
+T0000887,C001,A-C001-SAVINGS,savings,2026-02-01,paycheck,payroll,Split-payroll deposit to savings,30.22,30.22,8908.87,income,
+T0000888,C001,A-C001-SAVINGS,savings,2026-02-05,deposit,savings_contribution,Deposit,30.22,30.22,8939.09,internal_transfer,X-C001-savings-15-deposit
+T0000889,C001,A-C001-SAVINGS,savings,2026-02-22,withdrawal,savings_withdrawal,Withdrawal,28.00,-28.00,8911.09,internal_transfer,X-C001-savings-15-withdrawal
+T0000890,C001,A-C001-SAVINGS,savings,2026-02-28,interest_accrual,asset_interest,Interest accrual,56.06,56.06,8967.15,non_cash,
+T0000891,C001,A-C001-SAVINGS,savings,2026-03-01,paycheck,payroll,Split-payroll deposit to savings,34.11,34.11,9001.26,income,
+T0000892,C001,A-C001-SAVINGS,savings,2026-03-05,deposit,savings_contribution,Deposit,34.11,34.11,9035.37,internal_transfer,X-C001-savings-16-deposit
+T0000893,C001,A-C001-SAVINGS,savings,2026-03-31,interest_accrual,asset_interest,Interest accrual,56.32,56.32,9091.69,non_cash,
+T0000894,C001,A-C001-SAVINGS,savings,2026-04-01,paycheck,payroll,Split-payroll deposit to savings,45.18,45.18,9136.87,income,
+T0000895,C001,A-C001-SAVINGS,savings,2026-04-05,deposit,savings_contribution,Deposit,45.19,45.19,9182.06,internal_transfer,X-C001-savings-17-deposit
+T0000896,C001,A-C001-SAVINGS,savings,2026-04-30,interest_accrual,asset_interest,Interest accrual,56.63,56.63,9238.69,non_cash,
+T0000897,C001,A-C001-SAVINGS,savings,2026-05-01,paycheck,payroll,Split-payroll deposit to savings,52.68,52.68,9291.37,income,
+T0000898,C001,A-C001-SAVINGS,savings,2026-05-05,deposit,savings_contribution,Deposit,52.68,52.68,9344.05,internal_transfer,X-C001-savings-18-deposit
+T0000899,C001,A-C001-SAVINGS,savings,2026-05-22,payment,other_spending,Dollar General,28.00,-28.00,9316.05,expense,
+T0000900,C001,A-C001-SAVINGS,savings,2026-05-31,interest_accrual,asset_interest,Interest accrual,56.91,56.91,9372.96,non_cash,
+T0000901,C001,A-C001-SAVINGS,savings,2026-06-01,paycheck,payroll,Split-payroll deposit to savings,35.88,35.88,9408.84,income,
+T0000902,C001,A-C001-SAVINGS,savings,2026-06-05,deposit,savings_contribution,Deposit,35.88,35.88,9444.72,internal_transfer,X-C001-savings-19-deposit
+T0000903,C001,A-C001-SAVINGS,savings,2026-06-30,interest_accrual,asset_interest,Interest accrual,57.18,57.18,9501.90,non_cash,
+T0000904,C001,A-C001-SAVINGS,savings,2026-07-01,paycheck,payroll,Split-payroll deposit to savings,40.79,40.79,9542.69,income,
+T0000905,C001,A-C001-SAVINGS,savings,2026-07-05,deposit,savings_contribution,Deposit,40.80,40.80,9583.49,internal_transfer,X-C001-savings-20-deposit
+T0000906,C001,A-C001-SAVINGS,savings,2026-07-31,interest_accrual,asset_interest,Interest accrual,57.47,57.47,9640.96,non_cash,
+T0000907,C001,A-C001-SAVINGS,savings,2026-08-01,paycheck,payroll,Split-payroll deposit to savings,28.07,28.07,9669.03,income,
+T0000908,C001,A-C001-SAVINGS,savings,2026-08-05,deposit,savings_contribution,Deposit,28.07,28.07,9697.10,internal_transfer,X-C001-savings-21-deposit
+T0000909,C001,A-C001-SAVINGS,savings,2026-08-22,withdrawal,savings_withdrawal,Withdrawal,28.00,-28.00,9669.10,internal_transfer,X-C001-savings-21-withdrawal
+T0000910,C001,A-C001-SAVINGS,savings,2026-08-31,interest_accrual,asset_interest,Interest accrual,57.64,57.64,9726.74,non_cash,
+T0000911,C001,A-C001-SAVINGS,savings,2026-09-01,paycheck,payroll,Split-payroll deposit to savings,34.72,34.72,9761.46,income,
+T0000912,C001,A-C001-SAVINGS,savings,2026-09-05,deposit,savings_contribution,Deposit,34.72,34.72,9796.18,internal_transfer,X-C001-savings-22-deposit
+T0000913,C001,A-C001-SAVINGS,savings,2026-09-30,interest_accrual,asset_interest,Interest accrual,57.91,57.91,9854.09,non_cash,
+T0000914,C001,A-C001-SAVINGS,savings,2026-10-01,paycheck,payroll,Split-payroll deposit to savings,43.85,43.85,9897.94,income,
+T0000915,C001,A-C001-SAVINGS,savings,2026-10-05,deposit,savings_contribution,Deposit,43.85,43.85,9941.79,internal_transfer,X-C001-savings-23-deposit
+T0000916,C001,A-C001-SAVINGS,savings,2026-10-31,interest_accrual,asset_interest,Interest accrual,58.21,58.21,10000.00,non_cash,
 T0000917,C001,A-C001-IRA,ira,2024-11-05,deposit,investment_contribution,Deposit,27.23,27.23,6085.55,internal_transfer,X-C001-ira-00-deposit
 T0000918,C001,A-C001-IRA,ira,2024-11-30,interest_accrual,asset_interest,Interest accrual,17.75,17.75,6103.30,non_cash,
 T0000919,C001,A-C001-IRA,ira,2024-12-05,deposit,investment_contribution,Deposit,13.70,13.70,6117.00,internal_transfer,X-C001-ira-01-deposit

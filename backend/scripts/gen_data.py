@@ -559,6 +559,10 @@ def generate(spec, out_dir=OUT, *, seeded_linked=False):
         # ---------- ledger + statements (PNC) ----------
         for kind, account in by_type.items():
             events = sorted(account_events[kind], key=lambda e: (e['posted_date'], e['serial']))
+            # `shift` moves the whole ledger by a flat amount after the draws, so one balance can change
+            # without reshuffling the customer's history (C001 savings: drawn at 28k, shown at 24.8k).
+            shift = cents((c['accounts'][kind] or {}).get('shift', 0))
+            opening[kind] += shift
             balance = opening[kind]
             for m, period in enumerate(periods):
                 month_events = [e for e in events if e['posted_date'].startswith(period.strftime('%Y-%m'))]
@@ -579,8 +583,10 @@ def generate(spec, out_dir=OUT, *, seeded_linked=False):
                     month=period.strftime('%Y-%m'), opening_balance=dollars(initial),
                     balance_increases=dollars(increases), balance_decreases=dollars(decreases),
                     closing_balance=dollars(balance), transaction_count=len(month_events)))
-            if balance != cents(account['balance']):
+            if balance != cents(account['balance']) + shift:
                 raise ValueError(f'Closing balance mismatch: {cid} {kind}')
+            if shift:
+                account['balance'] = dollars(balance)
             account.update(opening_balance=dollars(opening[kind]), history_start=start.isoformat(),
                            as_of_date=end.isoformat(), annual_yield_pct=YIELDS.get(kind, 0))
             enriched_accounts.append(account)

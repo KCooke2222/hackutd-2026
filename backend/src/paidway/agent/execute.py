@@ -193,13 +193,20 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
     # One recurring bill per payee: a card that autopays in full from the first bill month needs no payment bill.
     autopay_now = {a for a in plan.get("autopay_full_cards") or []
                    if (sim_debts.get(a) or {}).get("payoff_month") and _next_month(sim_debts[a]["payoff_month"])[0] <= first_bill}
+    # The PNC card's payment covers new purchases too; the user keeps paying their own spending, so Paidway
+    # automates only the part that pays the balance down.
+    card_id = f"A-{customer_id}-CREDIT_CARD"
+    buys = round(float((sim or {}).get("monthly_card_spending") or 0), 2)
     for k, sd in sim_debts.items():
         amt = round(float(sd.get("first_month_payment") or 0), 2)
+        cur = now_pay.get(k)
+        if k == card_id and buys:
+            amt = round(max(amt - buys, 0.0), 2)
+            cur = None if cur is None else round(max(cur - buys, 0.0), 2)
         d = debts.get(k) or by_id.get(k)
         if amt < 1 or not d or k in autopay_now:
             continue
         name = d.get("name", k)
-        cur = now_pay.get(k)
         mn = float(sd.get("min_payment") or d.get("min_payment") or 0)
         if checking and k in mir:  # every remaining debt's monthly payment is a Nessie bill, "no change" ones too
             first, day = _next_month()
@@ -208,7 +215,8 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
             what = ("" if mn < 1 else "(minimum)" if abs(extra) < 1 else
                     f"(minimum ${mn:,.0f} + ${extra:,.0f} extra)" if extra > 0 else "")
             same = cur is not None and abs(cur - amt) <= 1
-            steps.append({"kind": "payment", "step": f"{name} ${amt:,.0f}/mo {what}".strip(), "runs": "nessie",
+            label = f"{name} ${amt:,.0f}/mo toward the balance" if k == card_id and buys else f"{name} ${amt:,.0f}/mo"
+            steps.append({"kind": "payment", "step": f"{label} {what}".strip(), "runs": "nessie",
                           "account_id": k, "amount": amt, "current": cur, "minimum": mn,
                           "replaces": (f"Takes over your current ${cur:,.0f}/mo payment" if same else
                                        f"Replaces your current ${cur:,.0f}/mo payment" if cur else None),
@@ -219,6 +227,16 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
         else:
             steps.append({"kind": "payment", "step": f"Pay {name} ${amt:,.2f}/mo", "runs": "recorded",
                           "account_id": k, "amount": amt})
+    ira_bill = ((_ids(customer_id).get("bills") or {}).get("ira")) if checking else None
+    try:
+        from ..planning import options as _opts
+        pause_ira = "pause_ira" in _opts.applied(customer_id)
+    except Exception:  # noqa: BLE001
+        pause_ira = False
+    if pause_ira and ira_bill:  # the IRA contribution is a seeded Nessie bill: pausing it deletes the bill
+        steps.append({"kind": "pause", "step": f"Pause IRA contribution ${ira_bill['amount']:,.0f}/mo", "runs": "nessie",
+                      "amount": ira_bill["amount"], "nessie": {"op": "delete_bill", "bill": ira_bill["id"],
+                                                               "from": checking["account_id"], "amount": ira_bill["amount"]}})
     for r in plan.get("redirects") or []:
         meta = categories.flow_flag(r["flow"]) or {"flag": "redirect", "label": r["flow"]}
         paused = meta["flag"] == categories.PAUSE
@@ -241,10 +259,10 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
         # New charges land on the PNC card (the simulation's card spending); other cards get no new charges.
         stmt = round(float((sim or {}).get("monthly_card_spending") or 0), 2) if a == f"A-{customer_id}-CREDIT_CARD" else 0.0
         has_bill = any(x.get("kind") == "payment" and x.get("account_id") == a and x["runs"] == "nessie" for x in steps)
-        if has_bill:  # one bill per payee: its payment bill pays it down; at payoff it should pay the statement instead
-            step["watch"] = (f"Its bill pays it down now; when it hits $0{' (' + _month_name(payoff) + ')' if payoff else ''} the bill "
-                             "should switch to the statement in full (not automated yet)")
-        elif checking and a in mir and payoff and stmt >= 1:
+        if payoff:  # Paidway only pays balances down: at $0 its bill ends and the user pays their own purchases
+            step.update(step=f"{name}: pay in full from {_month_name(payoff)}",
+                        watch="The monthly check-in reads its balance; any carried balance shows up there")
+        elif False:
             first, day = _next_month(payoff)
             stmt = float(dollars(stmt))
             text = (f"{name} statement in full ~${stmt:,.0f}/mo: your new purchases, not debt" if a in autopay_now
@@ -261,10 +279,10 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
         steps.append(step)
     if sim_debts:  # where the month's budget really goes (the simulation's month 1): debt, new purchases, cash
         bud = (sim or {}).get("budget") or {}
-        paid = round(sum(float(x.get("first_month_payment") or 0) for x in sim_debts.values()), 2)
-        buys = round(float((sim or {}).get("monthly_card_spending") or 0), 2)
-        left = round(max(float(plan.get("monthly_debt_budget") or 0) - paid, 0.0), 2)
-        net = round(float(bud.get("net_paydown_per_month", paid - buys)), 2)
+        gross = round(sum(float(x.get("first_month_payment") or 0) for x in sim_debts.values()), 2)
+        left = round(max(float(plan.get("monthly_debt_budget") or 0) - gross, 0.0), 2)
+        net = round(float(bud.get("net_paydown_per_month", gross - buys)), 2)
+        paid, buys = net, 0.0  # shown: only what pays balances down
         if left >= 1:
             steps.append({"kind": "leftover", "step": f"${left:,.0f}/mo left over -> stays in cash", "runs": "agent",
                           "amount": left, "watch": "Budgeted but no debt needs it this month; the plan keeps it in cash, not debt"})
@@ -309,6 +327,13 @@ def nessie_calls(customer_id: str, transfers: list[dict], steps: list[dict], ids
                         "recurring_date": None, "step": s["step"], "local": [], "expect": {n["from"]: -n["tax"]},
                         "group": f"payoff-{i}"})
     for s, n in ops:
+        if n.get("op") == "delete_bill":
+            f = mir[n["from"]]
+            out.append({"tool": "nessie.write.delete_bill", "method": "DELETE", "path": f"/bills/{n['bill']}", "body": None,
+                        "from": f["name"], "to": "PNC IRA", "from_nickname": f["nickname"], "to_nickname": None,
+                        "amount": n["amount"], "recurring_date": None, "step": s["step"],
+                        "note": "Pauses the monthly IRA deposit; that money goes to the debt bills", "local": [], "expect": {}})
+    for s, n in ops:
         if n.get("op") == "bill":
             f = mir[n["from"]]
             out.append({"tool": "nessie.write.create_bill",
@@ -332,6 +357,11 @@ def _bill_sim(customer_id: str, plan: dict, constraints: dict | None) -> dict | 
     try:
         return validate_plan_v2(customer_id, plan, live=False, constraints=constraints)
     except (PlanRejected, ValueError, KeyError, TypeError):
+        pass
+    try:  # a plan the checks flag (e.g. a debt missing from extra_order) still gets its bills sized
+        from ..planning import wealth
+        return wealth.simulate_plan(customer_id, plan)
+    except Exception:  # noqa: BLE001
         return None
 
 

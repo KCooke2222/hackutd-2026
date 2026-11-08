@@ -10,6 +10,7 @@ import type { RunMeta } from '../components/flow/Thinking'
 import Outcome from '../components/flow/Outcome'
 import PlanReport from '../components/flow/PlanReport'
 import AgentActions, { callsFor } from '../components/flow/AgentActions'
+import NessieChip from '../components/NessieChip'
 import ChatDrawer from '../components/flow/ChatDrawer'
 import RealityCheck from '../components/flow/RealityCheck'
 import UnderwaterOptions from '../components/flow/UnderwaterOptions'
@@ -138,6 +139,12 @@ export default function Home() {
     api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => {
       const v2 = ps.filter((p) => isV2(p)).sort((a, b) => b.created_at.localeCompare(a.created_at))
       setPast(v2)
+      // Approved plan: load it behind the dashboard so Plan and Done stay clickable in the stepper.
+      tracked.then((on) => {
+        const ex = on && v2.find((p) => p.id === on.proposal?.id)
+        if (!ex || n !== epoch.current || urlPlan.current) return
+        setAi(ex); setKnobs(knobsFrom(ex)); setApproved(ex); setReached(3)
+      })
       // ?plan=<id> or ?plan=last opens a saved run straight away (for UI checks without a model run)
       const want = urlPlan.current
       if (want) {
@@ -306,8 +313,13 @@ export default function Home() {
               <h2 style={{ margin: '0 0 4px' }}>Built on what you'll do</h2>
               <ol className="pr-steps">
                 {applied.map((o) => (
+                  /^pause/i.test(o.title) ? (  // a paused contribution is a Nessie bill change, not a call the user makes
+                    <li key={o.key}><span><b>{o.title}</b></span><span className="runs"><NessieChip label="Nessie bill paused" /></span>
+                      <span className="sub">Paidway stops the deposit; that money goes to your debt bills</span></li>
+                  ) : (
                   <li key={o.key}><span><b>{o.title}</b></span><span className="runs"><span className="tag warn">You do it</span></span>
                     <span className="sub">{o.how}{o.link && <> · <a href={o.link} target="_blank" rel="noreferrer">where</a></>}</span></li>
+                  )
                 ))}
               </ol>
             </div>
@@ -332,7 +344,7 @@ export default function Home() {
         <button disabled={screen === 0} style={{ visibility: screen === 0 ? 'hidden' : 'visible' }} onClick={() => go(screen - 1)}>Back</button>
         {screen === 0 && (
           <span className="flow-actions">
-            {past.length > 0 && (
+            {demo && past.length > 0 && (
               <select aria-label="Previous runs" value="" onChange={(e) => { const p = past.find((x) => x.id === e.target.value); if (p) openPlan(p) }}>
                 <option value="">Previous runs ({past.length})</option>
                 {past.map((p) => (
@@ -340,8 +352,8 @@ export default function Home() {
                 ))}
               </select>
             )}
-            {lastPending && <button className="ghost" onClick={() => openPlan(lastPending)}>Open last plan</button>}
-            {replays.length > 0 && (
+            {demo && lastPending && <button className="ghost" onClick={() => openPlan(lastPending)}>Open last plan</button>}
+            {demo && replays.length > 0 && (
               <select value="" aria-label="Load cached run" title="Replay a recorded agent run (no model call), sped up 8×"
                 onChange={(e) => { const r = replays.find((x) => x.id === e.target.value); if (r) findPlan({ id: r.id, speed: 8, duration_ms: r.duration_ms }) }}>
                 <option value="" disabled>Load cached run</option>

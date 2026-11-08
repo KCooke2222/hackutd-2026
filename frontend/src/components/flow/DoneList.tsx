@@ -31,7 +31,9 @@ function rows(calls: NessieCall[]): Row[] {
       return
     }
     let r: Row
-    if (c.tool.endsWith('create_bill')) {
+    if (c.tool.endsWith('delete_bill')) {
+      r = { key: `p${i}`, title: c.step ? pretty(c.step) : 'Paused IRA contribution', sub: ['Recurring Nessie bill deleted', c.note].filter(Boolean).join(' · '), amount: c.amount, per: '/mo', calls: [c] }
+    } else if (c.tool.endsWith('create_bill')) {
       const w = what(c)
       const sub = [`Recurring Nessie bill from ${c.from ?? 'Checking'}, ${w.when.replace(/^\/mo · /, '')}`, c.note].filter(Boolean).join(' · ')
       r = { key: `b${i}`, title: c.step ? pretty(c.step) : `Autopay: ${c.from ?? 'Checking'} pays ${c.to ?? 'the debt'}`, sub, amount: c.amount, per: '/mo', calls: [c] }
