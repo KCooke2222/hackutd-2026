@@ -311,3 +311,7 @@ button.primary:hover:not(:disabled) { background: var(--accent-ink); border-colo
   .land-demos { grid-template-columns: 1fr; }
   .land-hero h1 { font-size: 32px; }
 }
+
+/* Big monitors: scale the whole app up a step (sizes are px, so zoom rather than rem). */
+@media (min-width: 1700px) { html { zoom: 1.12; } }
+@media (min-width: 2300px) { html { zoom: 1.25; } }
