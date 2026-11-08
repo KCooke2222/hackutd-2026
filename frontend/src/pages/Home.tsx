@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { api } from '../lib/api'
-import type { BalanceSheet, Proposal } from '../lib/api'
+import { api, fmtDuration } from '../lib/api'
+import type { BalanceSheet, Proposal, ReplayMeta, ReplayRun } from '../lib/api'
 import { isV2, knobsFrom, planFrom } from '../lib/flow'
 import type { Knobs, Preview } from '../lib/flow'
 import Snapshot from '../components/flow/Snapshot'
@@ -37,11 +37,35 @@ export default function Home() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const [replays, setReplays] = useState<ReplayMeta[]>([])
+  const [replay, setReplay] = useState<ReplayRun | null>(null)
+  const pendingReplay = useRef<ReplayRun & { customer_id: string } | null>(null)
+  const cidRef = useRef(cid)
+  cidRef.current = cid
 
   useEffect(() => {
     api<{ customer_id: string }[]>('/customers').then((l) => setIds(l.map((c) => c.customer_id)))
     api<Health>('/health').then(setHealth)
+    // ?replay=<id>&speed=8 plays a recorded run on load (switching customer first if needed).
+    const q = new URLSearchParams(window.location.search)
+    const rid = q.get('replay')
+    if (rid) {
+      const speed = Number(q.get('speed') ?? 8)
+      api<ReplayMeta>(`/replays/${encodeURIComponent(rid)}`).then((m) => {
+        const run = { id: m.id, speed: Number.isFinite(speed) && speed >= 0 ? speed : 8, duration_ms: m.duration_ms }
+        pendingReplay.current = { ...run, customer_id: m.customer_id }
+        if (cidRef.current === m.customer_id) startPending(m.customer_id)
+        else setCid(m.customer_id)
+      }).catch(() => setNote(`Cached run ${rid} not found.`))
+    }
   }, [])
+
+  function startPending(c: string) {
+    const p = pendingReplay.current
+    if (!p || p.customer_id !== c) return
+    pendingReplay.current = null
+    findPlan({ id: p.id, speed: p.speed, duration_ms: p.duration_ms })
+  }
 
   useEffect(() => {
     setSheet(null); setSummary(null); setAi(null); setKnobs(null); setOutlook(null); setApproved(null); setErr(null)
@@ -49,6 +73,9 @@ export default function Home() {
     api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch((e) => setErr(e.message))
     api<Summary>(`/customers/${cid}/summary`).then(setSummary).catch((e) => setErr(e.message))
     api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => setLastPending(ps.find((p) => p.status === 'pending' && isV2(p)) ?? null))
+    setReplays([])
+    api<ReplayMeta[]>(`/replays?customer_id=${cid}`).then(setReplays).catch(() => {})
+    startPending(cid)
   }, [cid])
 
   // Live preview for the sliders, debounced; stale responses are dropped.
@@ -72,8 +99,9 @@ export default function Home() {
     setAi(p); setFinal(why); setKnobs(knobsFrom(p)); setApproved(null); go(2)
   }
 
-  function findPlan() {
-    setNote(null); setThinkingDone(false); setAi(null); setApproved(null); setReached(1); setRunKey((k) => k + 1); go(1)
+  /** Start a live agent run, or (with `rp`) replay a recorded one through the same Thinking screen. */
+  function findPlan(rp: ReplayRun | null = null) {
+    setNote(null); setThinkingDone(false); setAi(null); setApproved(null); setReplay(rp); setReached(1); setRunKey((k) => k + 1); go(1)
   }
 
   async function approve() {
@@ -125,7 +153,7 @@ export default function Home() {
       {runKey > 0 && (
         // Stays mounted after the run so Back/Next doesn't start another one.
         <div style={{ display: screen === 1 ? 'block' : 'none' }}>
-          <Thinking key={cid} cid={cid} model={health?.model ?? ''} runKey={runKey}
+          <Thinking key={cid} cid={cid} model={replay ? (replays.find((r) => r.id === replay.id)?.model ?? health?.model ?? '') : health?.model ?? ''} runKey={runKey} replay={replay}
             onDone={(p, f) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setFinal(f); setKnobs(knobsFrom(p)); setLastPending(p) } }} />
         </div>
       )}
@@ -140,7 +168,16 @@ export default function Home() {
         {screen === 0 && (
           <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {lastPending && <button className="ghost" onClick={() => openPlan(lastPending, '')}>Open last plan</button>}
-            <button className="primary" onClick={findPlan} disabled={!health?.nvidia}>Find a plan</button>
+            {replays.length > 0 && (
+              <select value="" aria-label="Load cached run" title="Replay a recorded agent run (no model call), sped up 8×"
+                onChange={(e) => { const r = replays.find((x) => x.id === e.target.value); if (r) findPlan({ id: r.id, speed: 8, duration_ms: r.duration_ms }) }}>
+                <option value="" disabled>Load cached run</option>
+                {replays.map((r) => (
+                  <option key={r.id} value={r.id}>{new Date(r.recorded_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {fmtDuration(r.duration_ms)} · {r.headline || r.id}</option>
+                ))}
+              </select>
+            )}
+            <button className="primary" onClick={() => findPlan()} disabled={!health?.nvidia}>Find a plan</button>
           </span>
         )}
         {screen === 1 && <button className="primary" disabled={!thinkingDone || !ai} onClick={() => go(2)}>See plan</button>}

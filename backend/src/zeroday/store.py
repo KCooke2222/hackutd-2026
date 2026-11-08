@@ -47,6 +47,18 @@ create table if not exists linked_accounts (
   as_of_date text
 );
 create index if not exists linked_accounts_customer on linked_accounts (customer_id);
+-- Recorded agent runs (the SSE event stream with time offsets), replayable without calling the model. See replays.py.
+create table if not exists run_replays (
+  id text primary key,
+  customer_id text not null,
+  recorded_at text not null,
+  duration_ms integer not null,
+  model text,
+  headline text,
+  proposal_id text,
+  proposal json,                -- the proposal as it was when the run finished (restored on import)
+  events json not null          -- [{"t": ms since start, "type": str, "data": {...}}]
+);
 """
 
 LINKED_COLS = [
@@ -170,3 +182,52 @@ def linked_accounts(customer_id: str | None = None) -> list[dict]:
         d["secured"] = bool(d["secured"])
         out.append(d)
     return out
+
+
+# --- recorded runs (replays.py) ---
+
+REPLAY_COLS = ["id", "customer_id", "recorded_at", "duration_ms", "model", "headline", "proposal_id", "proposal", "events"]
+
+
+def save_replay(r: dict) -> dict:
+    """Insert a recorded run; ignored if that id already exists (fixture import is idempotent)."""
+    row = {**r, "proposal": json.dumps(r.get("proposal")) if r.get("proposal") is not None else None,
+           "events": json.dumps(r["events"], default=str)}
+    with _conn() as c:
+        c.execute(f"insert or ignore into run_replays ({','.join(REPLAY_COLS)}) values ({','.join('?' * len(REPLAY_COLS))})",
+                  tuple(row.get(k) for k in REPLAY_COLS))
+    return get_replay(r["id"])
+
+
+def get_replay(rid: str) -> dict | None:
+    with _conn() as c:
+        r = c.execute("select * from run_replays where id = ?", (rid,)).fetchone()
+    if not r:
+        return None
+    d = dict(r)
+    d["events"] = json.loads(d["events"])
+    d["proposal"] = json.loads(d["proposal"]) if d["proposal"] else None
+    return d
+
+
+def list_replays(customer_id: str | None = None) -> list[dict]:
+    q = "select id, customer_id, recorded_at, duration_ms, model, headline, proposal_id from run_replays"
+    with _conn() as c:
+        if customer_id:
+            rows = c.execute(q + " where customer_id = ? order by recorded_at desc", (customer_id,)).fetchall()
+        else:
+            rows = c.execute(q + " order by recorded_at desc").fetchall()
+    return [dict(r) for r in rows]
+
+
+def restore_proposal(p: dict) -> bool:
+    """Put a proposal from a replay fixture back, as it was recorded. No-op if that id exists. True if inserted."""
+    cols = ["id", "customer_id", "status", "created_at", "decided_at", "plan", "simulation", "rationale", "execution"]
+    vals = [p.get(k) for k in cols]
+    for i, k in enumerate(cols):
+        if k in ("plan", "simulation", "execution") and vals[i] is not None and not isinstance(vals[i], str):
+            vals[i] = json.dumps(vals[i])
+    vals[2] = vals[2] or "pending"
+    with _conn() as c:
+        cur = c.execute(f"insert or ignore into proposals ({','.join(cols)}) values ({','.join('?' * len(cols))})", vals)
+        return cur.rowcount == 1

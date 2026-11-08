@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Proposal } from '../../lib/api'
+import { fmtDuration, type Proposal, type ReplayRun } from '../../lib/api'
 
 type Step = { id: string; name: string; label: string; why: string; result?: string }
 type Run = { steps: Step[]; final: string; finalWhy: string; error: string | null; done: boolean }
@@ -10,8 +10,9 @@ const ICON: Record<string, string> = {
   liquidity_ladder: '▤', simulate_plan: '∿', propose_plan: '✓',
 }
 
-/** Streams one real agent run (SSE from /api/agent/stream) as chips: tool, one number, reasoning collapsed. */
-export default function Thinking({ cid, model, runKey, onDone }: { cid: string; model: string; runKey: number; onDone: (p: Proposal | null, final: string) => void }) {
+/** Streams one real agent run (SSE from /api/agent/stream) as chips: tool, one number, reasoning collapsed.
+ *  With `replay`, plays a recorded run (/api/replays/{id}/stream) the same way, sped up. */
+export default function Thinking({ cid, model, runKey, replay, onDone }: { cid: string; model: string; runKey: number; replay?: ReplayRun | null; onDone: (p: Proposal | null, final: string) => void }) {
   const [run, setRun] = useState<Run>({ steps: [], final: '', finalWhy: '', error: null, done: false })
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [secs, setSecs] = useState(0)
@@ -25,7 +26,9 @@ export default function Thinking({ cid, model, runKey, onDone }: { cid: string; 
     // Opened on the next tick so StrictMode's mount/unmount/mount doesn't start two real runs.
     let es: EventSource | null = null
     const start = setTimeout(() => {
-      es = new EventSource(`/api/agent/stream?customer_id=${encodeURIComponent(cid)}`)
+      es = new EventSource(replay
+        ? `/api/replays/${encodeURIComponent(replay.id)}/stream?speed=${replay.speed}`
+        : `/api/agent/stream?customer_id=${encodeURIComponent(cid)}`)
       listen(es)
     }, 0)
     const stop = () => { clearTimeout(start); es?.close(); clearInterval(timer) }
@@ -56,13 +59,20 @@ export default function Thinking({ cid, model, runKey, onDone }: { cid: string; 
       })
     }
     return stop
-  }, [cid, runKey])
+  }, [cid, runKey, replay?.id, replay?.speed])
 
   return (
     <div className="card">
       <div className="col-head">
         <h2 style={{ margin: 0 }}>{run.done ? 'Plan found' : 'Finding a plan'}</h2>
-        <span className="small muted num">{model.split('/').pop()} · {secs}s</span>
+        <span className="small muted num" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {replay && (
+            <span className="tag warn" title={`Recorded run, ${fmtDuration(replay.duration_ms)} live. No model call.`}>
+              Replay · {replay.speed > 0 ? `sped up ${replay.speed}×` : 'instant'}
+            </span>
+          )}
+          {model.split('/').pop()} · {secs}s{replay && ` (live ${fmtDuration(replay.duration_ms)})`}
+        </span>
       </div>
       <div style={{ marginTop: 6 }}>
         {run.steps.map((s) => {

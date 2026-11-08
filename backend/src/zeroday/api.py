@@ -5,6 +5,8 @@ Safety: the Nessie write client is imported lazily, only inside agent/execute.ap
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -12,7 +14,18 @@ from pydantic import BaseModel
 from . import balance_sheet, finance, linked, pnc_data, store
 from .config import NESSIE_KEY, NVIDIA_API_KEY, NEMOTRON_MODEL
 
-app = FastAPI(title="Zeroday")
+@asynccontextmanager
+async def _lifespan(_app):
+    from . import replays
+
+    try:  # committed replay fixtures (data/replays/*.json) -> SQLite; a bad fixture must not stop the API
+        replays.import_dir()
+    except Exception as e:  # noqa: BLE001
+        print(f"replay fixtures not imported: {e}")
+    yield
+
+
+app = FastAPI(title="Zeroday", lifespan=_lifespan)
 
 from .api_insights import router as _insights_router  # noqa: E402
 app.include_router(_insights_router)
@@ -205,25 +218,49 @@ def agent_run(body: RunIn) -> dict:
     return {**result, "proposal": next((p for p in proposals if p["status"] == "pending"), None)}
 
 
-@app.get("/api/agent/stream")
-def agent_stream(customer_id: str, instruction: str | None = None) -> StreamingResponse:
-    """Server-sent events for one agent run: `step` per tool call/result, then `done` with the proposal."""
-    _need_customer(customer_id)
-    from .agent.graph import stream_run
+def _sse(evs) -> StreamingResponse:
+    import json
 
-    def events():
-        import json
-
-        for ev in stream_run(customer_id, instruction):
-            msgs = ev.pop("messages", None)
-            if msgs:
-                store.log_run(customer_id, msgs)
-            if ev["type"] == "done":
-                ps = store.list_proposals(customer_id)
-                ev["proposal"] = next((p for p in ps if p["status"] == "pending"), None)
+    def gen():
+        for ev in evs:
             yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
 
-    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.get("/api/agent/stream")
+def agent_stream(customer_id: str, instruction: str | None = None) -> StreamingResponse:
+    """Server-sent events for one agent run: `step` per tool call/result, then `done` with the proposal.
+    Each finished run is recorded (replays.py) so it can be replayed later without calling the model."""
+    _need_customer(customer_id)
+    from . import replays
+
+    return _sse(replays.record(customer_id, replays.live_events(customer_id, instruction), model=NEMOTRON_MODEL))
+
+
+# --- recorded runs: replay a past agent run's event stream at N× speed ---
+
+@app.get("/api/replays")
+def replays_list(customer_id: str | None = None) -> list[dict]:
+    return store.list_replays(customer_id)
+
+
+@app.get("/api/replays/{rid}")
+def replay_meta(rid: str) -> dict:
+    r = store.get_replay(rid)
+    if r is None:
+        raise HTTPException(404, "no such replay")
+    return {k: v for k, v in r.items() if k not in ("events", "proposal")} | {"events": len(r["events"])}
+
+
+@app.get("/api/replays/{rid}/stream")
+def replay_stream(rid: str, speed: float = Query(8.0, ge=0, le=1000)) -> StreamingResponse:
+    """The recorded run's events in the live stream's format, paced at `speed`× (0 = instant)."""
+    from . import replays
+
+    if store.get_replay(rid) is None:
+        raise HTTPException(404, "no such replay")
+    return _sse(replays.replay(rid, speed))
 
 
 class PlanIn(BaseModel):

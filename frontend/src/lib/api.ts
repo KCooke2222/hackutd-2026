@@ -221,3 +221,12 @@ export const ACCOUNT_COLORS: Record<string, string> = {
   student_loan: '#be185d',
   property: '#78716c',
 }
+
+/** A recorded agent run (backend replays.py); replayed through /api/replays/{id}/stream?speed=N. */
+export type ReplayMeta = { id: string; customer_id: string; recorded_at: string; duration_ms: number; model: string | null; headline: string | null; proposal_id: string | null }
+export type ReplayRun = { id: string; speed: number; duration_ms: number }
+
+export const fmtDuration = (ms: number) => {
+  const s = Math.round(ms / 1000)
+  return s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s` : `${s}s`
+}
