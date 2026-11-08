@@ -206,3 +206,12 @@ button.primary:hover:not(:disabled) { background: var(--accent-ink); border-colo
 @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } }
 @media (max-width: 760px) { .switch-opts { grid-template-columns: 1fr; } .dash-dates { gap: 20px; } .dash-dates b { font-size: 20px; } }
 @media (prefers-reduced-motion: reduce) { .pop, .pop-late { animation: none; } }
+
+/* scenarios (what if) */
+.scn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 8px; }
+.scn { text-align: left; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); padding: 8px 10px; cursor: pointer; font: inherit; display: grid; gap: 4px; }
+.scn.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.scn .lbl { font-weight: 600; font-size: 13px; }
+.scn .sub { font-size: 12px; color: var(--muted); }
+.advice { background: var(--good-soft); border: 1px solid color-mix(in srgb, var(--good) 30%, transparent); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-top: 10px; }
+.plan-tabs { margin: var(--gap) 0 8px; }

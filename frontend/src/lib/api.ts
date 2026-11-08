@@ -272,3 +272,50 @@ export type RealityCheck = {
     discretionary_left_per_month: number
   }
 }
+
+// ---------- scenarios (roadmap PR 6) ----------
+
+export type ScenarioEvent =
+  | { kind: 'job_loss'; start: number; months: number }
+  | { kind: 'income_change'; start: number; pct: number; months?: number | null }
+  | { kind: 'expense'; start: number; amount: number }
+
+export type ScenarioSpec = { id: string; label: string; events: ScenarioEvent[] }
+
+export type Verdict = 'holds' | 'bends' | 'breaks'
+
+export type ScenarioSim = {
+  months: SimMonth[]
+  debts: SimDebt[]
+  net_worth_24m: number
+  interest_total: number
+  high_cost_debt_free: string | null
+  min_cash: number
+  min_cash_month: string
+  borrowed_on_card: number
+}
+
+export type ScenarioResult = ScenarioSpec & {
+  verdict: Verdict
+  why: string
+  slip_months: number | null
+  nw_delta: number
+  sim: ScenarioSim
+  adjusted: ScenarioSim & { verdict: Verdict; why: string; slip_months: number | null; nw_delta: number; paused: string[]; advice: string }
+}
+
+export type ScenarioRun = {
+  customer_id: string
+  monthly_income: number
+  emergency_buffer: number
+  reference: ScenarioSim
+  baseline: ScenarioSim
+  results: ScenarioResult[]
+}
+
+export type ScenarioRange = {
+  runs: number
+  months: { month: string; p10: number; p50: number; p90: number }[]
+  p_high_cost_free: number
+  p_borrowed: number
+}

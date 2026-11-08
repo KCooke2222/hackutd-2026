@@ -11,6 +11,7 @@ import Outcome from '../components/flow/Outcome'
 import PlanTimeline from '../components/flow/PlanTimeline'
 import Chat from '../components/flow/Chat'
 import RealityCheck from '../components/flow/RealityCheck'
+import Scenarios from '../components/flow/Scenarios'
 import IncomeExpense from '../components/IncomeExpense'
 import Brand from '../components/Brand'
 import Dashboard from '../components/dash/Dashboard'
@@ -58,6 +59,7 @@ export default function Home() {
     return on
   }
   const [reality, setReality] = useState<RC | null>(null)
+  const [planTab, setPlanTab] = useState<'time' | 'whatif'>('time')
 
   useEffect(() => {
     api<{ customer_id: string }[]>('/customers').then((l) => setIds(l.map((c) => c.customer_id)))
@@ -209,7 +211,14 @@ export default function Home() {
           preview={outlook} busy={busy} error={err} onApprove={approve} onReject={reject}
           chat={<Chat ai={ai} onAdjusted={adjusted} onRules={setAi} />} />
       )}
-      {screen === 2 && ai && knobs && <PlanTimeline cid={cid} plan={planFrom(ai, knobs)} />}
+      {screen === 2 && ai && knobs && (
+        <div className="seg plan-tabs" role="tablist">
+          <button role="tab" className={planTab === 'time' ? 'on' : ''} onClick={() => setPlanTab('time')}>Over time</button>
+          <button role="tab" className={planTab === 'whatif' ? 'on' : ''} onClick={() => setPlanTab('whatif')}>What if</button>
+        </div>
+      )}
+      {screen === 2 && ai && knobs && planTab === 'time' && <PlanTimeline cid={cid} plan={planFrom(ai, knobs)} />}
+      {screen === 2 && ai && knobs && planTab === 'whatif' && <Scenarios cid={cid} plan={planFrom(ai, knobs)} />}
       {screen === 3 && approved && <Outcome preview={outlook} approved={approved} />}
 
       <div className="flow-nav">
