@@ -4,7 +4,9 @@ import type { Checkin, Tracking } from '../../lib/api'
 import { ym } from '../../lib/flow'
 
 /** Dev/demo control: fast-forward simulated months under a scenario. Writes demo rows only, never real accounts. */
-export default function DemoPanel({ cid, t, onData }: { cid: string; t: Tracking; onData: (t: Tracking) => void }) {
+export default function DemoPanel({ cid, t, onData, onReview }: {
+  cid: string; t: Tracking; onData: (t: Tracking) => void; onReview?: (proposalId: string) => void
+}) {
   const [scenario, setScenario] = useState('on_plan')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -47,8 +49,19 @@ export default function DemoPanel({ cid, t, onData }: { cid: string; t: Tracking
         <div className="notice small">
           <b>Check-in: {ci.drift}</b>
           {!!ci.facts.length && <div className="muted">{ci.facts.join(' · ')}</div>}
-          {ci.why && <div>{ci.why}</div>}
-          {ci.proposal_id && <div>Proposed: <b>{ci.headline}</b> (pending your approval)</div>}
+          {ci.pick === 'replan' && ci.replan?.proposal_id ? (
+            <>
+              <div>Agent re-planned from your approved plan: <b>{ci.replan.headline}</b> (pending your approval)</div>
+              {!!ci.replan.compare?.changes?.length && <div className="muted">{ci.replan.compare.changes.slice(0, 3).join(' · ')}</div>}
+              {onReview && <div><button className="primary" onClick={() => onReview(ci.replan!.proposal_id!)}>Review the new plan</button></div>}
+            </>
+          ) : (
+            <>
+              {ci.replan?.error && <div className="muted">Re-plan failed ({ci.replan.error}); picked a quick fix instead.</div>}
+              {ci.why && <div>{ci.why}</div>}
+              {ci.proposal_id && <div>Proposed: <b>{ci.headline}</b> (pending your approval)</div>}
+            </>
+          )}
         </div>
       )}
       {err && <div className="error small">{err}</div>}

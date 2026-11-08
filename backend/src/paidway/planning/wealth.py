@@ -22,6 +22,7 @@ Card cuts lower card charges, so they speed payoff inside the same budget; check
 
 from __future__ import annotations
 
+import contextvars
 import math
 from collections import defaultdict
 
@@ -158,21 +159,49 @@ def _label(i: int) -> str:
     return f"{k // 12}-{k % 12 + 1:02d}"
 
 
+# A check-in re-plan (agent/replan.py) plans from where the customer is now, in the demo month:
+# {customer_id: {"income_cut": $/mo less, "state": {"debts": {account_id: balance}, "assets": {"cash", "cd", ...}}}}.
+AT_CHECKIN: contextvars.ContextVar[dict | None] = contextvars.ContextVar("at_checkin", default=None)
+_STATE_GROUPS = {"cash": ("checking", "savings"), "cd": ("cd",), "brokerage": ("brokerage",), "ira": ("ira",)}
+
+
+def _at_state(rows: list[dict], state: dict | None) -> list[dict]:
+    """The balance-sheet rows at a tracked month's balances: debts by id, each asset group scaled to its total."""
+    if not state:
+        return rows
+    rows = [dict(r) for r in rows]
+    for r in rows:
+        if r["side"] == "debt" and r["account_id"] in state.get("debts", {}):
+            r["balance"] = float(state["debts"][r["account_id"]])
+    for key, types in _STATE_GROUPS.items():
+        if key not in state.get("assets", {}):
+            continue
+        rs = [r for r in rows if r["side"] == "asset" and r["account_type"] in types]
+        total, want = sum(r["balance"] for r in rs), float(state["assets"][key])
+        for i, r in enumerate(rs):
+            r["balance"] = round(r["balance"] * want / total, 2) if total > 0 else (want if i == 0 else 0.0)
+    return rows
+
+
 def context(customer_id: str, keep_months: float | None = None, live: bool = True, with_options: bool = True) -> dict:
     """Everything the simulator and validator need, computed once. `with_options`: apply the underwater options
     the customer chose to plan with (options.applied: e.g. an IDR payment, a hardship rate); False = as the data is."""
     keep = A.get("default_emergency_months") if keep_months is None else float(keep_months)
     prof = pnc_data.profile(customer_id) or {}
-    rows = balance_sheet.accounts(customer_id, live=live)
+    at = (AT_CHECKIN.get() or {}).get(customer_id) or {}
+    rows = _at_state(balance_sheet.accounts(customer_id, live=live), at.get("state"))
     hurdle = A.get("prepay_hurdle_pct")
     flows = _flows(customer_id)
+    cut = float(at.get("income_cut") or 0.0)
+    if cut > 0:
+        flows = {**flows, "income": flows["income"] - cut, "residual": flows["residual"] - cut, "income_cut": cut}
     card = pnc_data.card_account(customer_id)
     refill = finance.refill_breakdown(customer_id) if card else {}
     card_spend = (refill.get("monthly_avg") or {}).get("new_spending", 0.0)
 
     debts = []
     for r in rows:
-        if r["side"] != "debt" or r["balance"] <= 0:
+        if r["side"] != "debt" or (r["balance"] <= 0 and not (card and r["account_id"] == card["account_id"] and card_spend > 0)):
             continue
         pnc = r["source"] != "linked"
         obs = _observed_payment(customer_id, r["account_id"]) if pnc else None
@@ -433,6 +462,8 @@ def budget_limit(ctx: dict, plan: dict) -> dict:
     pf = plan_flows(ctx, plan)
     cuts = cut_split(ctx, plan.get("spending_targets") or [])
     max_budget = ctx["current_debt_payments"] + pf["total"] + cuts["cash"]
+    if ctx["flows"].get("income_cut"):  # a check-in re-plan: what is paid today less the income that is gone
+        max_budget = max(max_budget - ctx["flows"]["income_cut"], sum(d["min_payment"] for d in ctx["debts"]))
     budget = float(plan.get("monthly_debt_budget") or 0) or max_budget
     charges = max(ctx["card_spend"] - cuts["card"], 0.0)
     return {

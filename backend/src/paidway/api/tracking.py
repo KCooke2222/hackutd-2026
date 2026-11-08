@@ -75,6 +75,39 @@ def choose(cid: str, body: ChooseIn) -> dict:
     return {"proposal_id": new["id"], "status": new["status"], "headline": new["simulation"]["explain"]["headline"]}
 
 
+@router.post("/api/customers/{cid}/tracking/replan")
+def replan(cid: str) -> dict:
+    """Full agent re-plan from the approved plan for the current (demo) month: what changed, the actual balances,
+    an income drop as a debt-budget cap. Blocking; returns the `done` event (proposal_id = the new PENDING plan,
+    compare = the diff vs the approved one). The approved plan stays approved until the customer approves."""
+    from ..agent import replan as rp
+
+    p = _need(cid)
+    r = rp.run(cid, p)
+    if r.get("type") != "done":
+        raise HTTPException(422, r.get("error") or "re-plan failed")
+    r.pop("messages", None)
+    return r
+
+
+@router.get("/api/customers/{cid}/tracking/replan/stream")
+def replan_stream(cid: str):
+    """The same re-plan as server-sent events (the /api/proposals/{pid}/adjust/stream events, plus `replan` first)."""
+    import json
+
+    from fastapi.responses import StreamingResponse
+
+    from ..agent import replan as rp
+
+    p = _need(cid)
+
+    def gen():
+        for ev in rp.events(cid, p):
+            yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 class CheckinIn(BaseModel):
     scenario: str | None = None
 

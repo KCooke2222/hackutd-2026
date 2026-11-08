@@ -670,12 +670,15 @@ class AdjustState(AgentState, total=False):
     option_added: str | None  # "Plan with income-driven repayment...": the option's title (keep path, no model)
 
 
-def adjustable(pid: str) -> dict:
-    """The proposal to adjust, or AdjustError (404 unknown, 409 not pending, 422 not a v2 plan)."""
+def adjustable(pid: str, *, replan: bool = False) -> dict:
+    """The proposal to adjust, or AdjustError (404 unknown, 409 not pending, 422 not a v2 plan). A check-in
+    re-plan (replan=True) starts from the approved plan instead."""
     p = store.get_proposal(pid)
     if not p:
         raise AdjustError(404, "no such proposal")
-    if p["status"] != "pending":
+    if replan and p["status"] not in ("approved", "executed"):
+        raise AdjustError(409, f"proposal is {p['status']}; a re-plan starts from the approved plan")
+    if not replan and p["status"] != "pending":
         raise AdjustError(409, f"proposal is {p['status']}, not pending; open the latest plan")
     if (p.get("plan") or {}).get("version") != 2:
         raise AdjustError(422, "proposal is a v1 plan; re-run the agent")
@@ -713,7 +716,9 @@ def _direct_propose(tools: list, parent_plan: dict, s: dict, w, st: dict) -> str
     return None
 
 
-def build_adjust_graph(pid: str, request: str):
+def build_adjust_graph(pid: str, request: str, replan: dict | None = None):
+    """replan (agent/replan.py): a check-in went off track. Code sets the rules (no interpret call) and the
+    agent re-plans from the approved plan with what changed; the approved plan stays approved."""
     from langgraph.graph import END, START, StateGraph
 
     from ..planning import wealth
@@ -721,7 +726,7 @@ def build_adjust_graph(pid: str, request: str):
     from .adjust import compare as compare_plans
     from .validator import PlanRejected, validate_plan_v2
 
-    parent = adjustable(pid)
+    parent = adjustable(pid, replan=bool(replan))
     cid = parent["customer_id"]
     llm = _llm()
     try:
@@ -742,6 +747,13 @@ def build_adjust_graph(pid: str, request: str):
         _phase(w, "interpret", "Understanding your request")
         from ..planning import options as O
 
+        if replan:  # the check-in's numbers set the rules; no model call
+            new, _ = C.normalize(replan.get("constraints"))
+            merged = C.merge(old, new)
+            w({"type": "constraints", "constraints": merged, "labels": C.describe(merged), "added": C.describe(new), "dropped": [], "notes": []})
+            _phase(w, "interpret", "", (", ".join(d["label"] for d in C.describe(new)) or "re-plan")[:60])
+            return {"constraints": merged, "new_constraints": new, "summary": request[:80], "only_constraints": False,
+                    "fast": False, "messages": list(s.get("messages") or [])}
         if (k := O.chat_option_request(cid, request)):  # an option the chat just saved: re-check the same plan with it
             title = O.OPTIONS[k][0]
             w({"type": "constraints", "constraints": old, "labels": C.describe(old), "added": [], "dropped": [], "notes": []})
@@ -807,7 +819,7 @@ def build_adjust_graph(pid: str, request: str):
         try:
             note = f"Same plan, now with {s['option_added'].lower()}." if s.get("option_added") else "Your plan already does this."
             p = store.create_proposal(cid, plan, sim, note, parent_id=pid,
-                                      constraints=s["constraints"], request=request)
+                                      constraints=s["constraints"], request=request, supersede=not replan)
         except store.Conflict as ex:
             return {"fast": False, "error": str(ex)}
         _phase(w, "keep", "", "already fits")
@@ -815,11 +827,13 @@ def build_adjust_graph(pid: str, request: str):
 
     def plan(s: AdjustState) -> dict:
         w = _writer()
-        st: dict = {"parent_id": pid, "request": request}
+        st: dict = {"parent_id": pid, "request": request, "replan": bool(replan)}
         snap = s["snapshot"]
         system = prompts.fill(prompts.ADJUST, constraints=s.get("constraints") or "none", summary=s.get("summary") or request,
                               sql_schema=SCHEMA_DOC, plan=parent["plan"], outcome=sim_brief(parent["simulation"]),
                               snapshot=snap, assumptions=snap.get("assumptions") or {})
+        if replan:
+            system += prompts.fill(prompts.REPLAN, checkin=replan.get("checkin") or {})
         messages = list(s.get("messages") or [])
         tools = make_tools(cid, st, s.get("constraints"))
         final = _direct_propose(tools, parent["plan"], s, w, st) if s.get("only_constraints") else None
@@ -888,7 +902,7 @@ def build_adjust_graph(pid: str, request: str):
     return g.compile()
 
 
-def stream_adjust(pid: str, request: str):
+def stream_adjust(pid: str, request: str, replan: dict | None = None):
     """Like stream_run, for one adjustment. Extra events: `constraints` (the rules now in force), `clarify`
     (a question instead of a plan), `compare` (cost vs the previous plan). `done` carries proposal_id (the new
     pending proposal) or clarify."""
@@ -897,7 +911,7 @@ def stream_adjust(pid: str, request: str):
         yield {"type": "error", "error": "say what you'd like to change"}
         return
     try:
-        graph = build_adjust_graph(pid, request[:500])
+        graph = build_adjust_graph(pid, request[:500], replan)
     except (AgentUnavailable, AdjustError) as e:
         yield {"type": "error", "error": getattr(e, "detail", str(e))}
         return

@@ -174,11 +174,17 @@ Its outcome: {outcome}
 Snapshot: {snapshot}
 Assumptions: {assumptions}"""
 
-# Unused for now: the monthly / drift re-plan (next feature).
-REPLAN = """The customer is following plan {plan_id}. Here is planned vs actual for the last month: {drift}.
-If any debt is more than 1 month behind schedule, or spending is >15% over target in any
-category, call simulate_plan with the actual numbers and propose an adjusted plan.
-Otherwise reply "on track" with one line on the biggest gap."""
+# Appended to ADJUST when a monthly check-in goes off track (agent/replan.py).
+REPLAN = """
+
+This is a monthly check-in re-plan, not a customer request. The approved plan above went off track:
+{checkin}
+Re-plan from the approved plan for what changed: keep its order and cuts unless the change needs otherwise.
+The tools already start from this month's balances and the lower income: the approved plan's lump sums
+already happened (don't repeat them), and the debt budget can't exceed what is paid today less the income
+that is gone. If that budget leaves the card growing, cut card spending. While income is down, use the low
+risk profile (part of any leftover on the highest-rate loan) and keep the cushion whole. Say in the
+rationale what changed and what the new plan does about it."""
 
 
 def fill(template: str, **values) -> str:

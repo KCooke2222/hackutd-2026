@@ -341,7 +341,8 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
         sim["reality_check"] = _try(lambda: reality_check(customer_id))
         try:
             p = store.create_proposal(customer_id, plan, sim, str(kwargs.get("rationale") or ""),
-                                      parent_id=st.get("parent_id"), constraints=cons or None, request=st.get("request"))
+                                      parent_id=st.get("parent_id"), constraints=cons or None, request=st.get("request"),
+                                      supersede=not st.get("replan"))
         except store.Conflict as e:
             st["stop"], st["last_reasons"] = True, [str(e)]
             return {"saved": False, "stop": str(e)}

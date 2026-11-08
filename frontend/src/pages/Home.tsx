@@ -272,7 +272,7 @@ export default function Home() {
       {dash && (
         <>
           <div className="dash-bar"><button className="ghost" onClick={() => setDemo((d) => !d)}>{demo ? 'Hide demo' : 'Demo'}</button></div>
-          {demo && <DemoPanel cid={cid} t={track} onData={(t) => setTrack(t)} />}
+          {demo && <DemoPanel cid={cid} t={track} onData={(t) => setTrack(t)} onReview={openById} />}
           <Dashboard cid={cid} t={track} onChose={openById} onReplan={() => findPlan()} onSnapshot={() => go(0)} />
         </>
       )}

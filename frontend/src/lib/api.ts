@@ -340,6 +340,8 @@ export type SwitchOption = {
 export type Checkin = {
   level: string; facts: string[]; drift: string; pick: string | null; why: string
   proposal_id: string | null; headline: string | null
+  /** Off track: the planning agent re-planned from the approved plan (pick === 'replan'), or the error if it failed. */
+  replan?: { proposal_id: string | null; headline: string | null; compare: Compare | null; error: string | null } | null
 }
 
 export type Tracking = {
