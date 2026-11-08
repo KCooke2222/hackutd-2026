@@ -31,7 +31,9 @@ def _llm():
         raise AgentUnavailable("NVIDIA_API_KEY is not set. Get one at build.nvidia.com and add it to .env")
     from langchain_openai import ChatOpenAI
 
-    class NemotronChat(ChatOpenAI):
+    from .demo import ReplayMixin  # hidden demo mode: record/replay model calls (agent/demo.py)
+
+    class NemotronChat(ReplayMixin, ChatOpenAI):
         """ChatOpenAI drops NVIDIA's `reasoning_content`; keep it so the UI can show the model's thinking."""
 
         def _create_chat_result(self, response, generation_info=None):

@@ -32,6 +32,9 @@ app = FastAPI(title="Paidway", lifespan=_lifespan)
 from .guard import install as _install_guard  # noqa: E402
 
 _install_guard(app)  # rate limits + idle-reset stamp, public deploy only (PAIDWAY_PUBLIC=1)
+from ..agent.demo import install as _install_demo  # noqa: E402
+
+_install_demo(app)  # hidden demo mode (pw_demo cookie / X-Paidway-Demo / DEMO_REPLAY): replays model calls
 
 from .insights import router as _insights_router  # noqa: E402
 
