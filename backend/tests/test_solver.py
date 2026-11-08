@@ -186,7 +186,8 @@ def test_greedy_matches_lp(cid, case):
     CD / brokerage sales, pauses and months of avalanche payments decide the result)."""
     targets = floor_cuts(cid) if case == "cuts" else []
     keep = 9.0 if case == "tight" else None
-    r = solver.solve(cid, {"spending_targets": targets, "keep_emergency_months": keep}, live=False, with_tradeoffs=False)
+    r = solver.solve(cid, {"spending_targets": targets, "keep_emergency_months": keep, "suggest_cuts": False},
+                     live=False, with_tradeoffs=False)
     greedy = r["sim"]["net_worth_24m"]
     opt = lp_optimum(cid, targets, keep=keep)["net_worth_24m"]
     assert greedy >= opt - TOL, f"{cid}: greedy ${greedy:,.2f} vs LP ${opt:,.2f}"
@@ -194,10 +195,12 @@ def test_greedy_matches_lp(cid, case):
 
 
 @pytest.mark.parametrize("cid", CUSTOMERS)
-def test_plan_is_valid_and_never_invents_cuts(cid):
+def test_plan_is_valid_and_only_suggests_cuts(cid):
+    assert solver.solve(cid, {"suggest_cuts": False}, live=False, with_tradeoffs=False)["plan"]["spending_targets"] == []
     r = solver.solve(cid, live=False)
     validate_plan_v2(cid, r["plan"], live=False)
-    assert r["plan"]["spending_targets"] == []
+    assert all(t["source"] == "suggested" for t in r["plan"]["spending_targets"])
+    assert len(r["plan"]["spending_targets"]) <= solver.SUGGEST_MAX
     for row in r["tradeoffs"]:
         if row["category"] != "all of the above":
             assert categories.spending_flag(row["category"])["flag"] in (categories.TRIM, categories.CANCEL)
@@ -218,4 +221,89 @@ def test_tradeoff_floor_respects_limits():
 def test_person_cuts_pass_validator():
     targets = floor_cuts("C001", ("dining", "shopping", "subscriptions"))
     r = solver.solve("C001", {"spending_targets": targets}, live=False, with_tradeoffs=False)
-    assert {t["category"] for t in r["plan"]["spending_targets"]} == {t["category"] for t in targets}
+    agreed = {t["category"] for t in r["plan"]["spending_targets"] if t["source"] == "agreed"}
+    assert agreed == {t["category"] for t in targets}
+
+
+# ---------------- suggested cuts ----------------
+
+def _suggested(r):
+    return [t for t in r["plan"]["spending_targets"] if t["source"] == "suggested"]
+
+
+@pytest.mark.parametrize("cid", CUSTOMERS)
+def test_suggested_cuts_stay_within_floor_and_limits(cid):
+    ctx = wealth.context(cid, live=False)
+    r = solver.solve(cid, live=False, with_tradeoffs=False)
+    for t in _suggested(r):
+        c, flag = ctx["spend"][t["category"]], categories.spending_flag(t["category"])
+        assert flag["flag"] in (categories.TRIM, categories.CANCEL) and not c["essential"]
+        assert t["target"] >= solver.floor_target(cid, ctx, t["category"])["target"] - 0.01
+        if flag["flag"] == categories.TRIM:
+            assert t["target"] >= c["min"] - 0.01
+            assert t["target"] >= c["avg"] * (1 - flag["max_pct"] / 100) - 0.01
+        assert c["avg"] - t["target"] >= solver.SUGGEST_MIN_CUT - 0.01
+        assert t["how"] and all(len(h.split()) <= 8 for h in t["how"])
+        assert t["buys"]["net_worth_gain"] > 0
+    validate_plan_v2(cid, r["plan"], live=False)  # floors and validator agree
+
+
+def test_suggestions_prefer_lumpy_and_beat_no_cuts():
+    r = solver.solve("C001", live=False, with_tradeoffs=False)
+    sugg = _suggested(r)
+    assert sugg and all(t["lumpy"] for t in sugg)  # C001: travel / gifts / home over dining and shopping
+    assert "travel" in {t["category"] for t in sugg}
+    nc = r["sim"]["no_cuts"]
+    assert r["sim"]["net_worth_24m"] > nc["net_worth_24m"]
+    assert nc["suggested_buys"]["months_sooner"] >= 1
+
+
+def test_suggestions_respect_declines_agreed_and_minimums():
+    base = {t["category"] for t in _suggested(solver.solve("C001", live=False, with_tradeoffs=False))}
+    declined = sorted(base)[:2]
+    r = solver.solve("C001", {"declined_cuts": declined}, live=False, with_tradeoffs=False)
+    assert not {t["category"] for t in r["plan"]["spending_targets"]} & set(declined)
+    # an agreed target is kept as given, never replaced by a suggestion
+    r = solver.solve("C001", {"spending_targets": [{"category": "travel", "target": 600}]}, live=False, with_tradeoffs=False)
+    travel = [t for t in r["plan"]["spending_targets"] if t["category"] == "travel"]
+    assert len(travel) == 1 and travel[0]["source"] == "agreed" and travel[0]["target"] == 600
+    # a relayed suggestion is not an agreement: it is remade
+    r2 = solver.solve("C001", {"spending_targets": [{"category": "travel", "target": 600, "source": "suggested"}]},
+                      live=False, with_tradeoffs=False)
+    assert [t["target"] for t in _suggested(r2) if t["category"] == "travel"] != [600]
+    # category_min floors a suggestion
+    r3 = solver.solve("C001", {"category_min": {"travel": 650}}, live=False, with_tradeoffs=False)
+    assert all(t["target"] >= 650 for t in r3["plan"]["spending_targets"] if t["category"] == "travel")
+
+
+def test_fixed_and_ask_never_suggested():
+    for cid in CUSTOMERS:
+        ctx = wealth.context(cid, live=False)
+        for cat, c in ctx["spend"].items():
+            if c["essential"] or categories.spending_flag(cat)["flag"] not in (categories.TRIM, categories.CANCEL):
+                assert solver.suggest_target(cid, ctx, cat) is None
+
+
+def test_net_paydown_is_gross_minus_new_card_purchases():
+    r = solver.solve("C001", live=False, with_tradeoffs=False)
+    ctx = wealth.context("C001", live=False)
+    b = r["sim"]["budget"]
+    assert b["current_net_paydown_per_month"] == pytest.approx(ctx["current_debt_payments"] - ctx["card_spend"], abs=0.01)
+    assert b["net_paydown_per_month"] == pytest.approx(b["monthly_debt_budget"] - r["sim"]["monthly_card_spending"], abs=0.01)
+    assert r["brief"]["paydown"]["net_paydown_per_month"] == b["net_paydown_per_month"]
+    # no double count: the baseline's month-1 debt change is purchases + interest - gross payments
+    base = wealth.simulate_plan("C001", None, ctx=ctx)
+    m0, m1 = base["months"][0]["total_debt"], base["months"][1]["total_debt"]
+    interest = sum(d["balance"] * d["apr_pct"] / 1200 for d in ctx["debts"])
+    paid = sum(min(d["baseline_payment"], d["balance"] + d["balance"] * d["apr_pct"] / 1200 + (ctx["card_spend"] if d["is_pnc_card"] else 0))
+               for d in ctx["debts"])
+    assert m1 - m0 == pytest.approx(ctx["card_spend"] + interest - paid, abs=1)
+
+
+def test_underwater_still_gets_a_sensible_plan():
+    rc0 = wealth.reality_check("C027", live=False)
+    r = solver.solve("C027", live=False, with_tradeoffs=False)
+    validate_plan_v2("C027", r["plan"], live=False)
+    assert r["sim"]["net_worth_24m"] >= r["sim"]["no_cuts"]["net_worth_24m"]
+    assert r["sim"]["no_cuts"]["net_worth_24m"] >= r["sim"]["baseline_net_worth_24m"]
+    assert wealth.reality_check("C027", live=False) == rc0  # suggestions live in solve(); reality_check is untouched

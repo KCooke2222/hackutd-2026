@@ -201,8 +201,10 @@ def solver_inputs(constraints: dict | None, keep_months: float | None, targets: 
     """The customer's rules as solver.solve() inputs, so the solved plan obeys them by construction
     (check() then runs on it as a safety net):
         min_emergency_months -> keep_emergency_months (at least)
-        protect_categories   -> no spending target there
-        category_max / _min  -> clamp the chosen targets; a cap below the current average adds that cut
+        protect_categories   -> no spending target there, and declined_cuts (the solver suggests none there)
+        category_max / _min  -> clamp the chosen targets; a cap below the current average adds that cut;
+                                category_min also floors the solver's suggested cuts
+        targets tagged source="suggested" are skipped: the solver remakes its own suggestions
         forbid_sources, min/max_debt_budget, max_redirect -> passed through to the solver
     `spend` is wealth.context()['spend'], used to skip caps the customer already meets."""
     c = constraints or {}
@@ -214,7 +216,7 @@ def solver_inputs(constraints: dict | None, keep_months: float | None, targets: 
     out, seen = [], set()
     for t in targets or []:
         cat = str(t.get("category", "")).lower()
-        if cat in protect:
+        if cat in protect or t.get("source") == "suggested":
             continue
         target = float(t["target"])
         if cat in cmax:
@@ -230,4 +232,9 @@ def solver_inputs(constraints: dict | None, keep_months: float | None, targets: 
         avg = ((spend or {}).get(cat) or {}).get("avg")
         if cat not in seen and cat not in protect and (avg is None or cap < float(avg) - 0.5):
             out.append({"category": cat, "target": max(cap, cmin.get(cat, 0.0))})
-    return {"keep_emergency_months": keep, "spending_targets": out, **{k: c[k] for k in SOLVER_KEYS if k in c}}
+    res = {"keep_emergency_months": keep, "spending_targets": out, **{k: c[k] for k in SOLVER_KEYS if k in c}}
+    if protect:
+        res["declined_cuts"] = sorted(protect)
+    if cmin:
+        res["category_min"] = dict(cmin)
+    return res

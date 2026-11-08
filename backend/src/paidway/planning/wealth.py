@@ -412,16 +412,31 @@ def plan_flows(ctx: dict, plan: dict) -> dict:
 
 
 def budget_limit(ctx: dict, plan: dict) -> dict:
+    """Where the monthly debt budget comes from, and how much of it actually shrinks the debt.
+
+    Gross payments include paying off this month's new PNC card purchases, which is spending, not paydown:
+        current_net_paydown_per_month = current_debt_payments - current_new_card_purchases
+        net_paydown_per_month         = monthly_debt_budget - new_card_purchases (after card cuts)
+    (month 1; interest is not subtracted). The simulator adds the purchases to the card balance and pays them
+    from the gross budget, so nothing is counted twice."""
     pf = plan_flows(ctx, plan)
     cuts = cut_split(ctx, plan.get("spending_targets") or [])
+    max_budget = ctx["current_debt_payments"] + pf["total"] + cuts["cash"]
+    budget = float(plan.get("monthly_debt_budget") or 0) or max_budget
+    charges = max(ctx["card_spend"] - cuts["card"], 0.0)
     return {
+        "current_net_paydown_per_month": round(ctx["current_debt_payments"] - ctx["card_spend"], 2),
+        "net_paydown_per_month": round(budget - charges, 2),
+        "current_new_card_purchases": round(ctx["card_spend"], 2),
+        "new_card_purchases": round(charges, 2),
+        "monthly_debt_budget": round(budget, 2),
         "current_debt_payments": ctx["current_debt_payments"],
         "redirects": round(pf["total"], 2),
         "surplus_redirected": round(pf["surplus"], 2),
         "contributions_paused": round(sum(pf["paused"].values()), 2),
         "checking_cuts": round(cuts["cash"], 2),
         "card_cuts": round(cuts["card"], 2),
-        "max_monthly_debt_budget": round(ctx["current_debt_payments"] + pf["total"] + cuts["cash"], 2),
+        "max_monthly_debt_budget": round(max_budget, 2),
         "minimums": round(sum(d["min_payment"] for d in ctx["debts"]), 2),
     }
 

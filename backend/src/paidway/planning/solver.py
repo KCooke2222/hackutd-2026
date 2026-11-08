@@ -4,8 +4,14 @@
 
 Soft inputs (all optional):
     keep_emergency_months  months of expenses kept as cash (default ASSUMPTIONS default_emergency_months)
-    spending_targets       cuts the PERSON chose: [{category, target, how?, proof_month?}]. The solver never
-                           invents cuts; it only fills proof_month / how and checks them with the validator.
+    spending_targets       cuts the PERSON agreed to: [{category, target, how?, proof_month?}]. Kept as given; the
+                           solver fills proof_month / how and checks them with the validator. An entry tagged
+                           source="suggested" (relayed back from an earlier plan) is not an agreement: it is
+                           dropped and suggested again.
+    suggest_cuts           default True: solve() adds up to SUGGEST_MAX suggested cuts (see suggest_cuts) on top of
+                           the agreed ones, so the headline reflects them. False = agreed cuts only.
+    declined_cuts          categories the person said not to cut: never suggested.
+    category_min           {category: $/mo} the person's floor ("not below $300"): suggestions stay at or above it.
     redirect_flows         None = every movable flow its flag allows (categories.FLOWS); a list = only these
                            flows; a dict {flow: amount_per_month} = exactly these amounts.
     expected_return        brokerage return (%) for the sell-or-keep test (default ASSUMPTIONS brokerage)
@@ -26,6 +32,15 @@ Method (greedy avalanche, checked against an LP in tests/test_solver.py):
        only as far as it raises 24-month net worth (debt APR beats what the money earns invested).
     4. The plan passes validate_plan_v2 and is simulated by wealth.simulate_plan.
 
+Suggested cuts (solve() only; build_plan stays agreed-cuts-only, so reality_check and tradeoffs are unchanged):
+    candidates are the flexible (trim / cancel) categories not agreed or declined. A lumpy category (monthly
+    coefficient of variation >= LUMPY_CV: travel, gifts, home) is cut to its floor (skip a trip, not a habit); a
+    steady one halfway to it; a subscription by cancelling its largest recurring charge. Each is priced by
+    re-solving with it, and ranked by 24-month net worth gained per dollar of pain (cut x 1/(1+cv): lumpy money
+    is cheaper to give up). The top SUGGEST_MAX that cut at least SUGGEST_MIN_CUT/mo are tagged
+    source="suggested" with what each buys on its own (the plan with vs without it). The plan without any
+    suggestion is returned as `no_cuts`.
+
 Tradeoffs: for each flexible category (trim / cancel), what cutting it to its floor would buy in months
 sooner and net worth. The floor is the customer's own lowest month, within the category's flex limit.
 Fixed and ask categories never appear.
@@ -40,6 +55,10 @@ from . import assumptions as A
 from . import wealth
 
 CASH_POOLS = ("cash", "outside_savings")  # cash-like lump sources; a pool missing from the data is skipped
+SUGGEST_MAX = 3  # suggested cuts per plan
+SUGGEST_MIN_CUT = 20.0  # $/mo; smaller cuts aren't worth asking about
+LUMPY_CV = 0.5  # monthly coefficient of variation at or above which a category is lumpy (cut to its floor)
+CANCEL_PAIN = 0.5  # pain weight of cancelling a named subscription (same as a cv-1 category)
 
 
 # ---------------- inputs ----------------
@@ -184,6 +203,101 @@ def _search(f, lo: float, hi: float, iters: int = 24) -> float:
     return best[1]
 
 
+# ---------------- suggested cuts ----------------
+
+def _cv(c: dict) -> float:
+    a = [float(m["amount"]) for m in c.get("monthly") or []]
+    if len(a) < 2 or c["avg"] <= 0:
+        return 0.0
+    mean = sum(a) / len(a)
+    return math.sqrt(sum((x - mean) ** 2 for x in a) / len(a)) / c["avg"]
+
+
+def _trim_how(customer_id: str, cat: str, target: float) -> list[str]:
+    """1-2 concrete actions, each at most validator.MAX_HOW_WORDS (8) words, naming their own merchants."""
+    label = categories.spending_flag(cat)["label"].lower()
+    names = [m["name"] for m in wealth._detail_meta(customer_id, cat)["merchants"][:2] if m.get("name")]
+    out = []
+    for pick in (names, names[:1]):
+        line = f"Cut back on {' and '.join(pick)}" if pick else ""
+        if line and len(line.split()) <= 8:
+            out.append(line)
+            break
+    keep = f"Keep {label} under ${math.ceil(target):,.0f}/mo"
+    out.append(keep if len(keep.split()) <= 8 else f"Spend under ${math.ceil(target):,.0f}/mo")
+    return out
+
+
+def suggest_target(customer_id: str, ctx: dict, cat: str, at_least: float | None = None) -> dict | None:
+    """The cut the solver would suggest in `cat`, or None (fixed / ask / no room / under SUGGEST_MIN_CUT).
+    Never below floor_target (so never below the lowest month or past max_cut_pct) nor below `at_least`."""
+    fl = floor_target(customer_id, ctx, cat)
+    if fl is None:
+        return None
+    c = ctx["spend"][cat]
+    cv = _cv(c)
+    if categories.spending_flag(cat)["flag"] == categories.CANCEL:
+        r = max(_recurring(customer_id, cat), key=lambda r: float(r["amount"]))
+        target, how, pain, lumpy = _ceil2(max(c["avg"] - float(r["amount"]), 0.0)), [f"Cancel {r['name']}"], CANCEL_PAIN, False
+    else:
+        lumpy = cv >= LUMPY_CV
+        target = fl["target"] if lumpy else _ceil2(c["avg"] - (c["avg"] - fl["target"]) / 2)
+        how, pain = None, 1 / (1 + cv)
+    if at_least is not None:
+        target = max(target, _ceil2(float(at_least)))
+    if c["avg"] - target < SUGGEST_MIN_CUT:
+        return None
+    return {"category": cat, "target": target, "how": how or _trim_how(customer_id, cat, target),
+            "lumpy": lumpy, "cv": round(cv, 2), "pain_weight": round(pain, 3)}
+
+
+def _months_between(a: str | None, b: str | None) -> int | None:
+    if not a or not b:
+        return None
+    return (int(a[:4]) * 12 + int(a[5:7])) - (int(b[:4]) * 12 + int(b[5:7]))
+
+
+def _outcome(sim: dict) -> dict:
+    b = sim.get("budget") or {}
+    return {"net_worth_24m": sim["net_worth_24m"], "high_cost_debt_free": sim["high_cost_debt_free"],
+            "interest_total": sim["interest_total"], "monthly_debt_budget": b.get("monthly_debt_budget"),
+            "net_paydown_per_month": b.get("net_paydown_per_month"), "feasible": sim["feasible"]}
+
+
+def suggest_cuts(customer_id: str, ctx: dict, inputs: dict, base_sim: dict) -> list[dict]:
+    """Up to SUGGEST_MAX suggested cuts on top of inputs' (agreed) targets, best payoff per dollar of pain
+    first. Never a fixed / ask / agreed / declined category. Each: {category, target, how, lumpy, cv,
+    pain_weight, score, buys} where buys is what that cut alone adds to the plan (_buys)."""
+    agreed = {str(t.get("category", "")).lower() for t in inputs.get("spending_targets") or []}
+    declined = {str(x).lower() for x in inputs.get("declined_cuts") or []}
+    mins = {str(k).lower(): v for k, v in (inputs.get("category_min") or {}).items()}
+    base_nw = base_sim["net_worth_24m"]
+    cands = []
+    for cat in ctx["spend"]:
+        if cat in agreed or cat in declined:
+            continue
+        s = suggest_target(customer_id, ctx, cat, mins.get(cat))
+        if s is None:
+            continue
+        plan, _ = build_plan(customer_id, {**inputs, "spending_targets": [*(inputs.get("spending_targets") or []), s]}, ctx=ctx)
+        sim = wealth.simulate_plan(customer_id, plan, ctx=ctx)
+        gain = sim["net_worth_24m"] - base_nw
+        if not sim["feasible"] or gain <= 0:
+            continue
+        cut = ctx["spend"][cat]["avg"] - s["target"]
+        cands.append({**s, "score": round(gain / (cut * s["pain_weight"]), 4), "buys": _buys(base_sim, sim)})
+    cands.sort(key=lambda s: (-s["score"], s["category"]))
+    return cands[:SUGGEST_MAX]
+
+
+def _buys(without: dict, with_: dict) -> dict:
+    """What one cut buys on its own: the agreed-cuts plan re-solved with it vs without it."""
+    return {"net_worth_gain": round(with_["net_worth_24m"] - without["net_worth_24m"], 2),
+            "months_sooner": _months_between(without["high_cost_debt_free"], with_["high_cost_debt_free"]),
+            "high_cost_debt_free": with_["high_cost_debt_free"],
+            "interest_saved": round(without["interest_total"] - with_["interest_total"], 2)}
+
+
 # ---------------- solve ----------------
 
 def _nw(customer_id: str, ctx: dict, plan: dict) -> float:
@@ -312,12 +426,6 @@ def build_plan(customer_id: str, inputs: dict | None = None, *, live: bool = Tru
     return plan_for(sold, red), ctx
 
 
-def _months_between(a: str | None, b: str | None) -> int | None:
-    if not a or not b:
-        return None
-    return (int(a[:4]) * 12 + int(a[5:7])) - (int(b[:4]) * 12 + int(b[5:7]))
-
-
 def tradeoffs(customer_id: str, inputs: dict, sim: dict, *, live: bool = True) -> list[dict]:
     """What cutting each flexible category to its floor would add on top of the person's own cuts."""
     keep = inputs.get("keep_emergency_months")
@@ -360,15 +468,45 @@ def _tradeoff_row(customer_id, ctx, inputs, sim, floors, label) -> dict:
 
 
 def solve(customer_id: str, inputs: dict | None = None, *, live: bool = True, with_tradeoffs: bool = True) -> dict:
-    """Plan v2 + simulation + tradeoffs + a brief for the agent. Raises validator.PlanRejected if the
-    person's own inputs (e.g. a cut below their lowest month) can't be met."""
-    from ..agent.validator import validate_plan_v2
+    """Plan v2 (agreed + suggested cuts) + simulation + no_cuts comparison + tradeoffs + a brief for the agent.
+    Raises validator.PlanRejected if the person's own inputs (e.g. a cut below their lowest month) can't be met.
+    Each plan spending target carries source "agreed" | "suggested"; suggested ones also carry `buys`."""
+    from ..agent.validator import PlanRejected, validate_plan_v2
 
     inp = dict(inputs or {})
-    plan, ctx = build_plan(customer_id, inp, live=live)
-    sim = validate_plan_v2(customer_id, plan, live=live)
-    out = {"plan": plan, "sim": sim, "inputs": inp}
-    out["tradeoffs"] = tradeoffs(customer_id, inp, sim, live=live) if with_tradeoffs else []
+    agreed = [t for t in inp.get("spending_targets") or [] if t.get("source") != "suggested"]
+    base_inp = {**inp, "spending_targets": agreed}
+    base_plan, ctx = build_plan(customer_id, base_inp, live=live)
+    plan, sugg = base_plan, []
+    if inp.get("suggest_cuts", True) and _eligible(ctx):
+        base_sim = wealth.simulate_plan(customer_id, base_plan, ctx=ctx)
+        sugg = suggest_cuts(customer_id, ctx, base_inp, base_sim)
+    sim = None
+    if sugg:
+        plan, _ = build_plan(customer_id, {**base_inp, "spending_targets": [*agreed, *sugg]}, ctx=ctx)
+        try:
+            sim = validate_plan_v2(customer_id, plan, live=live)
+        except PlanRejected:  # a suggestion must never break a plan the agreed inputs allow
+            plan, sugg = base_plan, []
+    if sim is None:
+        sim = validate_plan_v2(customer_id, plan, live=live)
+    meta = {s["category"]: s for s in sugg}
+    targets = []
+    for t in plan["spending_targets"]:
+        if t["category"] in meta:
+            m = meta[t["category"]]
+            t = {**t, "source": "suggested", "lumpy": m["lumpy"], "buys": m["buys"]}
+        else:
+            t = {**t, "source": "agreed"}
+        targets.append(t)
+    plan = {**plan, "spending_targets": targets}
+    sim = dict(sim)
+    if sugg:  # the same plan without the suggested cuts (agreed ones stay), and what the suggestions buy together
+        sim["no_cuts"] = {**_outcome(base_sim), "suggested_cut_per_month": round(sum(
+            ctx["spend"][c]["avg"] - meta[c]["target"] for c in meta), 2), "suggested_buys": _buys(base_sim, sim)}
+    out = {"plan": plan, "sim": sim, "inputs": inp, "no_cuts": sim.get("no_cuts")}
+    t_inp = {**base_inp, "spending_targets": targets}
+    out["tradeoffs"] = tradeoffs(customer_id, t_inp, sim, live=live) if with_tradeoffs else []
     out["brief"] = brief(ctx, plan, sim, out["tradeoffs"])
     return out
 
@@ -376,12 +514,19 @@ def solve(customer_id: str, inputs: dict | None = None, *, live: bool = True, wi
 def brief(ctx: dict, plan: dict, sim: dict, trade: list[dict]) -> dict:
     """What the agent needs: the plan in words-sized pieces (the month table stays server-side)."""
     names = {d["account_id"]: d["name"] for d in ctx["debts"]}
+    b = sim.get("budget") or wealth.budget_limit(ctx, plan)
     return {
+        # Lead with net: gross payments minus this month's new card purchases (that part is spending, not paydown).
+        "paydown": {k: b.get(k) for k in ("current_net_paydown_per_month", "net_paydown_per_month",
+                                          "current_debt_payments", "monthly_debt_budget",
+                                          "current_new_card_purchases", "new_card_purchases")},
         "lump_sums": [{**l, "debt": names.get(l["to_debt"])} for l in plan["lump_sums"]],
         "monthly_debt_budget": plan["monthly_debt_budget"],
         "extra_order": [names.get(x, x) for x in plan["extra_order"]],
         "redirects": plan["redirects"],
-        "spending_targets": [{k: t[k] for k in ("category", "current", "target")} for t in plan["spending_targets"]],
+        "spending_targets": [{k: t[k] for k in ("category", "current", "target", "how", "source", "buys") if k in t}
+                             for t in plan["spending_targets"]],
+        "no_cuts": sim.get("no_cuts"),
         "payoff": {d["name"]: d["payoff_month"] for d in sim["debts"]},
         "high_cost_debt_free": sim["high_cost_debt_free"],
         "baseline_high_cost_debt_free": sim.get("baseline_high_cost_debt_free"),
