@@ -13,6 +13,7 @@ import PlanTimeline from '../components/flow/PlanTimeline'
 import Chat from '../components/flow/Chat'
 import RealityCheck from '../components/flow/RealityCheck'
 import WhyPlan from '../components/flow/WhyPlan'
+import UnderwaterOptions from '../components/flow/UnderwaterOptions'
 import Scenarios from '../components/flow/Scenarios'
 import IncomeExpense from '../components/IncomeExpense'
 import Brand from '../components/Brand'
@@ -265,6 +266,7 @@ export default function Home() {
       )}
       {screen === 1 && thinkingDone && !ai && reality && !reality.realistic && <RealityCheck rc={reality} />}
       {screen === 2 && reality && !reality.realistic && <RealityCheck rc={reality} />}
+      {screen === 2 && reality && !reality.realistic && <UnderwaterOptions key={cid} cid={cid} cards={ai?.simulation.explain?.underwater_options} />}
       {screen === 2 && ai && <WhyPlan ex={ai.simulation.explain} />}
       {screen === 2 && ai && knobs && (
         <PlanEditor ai={ai} knobs={knobs} setKnobs={setKnobs}

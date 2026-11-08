@@ -366,11 +366,24 @@ def _for_agent(brief: dict) -> dict:
         "buffers": brief["buffers"],
         "flags": brief["flags"],
         "spending_avg": brief["spending_avg"],
+        "underwater": brief.get("underwater"),
         "reality": {k: (snap.get("reality_check") or {}).get(k) for k in ("realistic", "message", "gap_per_month", "close_gap")},
     }
 
 
-def _explain_v3(p: dict, d: dict) -> dict:
+def _option_cards(under: dict | None, d: dict) -> list[dict]:
+    """Underwater cards: code's figures, the agent's order and words. Cards the agent skipped go last."""
+    if not under:
+        return []
+    by = {o["key"]: o for o in under["options"]}
+    words = {o.get("key"): o for o in d.get("options") or [] if isinstance(o, dict) and o.get("key") in by}
+    rec = {k for k in d.get("recommend") or [] if k in by}
+    order = [*words, *[k for k in by if k not in words]]
+    return [{**by[k], "why": _words((words.get(k) or {}).get("why"), 140), "downside": _words((words.get(k) or {}).get("downside"), 140),
+             "recommended": k in rec, "agent_skipped": k not in words} for k in order]
+
+
+def _explain_v3(p: dict, d: dict, under: dict | None = None) -> dict:
     """The saved proposal's explanation: every figure from the proposal's own plan and simulation, the agent's
     words (driver, whys, downsides) beside them."""
     plan, sim = p["plan"], p["simulation"]
@@ -384,6 +397,10 @@ def _explain_v3(p: dict, d: dict) -> dict:
     net, gross, cur = b.get("net_paydown_per_month"), b.get("monthly_debt_budget"), b.get("current_net_paydown_per_month")
     summary = (f"You'd pay {_usd(gross)}/mo to debt; {_usd(net)} of it actually shrinks the balance (was {_usd(cur)}),"
                f" the rest covers new card purchases.") if net is not None else ""
+    pp = (rc.get("monthly") or {}).get("principal_paydown")
+    if rc.get("realistic") is False and pp is not None and pp < 0:  # underwater: "net" would overstate it
+        summary = (f"Even with every change, interest and new card charges add more than you can pay:"
+                   f" the debt grows about {_usd(-pp)}/mo until the gap closes.")
     why = {c.get("category"): _words(c.get("why"), 120) for c in d.get("cuts") or [] if isinstance(c, dict)}
     cuts, levers = [], [{"kind": "debt_payment", "label": f"{_usd(net)}/mo off the debt", "amount": net}] if net is not None else []
     for t in plan.get("spending_targets") or []:
@@ -399,7 +416,9 @@ def _explain_v3(p: dict, d: dict) -> dict:
     return {"headline": headline, "summary": summary, "driver": _words(d.get("driver"), 300),
             "buffer_months": plan.get("keep_emergency_months"), "buffer_why": _words(d.get("buffer_why")),
             "lumps_why": _words(d.get("lumps_why")), "downsides": [w for w in (_words(x, 140) for x in d.get("downsides") or []) if w][:3],
-            "underwater": _words(d.get("underwater"), 300), "levers": levers, "cuts": cuts, "options": []}
+            "underwater": _words(d.get("underwater"), 300), "levers": levers, "cuts": cuts, "options": [],
+            "underwater_options": _option_cards(under, d),
+            "underwater_gap": (under or {}).get("gap_per_month")}
 
 
 def build_graph(customer_id: str):
@@ -487,7 +506,7 @@ def build_graph(customer_id: str):
             _phase(w, "propose", "", "no plan")
             return {"messages": log, "error": f"No valid plan: {reasons}"[:700]}
         p = store.get_proposal(st["proposal_id"])
-        ex = _explain_v3(p, d)
+        ex = _explain_v3(p, d, s["brief"].get("underwater"))
         try:
             store.annotate(p["id"], explain=ex)
         except AttributeError:

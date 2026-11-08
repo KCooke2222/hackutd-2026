@@ -91,6 +91,29 @@ def customer_reality_check(cid: str) -> dict:
     return wealth.reality_check(cid)
 
 
+class OptionsIn(BaseModel):
+    keys: list[str] = []
+    extra_income: float | None = None
+
+
+@app.get("/api/customers/{cid}/options")
+def customer_options(cid: str) -> dict:
+    """Underwater option cards: what each closes of the monthly gap (solver-checked) or that it can't be modelled."""
+    _need_customer(cid)
+    from ..planning import options
+
+    return options.underwater_options(cid)
+
+
+@app.post("/api/customers/{cid}/options/check")
+def customer_options_check(cid: str, body: OptionsIn) -> dict:
+    """Re-run the reality check with the picked options together: does the gap close? Read-only."""
+    _need_customer(cid)
+    from ..planning import options
+
+    return options.check(cid, body.keys, body.extra_income)
+
+
 # ---------- agent-facing numbers ----------
 
 @app.get("/api/customers/{cid}/summary")

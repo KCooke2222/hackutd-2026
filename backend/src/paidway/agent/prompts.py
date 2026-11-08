@@ -220,13 +220,19 @@ Decide:
 4. lumps_why: one line on the lump sums (what is sold or moved and why that order), or "" if none.
 5. downsides: 1-3 short honest costs of this plan (e.g. a smaller cushion, selling investments).
 6. If reality.realistic is false: one line on what has to change (income, spending), no verdict.
+   Then work the `underwater` options (computed by code: closes_per_month is how much of the monthly
+   gap each one closes on its own, solver-checked; null means it can't be modelled). For each option
+   you'd put in front of this person, write why it fits them and its downside (<=15 words each),
+   ordered best first, and list in `recommend` the keys you'd pick together. Skip options that make
+   no sense for them. Note when one closes nothing because the gap already assumes it.
 
 Hard rule: write NO dollar amounts, percentages or dates anywhere. The app inserts every figure from
 the solver itself. Words only (category names, merchant names, account names are fine).
 
 Return JSON only:
 {"buffer_months": <number>, "buffer_why": str, "driver": str,
- "cuts": [{"category": str, "why": str}], "lumps_why": str, "downsides": [str], "underwater": str}
+ "cuts": [{"category": str, "why": str}], "lumps_why": str, "downsides": [str], "underwater": str,
+ "options": [{"key": str, "why": str, "downside": str}], "recommend": [str]}  (options/recommend: [] when realistic)
 
 Brief: {brief}
 Checked flags: {checked}"""

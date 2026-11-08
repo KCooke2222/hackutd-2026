@@ -54,5 +54,10 @@ def build(customer_id: str, *, live: bool = True) -> dict:
         except Exception:  # noqa: BLE001 - a cushion the data can't support is just not offered
             continue
     ctx = wealth.context(customer_id, keep_months=default, live=live)
-    return {"snapshot": snap, "plan": base["brief"], "default_buffer_months": default, "buffers": buffers,
+    under = None
+    if (snap.get("reality_check") or {}).get("realistic") is False:
+        from ..planning import options
+
+        under = options.underwater_options(customer_id)
+    return {"underwater": under, "snapshot": snap, "plan": base["brief"], "default_buffer_months": default, "buffers": buffers,
             "flags": flags(ctx), "spending_avg": {c: round(v["avg"], 2) for c, v in ctx["spend"].items()}, "reality": snap.get("reality_check") or {}}

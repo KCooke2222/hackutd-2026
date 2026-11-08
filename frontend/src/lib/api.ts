@@ -69,9 +69,23 @@ export type Explain = {
   lumps_why?: string
   downsides?: string[]
   underwater?: string
+  underwater_options?: OptionCard[]
+  underwater_gap?: number
   warning?: string | null // talk to the plan: the cost of a worse change, written in code
   request?: string
   options?: { category: string; label: string; buys: string }[]
+}
+
+/** Underwater: one thing that could close the monthly gap. Figures from code; why/downside from the agent. */
+export type OptionCard = {
+  key: string; title: string; detail: string; modelled: boolean
+  closes_per_month: number | null; closes_gap?: boolean; cash_runs_out: string | null
+  amount?: number; new_payment?: number
+  why?: string; downside?: string; recommended?: boolean; agent_skipped?: boolean
+}
+export type OptionsCheck = {
+  picked: string[]; gap_before: number; gap_after: number; closes: boolean
+  cash_runs_out: string | null; principal_paydown: number | null; message: string; not_modelled: string[]
 }
 
 // ---------- talk to the plan (PR 4) ----------
