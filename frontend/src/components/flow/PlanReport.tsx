@@ -51,7 +51,8 @@ function steps(ai: Proposal, calls: NessieCall[], manual: { step: string; how?: 
   for (const c of bills) out.push({ text: c.step ? pretty(c.step) : <>{c.from} pays {c.to} <b>{money(c.amount)}/mo</b></>, sub: c.note ?? undefined, runs: 'bill' })
   if (!bills.length && !summary) {
     const order = pl.extra_order.map(name)
-    out.push({ text: <>Pay <b>{money(pl.monthly_debt_budget)}/mo</b> to debt</>, sub: order.length ? <>Extra goes {order.join(' → ')}</> : undefined, runs: 'recorded' })
+    const net = sim.budget?.net_paydown_per_month ?? pl.monthly_debt_budget
+    out.push({ text: <>Pay <b>{money(net)}/mo</b> toward debt</>, sub: order.length ? <>Extra goes {order.join(' → ')}</> : undefined, runs: 'recorded' })
   }
   for (const a of agent.filter((x) => x.kind === 'leftover')) out.push({ text: pretty(a.step), sub: brief(a.watch, 60) || undefined, runs: 'agent' })
   const red = pl.redirects.reduce((a, r) => a + r.amount_per_month, 0)
@@ -87,8 +88,8 @@ function honest(b: SimV2['budget'], s: MonthSplit | null): SimV2['budget'] {
 /** Same words as graph._explain_v3's summary, from the honest numbers. */
 function splitLine(b: Budget): string {
   const buys = 0, left = b.unused_per_month ?? 0
-  return `Each month ${money(b.net_paydown_per_month ?? 0)} goes to your debts: ${money(b.net_paydown_per_month ?? 0)} shrinks the balance (was ${money(b.current_net_paydown_per_month ?? 0)})`
-    + (buys >= 1 ? `, ${money(buys)} pays off new card purchases` : '') + (left >= 1 ? `; ${money(left)} left over stays in cash, not debt` : '') + '.'
+  return `Each month ${money(b.net_paydown_per_month ?? 0)} pays your debts down (was ${money(b.current_net_paydown_per_month ?? 0)})`
+    + (buys >= 1 ? '' : '') + (left >= 1 ? `; ${money(left)} left over stays in cash, not debt` : '') + '.'
 }
 
 function Kpis({ sim, base, b }: { sim: SimV2; base: SimV2 | null; b: SimV2['budget'] }) {

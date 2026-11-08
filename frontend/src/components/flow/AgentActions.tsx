@@ -58,9 +58,7 @@ export function callsFor(pv: ApprovePreview | null, schedule: Schedule | null | 
 /** "Each month: debt shrinks $196 · $1,423 covers new card purchases · $759 stays in cash". */
 export function MonthLine({ s }: { s?: MonthSplit | null }) {
   if (!s || s.paid == null) return null
-  const bits = [<><b>{usd(Math.round(s.paid))}/mo</b> goes to your debts</>]
-  if ((s.new_purchases ?? 0) >= 1) bits.push(<>{usd(Math.round(s.new_purchases!))} of it covers new card purchases</>)
-  bits.push(<>debt shrinks <b>{usd(Math.round(s.net_paydown ?? 0))}/mo</b></>)
+  const bits = [<>debt shrinks <b>{usd(Math.round(s.net_paydown ?? 0))}/mo</b></>]
   if ((s.left_over ?? 0) >= 1) bits.push(<>{usd(Math.round(s.left_over!))}/mo left over stays in cash</>)
   return <div className="small month-line">Each month: {bits.map((b, i) => <span key={i}>{i ? ' · ' : ''}{b}</span>)}</div>
 }
