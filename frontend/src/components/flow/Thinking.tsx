@@ -5,8 +5,9 @@ type Step = { id: string; name: string; label: string; why: string; result?: str
 type Run = { steps: Step[]; final: string; finalWhy: string; error: string | null; done: boolean }
 
 const ICON: Record<string, string> = {
-  refill_breakdown: '↻', get_balance_sheet: '⚖', get_accounts: '≡', get_card_activity: '▦', debt_priority: '#',
-  liquidity_ladder: '▤', simulate_payoff: '∿', propose_plan: '✓',
+  phase_gather: '≡', phase_diagnose: '?', phase_explain: '✎',
+  sql: '⌕', cash_flow: '⇄', spending_detail: '▦', find_recurring: '↻', compare_sources: '⚖', debt_priority: '#',
+  liquidity_ladder: '▤', simulate_plan: '∿', propose_plan: '✓',
 }
 
 /** Streams one real agent run (SSE from /api/agent/stream) as chips: tool, one number, reasoning collapsed. */

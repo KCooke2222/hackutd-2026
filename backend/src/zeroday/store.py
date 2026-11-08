@@ -110,6 +110,18 @@ def set_status(pid: str, status: str, execution: dict | None = None) -> dict | N
     return get_proposal(pid)
 
 
+def annotate(pid: str, **fields) -> dict | None:
+    """Merge display fields (e.g. explain labels) into a proposal's simulation json."""
+    with _conn() as c:
+        r = c.execute("select simulation from proposals where id = ?", (pid,)).fetchone()
+        if not r:
+            return None
+        sim = json.loads(r["simulation"] or "{}")
+        sim.update(fields)
+        c.execute("update proposals set simulation = ? where id = ?", (json.dumps(sim), pid))
+    return get_proposal(pid)
+
+
 def claim(pid: str) -> bool:
     """Atomically flip pending -> executing. False if someone else already claimed it (double click)."""
     with _conn() as c:

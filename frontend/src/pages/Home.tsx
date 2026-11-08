@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import type { BalanceSheet, Proposal } from '../lib/api'
-import { knobsFrom, splitLump } from '../lib/flow'
-import type { Knobs, Outlook } from '../lib/flow'
+import { isV2, knobsFrom, planFrom } from '../lib/flow'
+import type { Knobs, Preview } from '../lib/flow'
 import Snapshot from '../components/flow/Snapshot'
 import type { Summary } from '../components/flow/Snapshot'
 import Thinking from '../components/flow/Thinking'
 import PlanEditor from '../components/flow/PlanEditor'
 import Outcome from '../components/flow/Outcome'
+import IncomeExpense from '../components/IncomeExpense'
 
 type Health = { nessie: boolean; nvidia: boolean; model: string }
 const NAMES = ['Snapshot', 'Thinking', 'Plan', 'Done']
@@ -31,7 +32,7 @@ export default function Home() {
   const [lastPending, setLastPending] = useState<Proposal | null>(null)
   const [final, setFinal] = useState('')
   const [knobs, setKnobs] = useState<Knobs | null>(null)
-  const [outlook, setOutlook] = useState<Outlook | null>(null)
+  const [outlook, setOutlook] = useState<Preview | null>(null)
   const [approved, setApproved] = useState<Proposal | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -47,26 +48,21 @@ export default function Home() {
     setScreen(0); setReached(0); setRunKey(0)
     api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch((e) => setErr(e.message))
     api<Summary>(`/customers/${cid}/summary`).then(setSummary).catch((e) => setErr(e.message))
-    api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => setLastPending(ps.find((p) => p.status === 'pending') ?? null))
+    api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => setLastPending(ps.find((p) => p.status === 'pending' && isV2(p)) ?? null))
   }, [cid])
 
   // Live preview for the sliders, debounced; stale responses are dropped.
   const seq = useRef(0)
   useEffect(() => {
-    if (!knobs) return
+    if (!knobs || !ai) return
     const n = ++seq.current
     const t = setTimeout(() => {
-      api<Outlook>(`/customers/${cid}/plan/simulate`, { method: 'POST', body: JSON.stringify(splitLump(knobs, outlook?.limits ?? null, ai)) })
-        .then((o) => {
-          if (n !== seq.current) return
-          setOutlook(o)
-          // Old proposals may sit below the essentials floor: lift the knob to it.
-          if (knobs.cap < o.limits.spend_floor - 0.5) setKnobs({ ...knobs, cap: Math.ceil(o.limits.spend_floor) })
-        })
+      api<Preview>(`/customers/${cid}/plan/simulate`, { method: 'POST', body: JSON.stringify({ plan: planFrom(ai, knobs) }) })
+        .then((o) => { if (n === seq.current) setOutlook(o) })
         .catch((e) => n === seq.current && setErr(e.message))
     }, 200)
     return () => clearTimeout(t)
-  }, [knobs, cid])
+  }, [knobs, cid, ai])
 
   function go(i: number) {
     setScreen(i); setReached((r) => Math.max(r, i)); setErr(null)
@@ -84,7 +80,7 @@ export default function Home() {
     if (!ai || !knobs) return
     setBusy(true); setErr(null)
     try {
-      const p = await api<Proposal>(`/proposals/${ai.id}/approve`, { method: 'POST', body: JSON.stringify(splitLump(knobs, outlook?.limits ?? null, ai)) })
+      const p = await api<Proposal>(`/proposals/${ai.id}/approve`, { method: 'POST', body: JSON.stringify({ plan: planFrom(ai, knobs) }) })
       setApproved(p); setLastPending(null); go(3)
     } catch (e) {
       setErr((e as Error).message)
@@ -125,18 +121,19 @@ export default function Home() {
       {err && screen !== 2 && <div className="error">{err}</div>}
 
       {screen === 0 && sheet && summary && <Snapshot sheet={sheet} summary={summary} />}
+      {screen === 0 && <IncomeExpense cid={cid} />}
       {runKey > 0 && (
         // Stays mounted after the run so Back/Next doesn't start another one.
         <div style={{ display: screen === 1 ? 'block' : 'none' }}>
           <Thinking key={cid} cid={cid} model={health?.model ?? ''} runKey={runKey}
-            onDone={(p, f) => { setThinkingDone(true); if (p) { setAi(p); setFinal(f); setKnobs(knobsFrom(p)); setLastPending(p) } }} />
+            onDone={(p, f) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setFinal(f); setKnobs(knobsFrom(p)); setLastPending(p) } }} />
         </div>
       )}
       {screen === 2 && ai && knobs && (
-        <PlanEditor ai={ai} why={final ? firstSentence(final) : firstSentence(ai.rationale)} knobs={knobs} setKnobs={setKnobs}
-          outlook={outlook} busy={busy} error={err} onApprove={approve} onReject={reject} />
+        <PlanEditor ai={ai} headline={ai.simulation.explain?.headline ?? (final ? firstSentence(final) : firstSentence(ai.rationale))} knobs={knobs} setKnobs={setKnobs}
+          preview={outlook} busy={busy} error={err} onApprove={approve} onReject={reject} />
       )}
-      {screen === 3 && outlook && knobs && <Outcome o={outlook} knobs={knobs} approved={approved} />}
+      {screen === 3 && approved && <Outcome preview={outlook} approved={approved} />}
 
       <div className="flow-nav">
         <button disabled={screen === 0} style={{ visibility: screen === 0 ? 'hidden' : 'visible' }} onClick={() => go(screen - 1)}>Back</button>

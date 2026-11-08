@@ -70,32 +70,59 @@ export type Sim = {
   schedule: { month: number; balance: number }[]
 }
 
+// ---------- plan v2 (docs/agent-v2/CONTRACT.md) ----------
+
+export type LumpSum = { source: 'cash' | 'cd' | 'brokerage'; amount: number; to_debt: string }
+export type Redirect = { flow: string; amount_per_month: number }
+export type SpendingTarget = { category: string; current: number; target: number; proof_month: string; how: string[] }
+
+export type PlanV2 = {
+  version: 2
+  monthly_debt_budget: number
+  extra_order: string[]
+  lump_sums: LumpSum[]
+  redirects: Redirect[]
+  spending_targets: SpendingTarget[]
+  autopay_full_cards: string[]
+  keep_emergency_months: number
+}
+
+export type SimDebt = { account_id: string; name: string; apr_pct: number; balance: number; min_payment?: number; high_cost?: boolean; payoff_month: string | null; interest: number }
+export type SimMonth = { month: string; total_debt: number; high_cost_debt: number; cash: number; invested: number; net_worth: number }
+
+export type SimV2 = {
+  feasible: boolean
+  problems: string[]
+  debts: SimDebt[]
+  months: SimMonth[]
+  net_worth_24m: number
+  baseline_net_worth_24m: number
+  interest_total: number
+  baseline_interest_total: number
+  high_cost_debt_free: string | null
+  upfront_cost: number
+  budget?: { current_debt_payments: number; redirects: number; checking_cuts: number; card_cuts: number; max_monthly_debt_budget: number; minimums: number }
+}
+
+export type Explain = { headline: string; levers?: { kind: string; label: string; amount?: number }[]; cuts?: { category: string; how: string }[] }
+
 export type Proposal = {
   id: string
   customer_id: string
   status: string
   created_at: string
-  plan: {
-    lump_sum_from_savings: number
-    lump_sum_from_cd?: number
-    lump_sum_from_brokerage?: number
-    monthly_payment: number
-    monthly_card_spending_cap: number
-    keep_emergency_months: number
-    autopay_full?: boolean
-  }
-  simulation: {
-    draws?: Draw[]
-    tap_cost_total?: number
-    savings_balance: number
-    savings_after: number
-    emergency_floor: number
-    inputs: Record<string, number>
-    before: Sim
-    after: Sim
-  }
+  plan: PlanV2
+  simulation: SimV2 & { explain?: Explain; balances_snapshot?: unknown }
   rationale: string
-  execution?: Record<string, unknown>
+  execution?: {
+    mode?: string
+    note?: string
+    amount?: number
+    transfer?: unknown
+    transfers_pending?: { to_debt: string; amount: number }[]
+    scheduled?: { kind: string; step: string; how?: string[] }[]
+    error?: string
+  }
 }
 
 export type Source = 'pnc' | 'nessie' | 'linked'

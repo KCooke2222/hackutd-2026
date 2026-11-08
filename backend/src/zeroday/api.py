@@ -1,6 +1,6 @@
 """FastAPI app: PNC data explorer API + agent + proposals.
 
-Safety: the Nessie write client is imported lazily, only inside approve_proposal().
+Safety: the Nessie write client is imported lazily, only inside agent/execute.approve() (approve route).
 """
 
 from __future__ import annotations
@@ -13,6 +13,9 @@ from . import balance_sheet, finance, linked, pnc_data, store
 from .config import NESSIE_KEY, NVIDIA_API_KEY, NEMOTRON_MODEL
 
 app = FastAPI(title="Zeroday")
+
+from .api_insights import router as _insights_router  # noqa: E402
+app.include_router(_insights_router)
 
 
 def _need_customer(cid: str) -> dict:
@@ -156,9 +159,12 @@ def customer_refill(cid: str, months: int = Query(12, ge=1, le=24)) -> dict:
 
 
 class SimIn(BaseModel):
-    balance: float
-    apr_pct: float
-    monthly_payment: float
+    """Plan v2 simulation ({customer_id, plan}); the old single-card body (balance, apr_pct...) still works."""
+    customer_id: str | None = None
+    plan: dict | None = None
+    balance: float | None = None
+    apr_pct: float | None = None
+    monthly_payment: float | None = None
     monthly_new_spending: float = 0.0
     lump_sum: float = 0.0
 
@@ -166,8 +172,15 @@ class SimIn(BaseModel):
 @app.post("/api/simulate")
 def simulate(body: SimIn) -> dict:
     try:
-        return finance.simulate_payoff(**body.model_dump())
-    except ValueError as e:
+        if body.customer_id:
+            _need_customer(body.customer_id)
+            from . import wealth
+
+            return wealth.simulate_plan(body.customer_id, body.plan)
+        if body.balance is None or body.apr_pct is None or body.monthly_payment is None:
+            raise HTTPException(400, "send {customer_id, plan} or {balance, apr_pct, monthly_payment}")
+        return finance.simulate_payoff(body.balance, body.apr_pct, body.monthly_payment, body.monthly_new_spending, body.lump_sum)
+    except (ValueError, KeyError, TypeError) as e:
         raise HTTPException(400, str(e))
 
 
@@ -214,27 +227,30 @@ def agent_stream(customer_id: str, instruction: str | None = None) -> StreamingR
 
 
 class PlanIn(BaseModel):
-    lump_sum_from_savings: float = 0.0
-    lump_sum_from_cd: float = 0.0
-    lump_sum_from_brokerage: float = 0.0
-    monthly_payment: float | None = None
-    monthly_card_spending_cap: float | None = None
-    keep_emergency_months: float = 3.0
-    autopay_full: bool = True
-    months: int = 24
+    plan: dict
 
 
 @app.post("/api/customers/{cid}/plan/simulate")
 def plan_simulate(cid: str, body: PlanIn) -> dict:
-    """Live preview for the plan sliders: validator verdict + today / pay-down-only / plan paths."""
+    """Live preview for the plan sliders: validator verdict + the plan and baseline paths (plan v2)."""
     _need_customer(cid)
-    from .agent.validator import PlanRejected, outlook
+    from . import wealth
+    from .agent.validator import PlanRejected
 
-    plan = body.model_dump(exclude={"months"})
+    plan = {**body.plan, "version": 2}
     try:
-        return outlook(cid, plan, max(6, min(body.months, 60)))
-    except (PlanRejected, ValueError) as e:
+        sim = wealth.simulate_plan(cid, plan)
+    except (ValueError, KeyError, TypeError) as e:
         raise HTTPException(422, str(e))
+    try:
+        from .agent.validator import validate_plan_v2
+
+        validate_plan_v2(cid, plan)
+        reasons: list[str] = []
+    except PlanRejected as e:
+        reasons = list(getattr(e, "reasons", None) or [str(e)])
+    return {"valid": not reasons and bool(sim.get("feasible", True)), "reasons": reasons, "sim": sim,
+            "baseline": wealth.simulate_plan(cid, None)}
 
 
 @app.get("/api/proposals")
@@ -243,75 +259,18 @@ def proposals(customer_id: str | None = None) -> list[dict]:
 
 
 class EditIn(BaseModel):
-    lump_sum_from_savings: float | None = None
-    lump_sum_from_cd: float | None = None
-    lump_sum_from_brokerage: float | None = None
-    monthly_payment: float | None = None
-    monthly_card_spending_cap: float | None = None
-    keep_emergency_months: float | None = None
-    autopay_full: bool | None = None
+    plan: dict | None = None  # edited plan v2 fields; omitted = approve as proposed
 
 
 @app.post("/api/proposals/{pid}/approve")
 def approve_proposal(pid: str, edits: EditIn | None = None) -> dict:
-    """Human approval is the ONLY path to a money-moving call.
-
-    1. Atomically claim pending -> executing (double clicks get 409, never a second transfer).
-    2. Re-validate the (possibly edited) plan.
-    3. Re-read the balances; if they moved since the proposal, mark it stale.
-    4. Execute in Nessie (lazy write import) or record a local-only approval.
-    """
-    p = store.get_proposal(pid)
-    if not p:
-        raise HTTPException(404, "no such proposal")
-    if not store.claim(pid):
-        raise HTTPException(409, f"proposal is {store.get_proposal(pid)['status']}, not pending")
-
-    plan = dict(p["plan"])
-    if edits:
-        plan.update({k: v for k, v in edits.model_dump().items() if v is not None})
-    from .agent.validator import PlanRejected, validate_plan
+    """Human approval is the ONLY path to a money-moving call; see agent/execute.py."""
+    from .agent.execute import ApproveError, approve
 
     try:
-        sim = validate_plan(p["customer_id"], plan)
-    except PlanRejected as e:
-        store.release(pid)
-        raise HTTPException(422, str(e))
-
-    from . import balances
-
-    diffs = balances.changed(p["simulation"].get("balances_snapshot"), sim["balances_snapshot"])
-    if diffs:
-        store.set_status(pid, "stale", {"error": "balances changed since the proposal; re-run the check", "diffs": diffs})
-        raise HTTPException(409, "stale, re-run: balances changed since the proposal (" + "; ".join(diffs) + ")")
-
-    # CD and brokerage draws live outside Nessie: the customer does those steps; we record them.
-    manual = [
-        {"step": f"{'Break CD' if d['key'] == 'cd' else 'Sell from brokerage'} and pay {d['amount']:,.2f} to the card",
-         "tier": d["key"], "amount": d["amount"], "one_time_cost": d["cost"]}
-        for d in sim["draws"] if d["key"] in ("cd", "brokerage")
-    ]
-    lump = sim["inputs"]["lump_sum_from_savings"]
-    if not NESSIE_KEY or lump <= 0:
-        why = "NESSIE_KEY not set" if not NESSIE_KEY else "no transfer from savings in plan"
-        return store.set_status(pid, "approved", {"mode": "local_only", "note": why, "manual_steps": manual, "plan": plan, "simulation": sim})
-
-    from .seed import nessie_ids
-
-    ids = nessie_ids(p["customer_id"])
-    if not ids.get("savings") or not ids.get("credit_card"):
-        return store.set_status(pid, "approved", {"mode": "local_only", "note": "customer not seeded into Nessie (run reseed)", "manual_steps": manual, "plan": plan})
-
-    # Lazy import: the only place in the app that can move money.
-    from .nessie import write
-
-    try:
-        res = write.create_transfer(ids["savings"], ids["credit_card"], lump, finance.today(), "Zeroday approved payoff")
-    except Exception as e:  # noqa: BLE001
-        return store.set_status(pid, "failed", {"error": str(e), "plan": plan})
-    finally:
-        balance_sheet.clear_cache()
-    return store.set_status(pid, "executed", {"mode": "nessie", "transfer": res, "manual_steps": manual, "plan": plan, "simulation": sim})
+        return approve(pid, edits.plan if edits else None)
+    except ApproveError as e:
+        raise HTTPException(e.status, e.detail)
 
 
 @app.post("/api/proposals/{pid}/reject")

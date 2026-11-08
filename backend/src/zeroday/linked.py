@@ -140,12 +140,13 @@ def load() -> int:
 
 
 def for_customer(customer_id: str | None = None) -> list[dict]:
-    """Linked accounts from SQLite (all customers if None). Loads them on first use if the table is empty
-    (fresh clone, no reseed yet)."""
+    """Linked accounts from SQLite (all customers if None). Read-only: if the table is empty (fresh clone,
+    no `make linked` yet) it returns the deterministic generated rows without writing them."""
     from . import store
 
     if not store.linked_count():
-        load()
+        rows = generate() if customer_id is None else generate_customer(customer_id)
+        return rows
     return store.linked_accounts(customer_id)
 
 
