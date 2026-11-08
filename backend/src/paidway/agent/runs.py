@@ -6,6 +6,7 @@ Read-only like the agent itself: a run only ever saves a PENDING proposal (agent
 
 from __future__ import annotations
 
+import contextvars
 import threading
 import time
 import uuid
@@ -82,7 +83,8 @@ def start(customer_id: str, events: Callable[[], Iterable[dict]]) -> Run:
         finally:
             run._finish(status)
 
-    threading.Thread(target=work, name=f"agent-run-{run.id}", daemon=True).start()
+    ctx = contextvars.copy_context()  # carries the request's demo mode (agent/demo.py) onto the run's thread
+    threading.Thread(target=ctx.run, args=(work,), name=f"agent-run-{run.id}", daemon=True).start()
     return run
 
 
