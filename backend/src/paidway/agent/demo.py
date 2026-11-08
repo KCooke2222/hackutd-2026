@@ -103,13 +103,17 @@ def _content(c: Any) -> str:
     return c if isinstance(c, str) else json.dumps(c, sort_keys=True, default=str)
 
 
+_PKG = str(Path(__file__).resolve().parent.parent).replace("\\", "/") + "/"
+
+
 def _site() -> str:
     """The first frame in our own code above the model: 'agent.graph:decide', 'api.plan_view:ask', ..."""
     f = sys._getframe(2)
     while f is not None:
         fn = f.f_code.co_filename.replace("\\", "/")
-        if "/paidway/" in fn and not fn.endswith("/agent/demo.py"):
-            mod = fn.rsplit("/paidway/", 1)[1].removesuffix(".py").replace("/", ".")
+        # Our package dir only: on the VM the whole checkout sits under /opt/paidway/, venv included.
+        if fn.startswith(_PKG) and not fn.endswith("/agent/demo.py"):
+            mod = fn[len(_PKG):].removesuffix(".py").replace("/", ".")
             return f"{mod}:{f.f_code.co_name}"
         f = f.f_back
     return "?"
