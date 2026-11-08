@@ -4,7 +4,7 @@ from __future__ import annotations
 
 ASSUMPTIONS = {
     "horizon_months": 24,
-    "prepay_hurdle_pct": 8.0,          # debts above this get extra money
+    "prepay_hurdle_pct": 7.0,          # debts above this are high-cost: they get the extra money (money order step 2)
     "default_emergency_months": 3.0,
     "min_emergency_months": 2.0,       # validator floor
     "returns_pct": {"cash": None, "cd": 4.8, "brokerage": 7.0, "ira": 7.0},  # cash None = account yield

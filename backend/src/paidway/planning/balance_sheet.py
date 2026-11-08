@@ -10,12 +10,13 @@ import time
 
 from ..data import linked, pnc_data
 from ..data.linked import CONSEQUENCES, DEBT_TYPES, SECURED_TYPES, consequence_tier
+from . import assumptions as A
 
 DEFAULT_EMERGENCY_MONTHS = 3.0
 CD_PENALTY_MONTHS = 6          # early withdrawal: ~6 months of interest on a 1-year CD
 LTCG_RATE = 0.15               # long-term capital gains on the gain portion
 IRA_EARLY_COST = 0.10 + 0.22   # 10% penalty + ~22% income tax
-PREPAY_HURDLE_PCT = 8.0        # below this APR, extra money beats prepaying (keep minimums only)
+PREPAY_HURDLE_PCT = A.get("prepay_hurdle_pct")  # at or below this APR: minimums only (the money order)
 
 NAMES = {
     "checking": "Checking", "savings": "Savings", "cd": "CD", "ira": "IRA", "credit_card": "Credit card",
@@ -246,8 +247,8 @@ def debt_priority(rows: list[dict], monthly_income: float, monthly_expenses: flo
     """Minimums first, ordered by consequence of missing them; extra money to the highest APR (avalanche),
     except debts below the prepay hurdle and secured debt, which only get their minimum."""
     debts = [dict(r) for r in rows if r["side"] == "debt" and r["balance"] > 0]
-    debts.sort(key=lambda d: (d["consequence_tier"] or 3, -d["apr_pct"]))
-    extra = [d for d in debts if not d["secured"] and d["apr_pct"] >= PREPAY_HURDLE_PCT]
+    debts.sort(key=lambda d: (d.get("consequence_tier") or 3, -d["apr_pct"]))
+    extra = [d for d in debts if d["apr_pct"] > PREPAY_HURDLE_PCT]
     extra.sort(key=lambda d: (-d["apr_pct"], d["balance"]))
     extra_rank = {d["account_id"]: i + 1 for i, d in enumerate(extra)}
     out = []
@@ -269,8 +270,8 @@ def debt_priority(rows: list[dict], monthly_income: float, monthly_expenses: flo
             "apr_pct": d["apr_pct"],
             "min_payment": d["min_payment"],
             "secured": d["secured"],
-            "consequence_tier": d["consequence_tier"],
-            "consequence": CONSEQUENCES.get(d["consequence_tier"] or 3),
+            "consequence_tier": d.get("consequence_tier"),
+            "consequence": CONSEQUENCES.get(d.get("consequence_tier") or 3),
             "minimum_order": i,
             "extra_rank": rank,
             "action": action,

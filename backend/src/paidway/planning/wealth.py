@@ -184,8 +184,8 @@ def context(customer_id: str, keep_months: float | None = None, live: bool = Tru
             "secured": bool(r["secured"]), "linked": not pnc,
             "is_card": r["account_type"] == "credit_card",
             "is_pnc_card": bool(card and r["account_id"] == card["account_id"]),
-            "high_cost": r["apr_pct"] >= hurdle,
-            "extra_eligible": (not r["secured"]) and r["apr_pct"] >= hurdle,
+            "high_cost": r["apr_pct"] > hurdle,  # "above 7%": the money order's step 2
+            "extra_eligible": r["apr_pct"] > hurdle,  # secured too (a 7.5% auto loan); mortgages sit below
             "baseline_payment": round(max(obs or 0.0, float(r["min_payment"] or 0)), 2),
         })
     debts.sort(key=lambda d: (-d["apr_pct"], d["balance"]))
@@ -590,13 +590,48 @@ def simulate_plan(customer_id: str, plan: dict | None, *, live: bool = True, ctx
     if plan is not None:
         b = budget_limit(ctx, plan)
         res["budget"] = {**b, **paid_split(res, b["monthly_debt_budget"])}
+        res["money_order"] = money_order_line(ctx, plan, res)
     return res
+
+
+def _mon(label: str) -> str:
+    import calendar
+
+    y, m = label.split("-")
+    return f"{calendar.month_abbr[int(m)]} {y}"
+
+
+def _k(x: float) -> str:
+    return f"${x / 1000:,.1f}k" if x >= 1000 else f"${x:,.0f}"
+
+
+def money_order_line(ctx: dict, plan: dict, sim: dict) -> str:
+    """The plan's money order in one line: "Cards first, then a $6.8k cushion, then $228/mo into investing at ~7%"."""
+    high = [d for d in ctx["debts"] if d["high_cost"] and d["balance"] > 0]
+    if not high:
+        first = "No high-cost debt"
+    elif all(d["is_card"] for d in high):
+        first = "Cards first"
+    else:
+        names = [d["name"] for d in sorted(high, key=lambda d: -d["apr_pct"])]
+        first = ("Cards, then " if any(d["is_card"] for d in high) else "") + \
+            ", ".join(n for n, d in zip(names, sorted(high, key=lambda d: -d["apr_pct"])) if not d["is_card"]) + " first"
+    inv = sim.get("investing") or {}
+    pct = f"~{(inv.get('return_pct') or A.ret('brokerage')):g}%"
+    if (plan.get("risk_profile") or "medium") == "low":
+        last = "then the rest split between investing and the highest-rate loan (low risk)"
+    elif inv.get("per_month", 0) >= 1:
+        when = f" from {_mon(inv['from'])}" if inv.get("from") and inv["from"] > _label(1) else ""
+        last = f"then {_k(inv['per_month'])}/mo into investing at {pct}{when}"
+    else:
+        last = f"then what's left goes into investing at {pct} (nothing left within {A.get('horizon_months')} months)"
+    return f"{first}, then a {_k(ctx['emergency_buffer'])} cushion, {last}."
 
 
 def paid_split(res: dict, budget: float) -> dict:
     """Where month 1's budget really goes, from the simulation's own payments: the bills to debt, the part of
-    them that only covers this month's new PNC card purchases, and what the debts don't need (it stays in cash,
-    the simulator's `cash += saved + left`). Net paydown is what the debt actually shrinks by (before interest):
+    them that only covers this month's new PNC card purchases, and what the debts don't need (it lands in cash,
+    tops up the cushion, and once high-cost debt is $0 everything above the cushion is invested: _run). Net paydown is what the debt actually shrinks by (before interest):
     paid to debt minus the new purchases, so money that is budgeted but stays in cash never counts as paydown."""
     paid = round(sum(float(d.get("first_month_payment") or 0) for d in res.get("debts") or []), 2)
     charges = float(res.get("monthly_card_spending") or 0)
@@ -604,7 +639,38 @@ def paid_split(res: dict, budget: float) -> dict:
             "unused_per_month": round(max(float(budget or 0) - paid, 0.0), 2)}
 
 
-def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> dict:
+RISK_GAMMA = {"low": 4.0, "medium": 2.0, "high": 1.0}  # relative risk aversion per profile (Merton)
+STOCK_MU_PCT, STOCK_SIGMA_PCT = 7.0, 16.0  # expected return and yearly volatility of the Brokerage mirror
+
+
+def merton_share(profile: str, safe_rate_pct: float) -> float:
+    """Share of leftover money that goes to stocks: (mu - r) / (gamma * sigma^2), clamped to 0..1, where r is the
+    best guaranteed rate available (prepaying the highest-rate remaining loan)."""
+    g = RISK_GAMMA.get(profile or "medium", 2.0)
+    return max(0.0, min(1.0, (STOCK_MU_PCT - safe_rate_pct) / 100 / (g * (STOCK_SIGMA_PCT / 100) ** 2)))
+
+
+def invest_share(profile: str | None, safe_rate_pct: float) -> float:
+    """The money order's last step: medium and high invest every leftover dollar (the default); low puts the
+    Merton share in stocks and the rest on the highest-rate remaining loan."""
+    return merton_share("low", safe_rate_pct) if profile == "low" else 1.0
+
+
+def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None, shock: dict | None = None) -> dict:
+    """The month loop (the solver's simulator; scenarios.py runs it with a shock).
+
+    The money order for a plan, each month: 1. minimums on everything; 2. the budget's extra to high-cost debt
+    (APR above the hurdle), highest APR first (cash above the cushion went at month 0, as lump sums); 3. once
+    high-cost debt is $0, what the debts don't take refills the emergency cushion; 4. contributions keep going
+    (an employer 401(k) match is never in the plan's reach); 5. everything above the cushion goes to investing
+    (the Brokerage mirror, compounding monthly), or for the low risk profile partly onto the highest-rate
+    remaining loan (merton_share). The baseline (plan None) is current behaviour: leftovers stay in cash.
+
+    shock (scenarios.py): {"cash_delta": [per month], "pause_extra": [per month]}. Under a shock, cash that would
+    go negative is borrowed on the PNC card instead, so a broken plan shows up as card debt; a paused month sends
+    nothing extra to debt and nothing to investing."""
+    s_delta = (shock or {}).get("cash_delta") or []
+    s_pause = (shock or {}).get("pause_extra") or []
     H = A.get("horizon_months")
     a = ctx["assets"]
     f = ctx["flows"]
@@ -616,6 +682,10 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
     contrib = dict(f["contrib"])
     prop = a["property"]
     upfront = 0.0
+    paused_contrib: dict[str, float] = {}
+    invest = plan is not None and plan.get("invest_leftover", True)
+    profile = (plan or {}).get("risk_profile") or "medium"
+    cushion = ctx["emergency_buffer"]
 
     if plan is None:
         charges = ctx["card_spend"]
@@ -642,6 +712,7 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
             if amt > contrib.get(dest, 0.0) + 0.5:
                 problems.append(f"pausing ${amt:,.0f}/mo of {dest} contributions exceeds the ${contrib.get(dest, 0):,.0f}/mo made")
             contrib[dest] = max(contrib.get(dest, 0.0) - amt, 0.0)
+        paused_contrib = dict(pf["paused"])
         # The budget is paid from today's payments + freed money; whatever it doesn't use is still saved.
         saved = f["residual"] + ctx["current_debt_payments"] + sum(pf["paused"].values()) + cuts["cash"] - budget
         minimums = sum(d["min_payment"] for d in debts.values())
@@ -675,9 +746,19 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
                 d["payoff"] = 0
         if cash < -0.5:
             problems.append("lump sums take more cash than there is")
+    resume = (plan or {}).get("resume_paused_when_high_cost_free", True)
 
     floor = min(ctx["emergency_buffer"], a["cash"]) - 1
     cash_problem = False
+    borrow_to = next((k for k, d in debts.items() if d["is_pnc_card"]), None) or \
+        next((k for k, d in sorted(debts.items(), key=lambda kv: kv[1]["apr_pct"]) if d["is_card"]), None)
+    borrowed = 0.0
+    min_cash, min_cash_i = cash, 0
+    month_pay: dict[str, float] = {}
+    month_inv = 0.0
+    invested_total = 0.0
+    invest_from: int | None = None
+    invest_monthly: list[float] = []
 
     def snapshot(i: int) -> dict:
         total = sum(d["bal"] for d in debts.values())
@@ -689,7 +770,10 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
                 # per-account balances for the plan timeline (timeline.py); not sent to the LLM
                 "balances": {"debts": {k: round(d["bal"], 2) for k, d in debts.items()},
                              "assets": {"cash": round(cash, 2), **{k: round(v, 2) for k, v in inv.items()},
-                                        "property": round(prop, 2)}},
+                                        "property": round(prop, 2)},
+                             # this month's payment per debt (sizes the bills the check-in resizes, agent/execute.py)
+                             "payments": {k: round(v, 2) for k, v in month_pay.items()},
+                             "invested": round(month_inv, 2)},
                 # the same balances, rounded to dollars (plan-view breakdown)
                 "parts": {"cash": round(cash), **{k: round(v) for k, v in inv.items()}, "property": round(prop),
                           "debts": {k: round(d["bal"]) for k, d in debts.items()}}}
@@ -703,6 +787,7 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
     for i in range(1, max(H, PAYOFF_SEARCH_MONTHS) + 1):
         if i > H and high_free is not None:
             break
+        paused_now = i < len(s_pause) and bool(s_pause[i])
         cash *= 1 + a["cash_yield_pct"] / 1200
         for k in inv:
             inv[k] *= 1 + (rets[k] or 0) / 1200
@@ -716,6 +801,8 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
             if d["is_pnc_card"]:
                 d["bal"] += charges
         left = 0.0
+        month_pay.clear()
+        month_inv = 0.0
         if budget is None:
             for d in debts.values():
                 d["bal"] -= min(d["baseline_payment"], d["bal"])
@@ -729,16 +816,56 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
                     short_reported = True
                 d["bal"] -= pay
                 left -= pay
+                month_pay[k] = month_pay.get(k, 0.0) + pay
                 if i == 1:
                     first_pay[k] = first_pay.get(k, 0.0) + pay
-            for k in order:
+            for k in ([] if paused_now else order):
                 d = debts[k]
                 pay = min(d["bal"], left)
                 d["bal"] -= pay
                 left -= pay
+                month_pay[k] = month_pay.get(k, 0.0) + pay
                 if i == 1:
                     first_pay[k] = first_pay.get(k, 0.0) + pay
-        cash += saved + left  # the residual (and any unused budget) stays in cash
+        cash += saved + left  # the residual and any unused budget land in checking first
+        if shock is not None:
+            cash += s_delta[i] if i < len(s_delta) else 0.0
+            if cash < 0 and borrow_to is not None:
+                debts[borrow_to]["bal"] += -cash
+                if i <= H:
+                    borrowed += -cash
+                cash = 0.0
+        high_left = sum(d["bal"] for d in debts.values() if d["high_cost"] and d["bal"] > 0.005)
+        if resume and paused_contrib and high_left <= 0.01:  # paused contributions restart at high-cost $0
+            for dest, amt in paused_contrib.items():
+                contrib[dest] = contrib.get(dest, 0.0) + amt
+                saved -= amt
+            paused_contrib = {}
+        if invest and high_left <= 0.01 and not paused_now:
+            spare = max(cash - cushion, 0.0)  # the cushion stays; everything above it is invested
+            if spare > 0.005:
+                cash -= spare
+                rest = [d for d in debts.values() if d["bal"] > 0.005]
+                top = max(rest, key=lambda d: d["apr_pct"]) if rest else None
+                share = invest_share(profile, top["apr_pct"]) if top else 1.0
+                loan = spare * (1 - share)
+                for d in sorted(rest, key=lambda d: -d["apr_pct"]):
+                    if loan <= 0.005:
+                        break
+                    pay = min(d["bal"], loan)
+                    d["bal"] -= pay
+                    loan -= pay
+                    month_pay[d["account_id"]] = month_pay.get(d["account_id"], 0.0) + pay
+                put = spare * share + loan
+                inv["brokerage"] += put
+                month_inv = put
+                if i <= H:
+                    invested_total += put
+                    invest_monthly.append(put)
+                    if invest_from is None and put >= 1:
+                        invest_from = i
+        if cash < min_cash and i <= H:
+            min_cash, min_cash_i = cash, i
         for d in debts.values():
             if d["bal"] <= 0.005:
                 d["bal"] = 0.0
@@ -765,6 +892,7 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
         else:
             high_free = None
 
+    steady = invest_monthly[-1] if invest_monthly else 0.0
     return {
         "feasible": not problems,
         "problems": problems,
@@ -781,6 +909,14 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
         "upfront_cost": round(upfront, 2),
         "monthly_card_spending": round(charges, 2),
         "monthly_saved": round(saved, 2),
+        "min_cash": round(min_cash, 2),
+        "min_cash_month": _label(min_cash_i),
+        "borrowed_on_card": round(borrowed, 2),
+        # step 5 of the money order: leftovers into the Brokerage mirror (plan only)
+        "investing": {"risk_profile": profile if plan is not None else None,
+                      "from": _label(invest_from) if invest_from is not None else None,
+                      "per_month": round(steady, 2), "total_24m": round(invested_total, 2),
+                      "return_pct": rets["brokerage"]},
     }
 
 
