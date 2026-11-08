@@ -10,7 +10,7 @@ type Quiet = { step: string; how?: string[] | string; link?: string }
 
 /** "gifts_holidays: $316 -> $190/mo" -> "Gifts holidays: $316 → $190/mo" */
 const CAT: Record<string, string> = { gifts_holidays: 'Gifts and holidays', home_household: 'Home and household', car_maintenance: 'Car upkeep', annual_bills: 'Annual bills' }
-const pretty = (s: string) => s
+export const pretty = (s: string) => s
   .replace(/^([a-z_]+):/, (_, k: string) => `${CAT[k] ?? title(k)}:`)
   .replace(/->/g, '→')
   .replace(/ across all debts, extra in order$/, ' to debt, highest rate first')
@@ -20,7 +20,7 @@ const nth = (d: number) => `${d}${d % 10 === 1 && d !== 11 ? 'st' : d % 10 === 2
 const day = (s?: string) => (s ? new Date(s + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '')
 
 /** One planned (or sent) Nessie call in plain words. */
-function what(c: NessieCall): { verb: string; text: string; when: string } {
+export function what(c: NessieCall): { verb: string; text: string; when: string } {
   const desc = typeof c.body?.description === 'string' ? (c.body.description as string) : ''
   if (c.tool.endsWith('create_bill'))
     return { verb: 'Recurring bill', text: `${c.from ?? 'Checking'} pays ${c.to ?? 'the debt'}`, when: `/mo · the ${nth(c.recurring_date ?? 1)}${c.first_payment ? `, from ${day(c.first_payment)}` : ''}` }

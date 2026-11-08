@@ -17,11 +17,12 @@ export default function NetWorth({ sim, baseline, height = 240 }: { sim: SimV2; 
         <div className="legend">
           <span><i style={{ borderColor: ACCENT }} />Plan</span>
           <span><i className="dash" style={{ borderColor: GREY }} />Do nothing</span>
+          {freeAt && freeAt === data[0] && <span style={{ color: GOOD, fontWeight: 600 }}>● High-cost debt $0 on approve</span>}
         </div>
         <b className={gain >= 0 ? 'good' : 'bad'} style={{ fontVariantNumeric: 'tabular-nums' }}>{gain >= 0 ? '+' : ''}{usd(gain)} in 24 mo</b>
       </div>
       <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={data} margin={{ top: 18, right: 16, bottom: 0, left: 0 }}>
+        <LineChart data={data} margin={{ top: 18, right: 62, bottom: 0, left: 0 }}>
           <CartesianGrid stroke={C.grid} vertical={false} />
           <XAxis dataKey="m" tickFormatter={ymShort} interval={5} tick={{ fontSize: 11, fill: C.tick }} tickLine={false} axisLine={{ stroke: C.grid }} />
           <YAxis tickFormatter={short} tick={{ fontSize: 11, fill: C.tick }} width={48} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
@@ -30,11 +31,9 @@ export default function NetWorth({ sim, baseline, height = 240 }: { sim: SimV2; 
           <Line dataKey="plan" stroke={ACCENT} strokeWidth={3} dot={false} isAnimationActive={false} />
           {freeAt && (
             <ReferenceDot x={freeAt.m} y={freeAt.plan} r={5} fill={GOOD} stroke="var(--panel)"
-              label={freeAt === data[0]
-                ? { value: 'High-cost debt $0 on approve', fill: GOOD, fontSize: 12, fontWeight: 700, position: 'top', dx: 88, dy: -2 }
-                : { value: `High-cost debt $0 · ${ym(freeAt.m)}`, fill: GOOD, fontSize: 12, fontWeight: 700, position: 'top' }} />
+              label={freeAt === data[0] ? undefined : { value: `High-cost debt $0 · ${ym(freeAt.m)}`, fill: GOOD, fontSize: 12, fontWeight: 700, position: 'top' }} />
           )}
-          {last && <ReferenceDot x={last.m} y={last.plan} r={0} label={{ value: usd(last.plan), fill: ACCENT, fontSize: 12, fontWeight: 700, position: 'insideTopRight' }} />}
+          {last && <ReferenceDot x={last.m} y={last.plan} r={0} label={{ value: usd(last.plan), fill: ACCENT, fontSize: 12, fontWeight: 700, position: 'right', offset: 8 }} />}
         </LineChart>
       </ResponsiveContainer>
     </>

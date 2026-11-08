@@ -3,12 +3,12 @@ import { api, usd } from '../../lib/api'
 import type { ApprovePreview, BalanceSheet, Proposal } from '../../lib/api'
 import type { Preview } from '../../lib/flow'
 import NessieChip from '../NessieChip'
-import AgentActions, { PlanSteps } from './AgentActions'
+import DoneList from './DoneList'
 import NetWorth from './NetWorth'
 
 const nth = (d: number) => `${d}${d % 10 === 1 && d !== 11 ? 'st' : d % 10 === 2 && d !== 12 ? 'nd' : d % 10 === 3 && d !== 13 ? 'rd' : 'th'}`
 
-/** After approve: the call receipt, balances in Nessie (before → after), the recurring bills created, then the rest. */
+/** After approve: "Done" with a checklist of what ran in Nessie and what's left, balances in Nessie (before → after), the recurring bills, net worth. */
 export default function Outcome({ preview, approved, planned, onChange }: {
   preview: Preview | null; approved: Proposal; planned?: ApprovePreview | null; sheet?: BalanceSheet | null; onChange?: (p: Proposal) => void
 }) {
@@ -23,7 +23,6 @@ export default function Outcome({ preview, approved, planned, onChange }: {
   const manual = (ex.scheduled ?? []).filter((s) => s.runs === 'manual')
   const bal = ex.nessie_check ?? []
   const bills = ex.bills ?? []
-  const failed = (sent ?? []).filter((c) => c.status === 'error' || c.status === 'skipped' || c.status === 'not_sent').length
 
   async function retry() {
     setBusy(true); setErr(null)
@@ -32,24 +31,16 @@ export default function Outcome({ preview, approved, planned, onChange }: {
     finally { setBusy(false) }
   }
 
-  const receipt = sent || held ? (
-    <AgentActions title={failed ? `${failed} Nessie call${failed > 1 ? 's' : ''} didn't go through` : sent?.length ? 'Done in Nessie' : held?.length ? 'Approved, not sent to Nessie' : 'Approved'} receipt={!!sent?.length}
-      calls={sent?.length ? sent : held ?? []} onRetry={ex.retry_available ? retry : undefined} retrying={busy}
-      note={held?.length ? `${ex.note ?? 'Nessie unavailable'}: these calls were recorded, not sent.` : failed ? 'Your plan is approved and tracked; the rest went through.' : undefined}>
+  const receipt = (
+    <DoneList calls={sent?.length ? sent : held ?? []} held={!sent?.length && !!held?.length}
+      recorded={recorded} manual={manual} onRetry={ex.retry_available ? retry : undefined} retrying={busy}
+      note={held?.length && !sent?.length ? `${ex.note ?? 'Nessie unavailable'}.` : !sent && !held && planned ? `${planned.nessie_calls.length} Nessie call(s) planned.` : undefined}>
       {err && <div className="error">{err}</div>}
-    </AgentActions>
-  ) : (
-    <div className="card">
-      <div className="col-head"><h2 style={{ margin: 0 }}>Done</h2><span className={`tag status-${approved.status}`}>{approved.status}</span></div>
-      {(ex.scheduled ?? []).map((s, i) => (
-        <div key={i} className="move"><span className="ok">◷</span><span>{s.step}</span><b className="num" /><span className="sub">Scheduled{s.how?.length ? ` · ${s.how.join(' · ')}` : ''}</span></div>
-      ))}
-      {!ex.scheduled?.length && planned && <div className="small muted">{planned.nessie_calls.length} Nessie call(s) planned.</div>}
       {ex.error && <div className="error">{ex.error}</div>}
-    </div>
+    </DoneList>
   )
 
-  // "Done in Nessie" first (the calls, balances now, recurring bills), then what's tracked or yours to do, then net worth.
+  // "Done" + the checklist first (Nessie moves ticked, steps left open), then balances in Nessie, the recurring bills, net worth.
   return (
     <>
       {receipt}
@@ -78,12 +69,6 @@ export default function Outcome({ preview, approved, planned, onChange }: {
               <span className="sub"><span>the {nth(b.day)} of each month{b.from ? ` from ${b.from.replace(/^C\d+\s+/, '')}` : ''}</span></span>
             </div>
           ))}
-        </div>
-      )}
-      {(recorded.length > 0 || manual.length > 0) && (
-        <div className="card">
-          <h2 style={{ margin: 0 }}>Next, outside Nessie</h2>
-          <PlanSteps recorded={recorded} manual={manual} />
         </div>
       )}
       <div className="card">
