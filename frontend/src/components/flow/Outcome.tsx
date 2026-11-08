@@ -6,7 +6,6 @@ import type { Preview } from '../../lib/flow'
 import NessieChip from '../NessieChip'
 import AgentActions from './AgentActions'
 import NetWorth from './NetWorth'
-import PlanTimeline from './PlanTimeline'
 
 /** After approve: the Nessie receipt (each call with status and id), the balances after, then the net-worth path. */
 export default function Outcome({ preview, approved, planned, sheet: before }: { preview: Preview | null; approved: Proposal; planned?: ApprovePreview | null; sheet?: BalanceSheet | null }) {
@@ -57,7 +56,6 @@ export default function Outcome({ preview, approved, planned, sheet: before }: {
         <h2 style={{ margin: '0 0 6px' }}>Net worth</h2>
         <NetWorth sim={sim} baseline={preview?.baseline ?? null} />
       </div>
-      <PlanTimeline cid={approved.customer_id} plan={approved.plan} />
     </>
   )
 }
