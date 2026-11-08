@@ -3,11 +3,11 @@
 import copy
 
 import pytest
-
-from zeroday import store, wealth
-from zeroday.agent.adjust import compare, plan_changes
-
 from test_wealth import CID, REFERENCE
+
+from paidway.agent.adjust import compare, plan_changes
+from paidway.data import store
+from paidway.planning import wealth
 
 
 @pytest.fixture

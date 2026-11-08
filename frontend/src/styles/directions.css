@@ -30,15 +30,6 @@ html[data-direction="swiss"] .dots button { border-radius: 0; }
 html[data-direction="swiss"] .dots button .n { border-radius: 0; }
 html[data-direction="swiss"] .hero { border-top-width: 6px; }
 html[data-direction="swiss"] .ledger { gap: 32px; }
-@media (prefers-color-scheme: dark) {
-  html[data-direction="swiss"] {
-    --bg: #0a0a0a; --panel: #0a0a0a; --soft: #1a1a1a; --text: #f5f5f5; --muted: #a3a3a3; --grey: #525252;
-    --line: #2e2e2e; --line-strong: #f5f5f5; --accent: #ff2a1f; --accent-ink: #ff6a62; --accent-soft: #2a0b0a; --accent-line: #5e1714;
-    --good: #f5f5f5; --good-soft: #1f1f1f; --bad: #ff2a1f; --bad-soft: #2a0b0a; --bad-ink: #ff8a84;
-    --ink: #f5f5f5; --on-ink: #0a0a0a; --head-bg: #0a0a0a;
-    --c-debt: #f5f5f5; --c-left: #f5f5f5; --d2: #f5f5f5; --a1: #f5f5f5;
-  }
-}
 
 /* ===== 3. Fintech navy ===== */
 html[data-direction="navy"] {
@@ -58,14 +49,6 @@ html[data-direction="navy"] .masthead { color-scheme: dark; --text: #ffffff; --m
   --ink: #ffffff; --on-ink: #0b1730; background: #0b1730; border-bottom: 0; }
 html[data-direction="navy"] .hero { border-top: 0; padding-top: 4px; }
 html[data-direction="navy"] .card h2 { font-size: 16px; }
-@media (prefers-color-scheme: dark) {
-  html[data-direction="navy"] {
-    --bg: #070e1f; --panel: #0e1830; --soft: #14213f; --text: #e8edf8; --muted: #93a1bd; --grey: #4a5878;
-    --line: #1c2a4a; --line-strong: #2a3b62; --accent: #4f86ff; --accent-ink: #8fb0ff; --accent-soft: #13244d; --accent-line: #24418a;
-    --good: #34d399; --good-soft: #0d2f26; --ink: #e8edf8; --on-ink: #070e1f; --shadow: none;
-  }
-  html[data-direction="navy"] .masthead { background: #050b18; border-bottom: 1px solid #1c2a4a; }
-}
 
 /* ===== 4. Soft pastel cards ===== */
 html[data-direction="pastel"] {
@@ -90,17 +73,6 @@ html[data-direction="pastel"] .ba > div:nth-child(2) { background: #fff4e6; }
 html[data-direction="pastel"] .ba > div:nth-child(3) { background: #e9f9f2; }
 html[data-direction="pastel"] .lrow { border-bottom-color: transparent; }
 html[data-direction="pastel"] .lrow:nth-child(odd) { background: var(--soft); }
-@media (prefers-color-scheme: dark) {
-  html[data-direction="pastel"] {
-    --bg: #15131f; --panel: #1f1c2e; --soft: #282440; --text: #eeebfa; --muted: #a8a3c4; --grey: #57527a;
-    --line: #2c2843; --line-strong: #3b3658; --accent: #9b82ff; --accent-ink: #c3b3ff; --accent-soft: #2c2452; --accent-line: #4a3c8c;
-    --good: #4ade9f; --good-soft: #15302a; --bad: #ff8fa3; --bad-soft: #3a1b26; --bad-ink: #ffb3c1;
-    --ink: #eeebfa; --on-ink: #15131f; --shadow: 0 10px 30px rgba(0, 0, 0, .3); --head-bg: color-mix(in srgb, #15131f 80%, transparent);
-  }
-  html[data-direction="pastel"] .ba > div:nth-child(1) { background: #3a1f2b; }
-  html[data-direction="pastel"] .ba > div:nth-child(2) { background: #3a2c1c; }
-  html[data-direction="pastel"] .ba > div:nth-child(3) { background: #173328; }
-}
 
 /* ===== 5. Terminal green (dark in both schemes) ===== */
 html[data-direction="terminal"] {
@@ -149,14 +121,6 @@ html[data-direction="editorial"] .brand .mark { display: none; }
 html[data-direction="editorial"] .hero { border-top: 0; }
 html[data-direction="editorial"] .ba > div { background: transparent; border-left: 2px solid var(--line-strong); }
 html[data-direction="editorial"] .k { font-family: var(--font-ui); letter-spacing: .1em; }
-@media (prefers-color-scheme: dark) {
-  html[data-direction="editorial"] {
-    --bg: #14130f; --panel: #14130f; --soft: #1f1d18; --text: #efe9dc; --muted: #a59d8d; --grey: #5b5548;
-    --line: #2f2c25; --line-strong: #efe9dc; --accent: #e0574f; --accent-ink: #f08a84; --accent-soft: #33171499; --accent-line: #6b2a26;
-    --good: #6cc48b; --good-soft: #182a1e; --ink: #efe9dc; --on-ink: #14130f; --head-bg: #14130f;
-    --c-debt: #7d9bd1; --d6: #a08670;
-  }
-}
 
 /* ===== 7. Glassy gradient ===== */
 html[data-direction="glass"] {
@@ -184,22 +148,6 @@ html[data-direction="glass"] .masthead { backdrop-filter: blur(18px) saturate(1.
 html[data-direction="glass"] button.primary { background: linear-gradient(135deg, #6d5dfc, #c14cf5); border-color: transparent; box-shadow: 0 6px 18px rgba(109, 93, 252, .35); }
 html[data-direction="glass"] .hero { border-top: 0; padding-top: 4px; }
 html[data-direction="glass"] .flow-nav { background: none; }
-@media (prefers-color-scheme: dark) {
-  html[data-direction="glass"] {
-    --bg: #0c0b1d; --panel: rgba(255, 255, 255, .06); --soft: rgba(255, 255, 255, .06); --text: #eceaff; --muted: #a6a3c9; --grey: #57557a;
-    --line: rgba(255, 255, 255, .1); --line-strong: rgba(255, 255, 255, .18);
-    --accent: #8b7dff; --accent-ink: #b9b0ff; --accent-soft: rgba(139, 125, 255, .16); --accent-line: rgba(139, 125, 255, .4);
-    --good: #34e0b0; --good-soft: rgba(52, 224, 176, .12); --ink: #eceaff; --on-ink: #0c0b1d;
-    --shadow: 0 8px 32px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .06); --head-bg: rgba(12, 11, 29, .5);
-  }
-  html[data-direction="glass"] body {
-    background: radial-gradient(1000px 600px at 0% -10%, #2b2a7a 0, transparent 60%),
-      radial-gradient(900px 600px at 100% 0%, #5a1e5e 0, transparent 55%),
-      radial-gradient(900px 700px at 50% 110%, #0f4a4a 0, transparent 60%), var(--bg);
-    background-attachment: fixed;
-  }
-  html[data-direction="glass"] .masthead { border-bottom-color: rgba(255, 255, 255, .08); }
-}
 
 /* ===== 8. Brutalist-lite ===== */
 html[data-direction="brutal"] {
@@ -224,17 +172,6 @@ html[data-direction="brutal"] .ghost, html[data-direction="brutal"] .seg button 
 html[data-direction="brutal"] .ba > div { border: 2px solid #0b0b0b; }
 html[data-direction="brutal"] .hero { border-top: 0; padding-top: 4px; }
 html[data-direction="brutal"] .tag { border: 1.5px solid #0b0b0b; }
-@media (prefers-color-scheme: dark) {
-  html[data-direction="brutal"] {
-    --bg: #0b0b0b; --panel: #141414; --soft: #262200; --text: #f7f7f0; --muted: #b5b5aa; --grey: #5e5e58;
-    --line: #f7f7f0; --line-strong: #f7f7f0; --accent: #5b7bff; --accent-ink: #9fb2ff; --accent-soft: #3a3500; --accent-line: #f7f7f0;
-    --good: #2ee08a; --good-soft: #0f2e1f; --bad: #ff5a4f; --bad-soft: #3a120f; --bad-ink: #ffaaa4;
-    --ink: #fff36b; --on-ink: #0b0b0b; --shadow: 4px 4px 0 #fff36b; --head-bg: #0b0b0b; --c-left: #f7f7f0; --d6: #f7f7f0;
-  }
-  html[data-direction="brutal"] .masthead { border-bottom-color: #fff36b; }
-  html[data-direction="brutal"] button, html[data-direction="brutal"] select { border-color: #f7f7f0; box-shadow: 2px 2px 0 #fff36b; }
-  html[data-direction="brutal"] .dots button .n, html[data-direction="brutal"] .ba > div, html[data-direction="brutal"] .tag { border-color: #f7f7f0; }
-}
 
 /* ===== 9. Calm sage ===== */
 html[data-direction="sage"] {
@@ -253,14 +190,6 @@ html[data-direction="sage"] {
 }
 html[data-direction="sage"] .hero { border-top-width: 2px; }
 html[data-direction="sage"] .dots button.on { background: var(--accent); }
-@media (prefers-color-scheme: dark) {
-  html[data-direction="sage"] {
-    --bg: #121612; --panel: #191e19; --soft: #212821; --text: #e3e9df; --muted: #9ba895; --grey: #55604f;
-    --line: #283028; --line-strong: #364036; --accent: #7fae8a; --accent-ink: #a8d0b2; --accent-soft: #1f2e23; --accent-line: #3a5a42;
-    --good: #8cc79a; --good-soft: #1c2e21; --bad: #e08a74; --bad-soft: #33201b; --bad-ink: #f0b3a3;
-    --ink: #e3e9df; --on-ink: #121612; --on-accent: #121612; --shadow: none;
-  }
-}
 
 /* ===== 10. Neutral (Apple-like) ===== */
 html[data-direction="apple"] {
@@ -285,22 +214,10 @@ html[data-direction="apple"] .dots button.on { background: #fff; color: var(--te
 html[data-direction="apple"] .dots button .n { border: 0; }
 html[data-direction="apple"] .hero { border-top: 0; padding-top: 4px; }
 html[data-direction="apple"] .lrow { border-bottom-color: var(--line); }
-@media (prefers-color-scheme: dark) {
-  html[data-direction="apple"] {
-    --bg: #000000; --panel: #1c1c1e; --soft: #2c2c2e; --text: #f5f5f7; --muted: #98989d; --grey: #48484a;
-    --line: #2c2c2e; --line-strong: #3a3a3c; --accent: #0a84ff; --accent-ink: #64aaff; --accent-soft: #0b2a4d; --accent-line: #1f4f86;
-    --good: #30d158; --good-soft: #10301a; --bad: #ff453a; --bad-soft: #3a1513; --bad-ink: #ff9a93;
-    --ink: #f5f5f7; --on-ink: #000; --shadow: none; --head-bg: rgba(0, 0, 0, .75);
-  }
-  html[data-direction="apple"] .dots { background: #1c1c1e; }
-  html[data-direction="apple"] .dots button.on { background: #3a3a3c; color: var(--text); }
-  html[data-direction="apple"] .masthead { border-bottom-color: rgba(255, 255, 255, .08); }
-}
 
 /* fixes after first screenshots */
 html[data-direction="editorial"] .ledger { gap: 36px; }
 html[data-direction="brutal"] .recharts-cartesian-grid line { stroke: #e7e3cc; }
-@media (prefers-color-scheme: dark) { html[data-direction="brutal"] .recharts-cartesian-grid line { stroke: #2a2a26; } }
 
 /* ===== Mac family: system font, neutral greys, hairlines, small radius, quiet accent ===== */
 html[data-direction^="mac-"] {
@@ -330,40 +247,31 @@ html[data-direction^="mac-"] .dots button.on { background: var(--soft); color: v
 html[data-direction^="mac-"] .dots button .n { border: 0; background: var(--soft); }
 html[data-direction^="mac-"] .dots button.on .n { background: var(--accent); color: var(--on-accent); }
 html[data-direction^="mac-"] .lrow { border-radius: 0; padding: 9px 2px; }
-html[data-direction^="mac-"] .lrow.hl { border-radius: 6px; padding: 9px 8px; }
-@media (prefers-color-scheme: dark) {
-  html[data-direction^="mac-"] {
-    --bg: #1e1e1e; --panel: #1e1e1e; --soft: #2c2c2e; --text: #f5f5f7; --muted: #98989d; --grey: #545458;
-    --line: #333336; --line-strong: #48484a;
-    --accent: #0a84ff; --accent-ink: #6cb2ff; --accent-soft: #0d2a4a; --accent-line: #1d4f86;
-    --good: #30d158; --good-soft: #10301a; --bad: #ff453a; --bad-soft: #3a1513; --bad-ink: #ff9a93;
-    --warn-soft: #3a2f12; --warn-ink: #f4c86a; --info-soft: #14243a; --info-line: #24406a;
-    --ink: #f5f5f7; --on-ink: #000; --head-bg: rgba(30, 30, 30, .72);
-  }
-}
 
-/* 1. mac-light: grouped-list Settings, inset white groups on light grey */
-html[data-direction="mac-light"] { --bg: #f2f2f7; --panel: #ffffff; --soft: #f2f2f7; --bw: 0px; --head-bg: rgba(242, 242, 247, .78); }
+/* 1. mac-light (the default look): grouped-list Settings, inset white groups on light grey.
+   Themed to the Paidway wordmark: Outfit for headings and numbers, the logo's green as the accent.
+   "good" stays a yellower green than the accent so plan lines and good-news text don't merge. */
+html[data-direction="mac-light"] { --bg: #f2f2f7; --panel: #ffffff; --soft: #f2f2f7; --bw: 0px; --head-bg: rgba(242, 242, 247, .78);
+  --font-ui: Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-display: Outfit, Inter, system-ui, sans-serif; --font-num: Outfit, Inter, system-ui, sans-serif;
+  --display-weight: 600; --display-track: -.02em;
+  --accent: #0f7a4a; --accent-ink: #0a5c37; --accent-soft: #e3f1e9; --accent-line: #a9d5bd; --on-accent: #fff;
+  --good: #2e8b2e; --good-soft: #e8f5e3;
+  --info-soft: #edf5f0; --info-line: #c9e2d3;
+  --c-adj: #007aff; }
 html[data-direction="mac-light"] .card { padding: 6px 16px 10px; }
-html[data-direction="mac-light"] .card h2 { margin: 10px 0 4px; }
-@media (prefers-color-scheme: dark) {
-  html[data-direction="mac-light"] { --bg: #000000; --panel: #1c1c1e; --soft: #2c2c2e; --line: #38383a; --head-bg: rgba(0, 0, 0, .72); }
-}
+html[data-direction="mac-light"] .card h2 { margin: 10px 0 4px; font-size: 16px; }
+html[data-direction="mac-light"] .hero .big { font-weight: 700; letter-spacing: -.025em; }
 
 /* 2. mac-plain: white page, hairlines only, almost no cards */
 html[data-direction="mac-plain"] { --bg: #ffffff; --card-bg: transparent; --bw: 0px; --gap: 28px; --head-bg: rgba(255, 255, 255, .8); }
 html[data-direction="mac-plain"] .card { border-top: 1px solid var(--line); border-radius: 0; padding: 18px 0 4px; }
 html[data-direction="mac-plain"] .ba > div { background: none; border-left: 1px solid var(--line); border-radius: 0; padding: 2px 12px; }
-@media (prefers-color-scheme: dark) { html[data-direction="mac-plain"] { --bg: #1e1e1e; --head-bg: rgba(30, 30, 30, .8); } }
 
 /* 3. mac-sidebar-tone: tinted window background, white content cards (Finder / Notes) */
 html[data-direction="mac-sidebar-tone"] { --bg: #ececef; --panel: #ffffff; --soft: #f3f3f5; --line: #e3e3e7; --line-strong: #d0d0d5;
   --shadow: 0 1px 1px rgba(0, 0, 0, .03); --head-bg: rgba(236, 236, 239, .8); }
 html[data-direction="mac-sidebar-tone"] .card { border-color: #dcdce1; }
-@media (prefers-color-scheme: dark) {
-  html[data-direction="mac-sidebar-tone"] { --bg: #2a2a2d; --panel: #1e1e1e; --soft: #2c2c2e; --line: #343437; --head-bg: rgba(42, 42, 45, .8); --shadow: none; }
-  html[data-direction="mac-sidebar-tone"] .card { border-color: #3a3a3d; }
-}
 
 /* 4. mac-dark: dark-first macOS, vibrancy-ish translucent surfaces */
 html[data-direction="mac-dark"], html[data-direction="mac-dark"] body { color-scheme: dark; }
@@ -387,14 +295,4 @@ html[data-direction="mac-graphite"] {
   --c-disc: #c7c7cc; --c-debt: #3a3a3c; --c-save: #8e8e93; --c-out: #c0392b; --c-left: #636366;
   --d1: #1d1d1f; --d2: #48484a; --d3: #636366; --d4: #8e8e93; --d5: #aeaeb2; --d6: #c7c7cc;
   --a1: #3a3a3c; --a2: #636366; --a3: #8e8e93; --a4: #aeaeb2; --a6: #c7c7cc;
-}
-@media (prefers-color-scheme: dark) {
-  html[data-direction="mac-graphite"] {
-    --bg: #1c1c1e; --panel: #1c1c1e; --line: #313134; --head-bg: rgba(28, 28, 30, .75);
-    --accent: #c7c7cc; --accent-ink: #e5e5ea; --accent-soft: #2c2c2e; --accent-line: #48484a; --on-accent: #1c1c1e;
-    --good: #c7c7cc; --good-soft: #2c2c2e;
-    --c-disc: #636366; --c-debt: #e5e5ea; --c-save: #8e8e93; --c-out: #ff6961; --c-left: #aeaeb2;
-    --d1: #f2f2f7; --d2: #d1d1d6; --d3: #aeaeb2; --d4: #8e8e93; --d5: #636366; --d6: #48484a;
-    --a1: #e5e5ea; --a2: #aeaeb2; --a3: #8e8e93; --a4: #636366; --a6: #48484a;
-  }
 }

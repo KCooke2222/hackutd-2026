@@ -6,6 +6,7 @@ import type { Knobs, Preview } from '../lib/flow'
 import Snapshot from '../components/flow/Snapshot'
 import type { Summary } from '../components/flow/Snapshot'
 import Thinking from '../components/flow/Thinking'
+import type { RunMeta } from '../components/flow/Thinking'
 import PlanEditor from '../components/flow/PlanEditor'
 import Outcome from '../components/flow/Outcome'
 import PlanTimeline from '../components/flow/PlanTimeline'
@@ -18,7 +19,23 @@ import Dashboard from '../components/dash/Dashboard'
 import DemoPanel from '../components/dash/DemoPanel'
 
 type Health = { nessie: boolean; nvidia: boolean; model: string }
+// The two demo stories; the other generated customers stay in the data but not in the UI.
+const EXAMPLES: [string, string][] = [['C001', 'Fixable'], ['C027', 'Underwater']]
 const NAMES = ['Snapshot', 'Thinking', 'Plan', 'Done']
+
+// Last agent run per customer ({cid: run id}), so a reload or a customer switch can re-attach to it.
+const RUNS_KEY = 'paidway.runs'
+function storedRuns(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(RUNS_KEY) ?? '{}') ?? {} } catch { return {} }
+}
+function storeRun(c: string, id: string | null) {
+  try {
+    const r = storedRuns()
+    if (id) r[c] = id
+    else delete r[c]
+    localStorage.setItem(RUNS_KEY, JSON.stringify(r))
+  } catch { /* private window: re-attach falls back to /agent/runs/latest */ }
+}
 
 const firstSentence = (s: string) => {
   const w = (s.match(/^.*?[.!?](\s|$)/)?.[0] ?? s).trim().split(/\s+/)
@@ -26,14 +43,16 @@ const firstSentence = (s: string) => {
 }
 
 export default function Home() {
-  const [cid, setCid] = useState('C001')
-  const [ids, setIds] = useState<string[]>([])
+  const [cid, setCid] = useState(() => new URLSearchParams(location.search).get('customer') ?? 'C001')
   const [health, setHealth] = useState<Health | null>(null)
   const [sheet, setSheet] = useState<BalanceSheet | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [screen, setScreen] = useState(0)
   const [reached, setReached] = useState(0)
   const [runKey, setRunKey] = useState(0)
+  // A server-side run to re-open in Thinking (null: Thinking starts a new run, or plays `replay`).
+  const [attach, setAttach] = useState<string | null>(null)
+  const epoch = useRef(0)
   const [thinkingDone, setThinkingDone] = useState(false)
   const [ai, setAi] = useState<Proposal | null>(null)
   const [past, setPast] = useState<Proposal[]>([])
@@ -56,6 +75,7 @@ export default function Home() {
     const t = await api<Tracking | { active: false }>(`/customers/${cid}/tracking`).catch(() => null)
     const on = t && t.active ? t : null
     setTrack(on)
+    trackRef.current = on
     if (show) setView(on ? 'dash' : 'flow')
     return on
   }
@@ -66,9 +86,9 @@ export default function Home() {
   const pendingReplay = useRef<ReplayRun & { customer_id: string } | null>(null)
   const cidRef = useRef(cid)
   cidRef.current = cid
+  const trackRef = useRef<Tracking | null>(null)
 
   useEffect(() => {
-    api<{ customer_id: string }[]>('/customers').then((l) => setIds(l.map((c) => c.customer_id)))
     api<Health>('/health').then(setHealth)
     // ?replay=<id>&speed=8 plays a recorded run on load (switching customer first if needed).
     const q = new URLSearchParams(window.location.search)
@@ -94,8 +114,22 @@ export default function Home() {
 
   useEffect(() => {
     setSheet(null); setSummary(null); setReality(null); setAi(null); setKnobs(null); setOutlook(null); setApproved(null); setErr(null)
-    setScreen(0); setReached(0); setRunKey(0); setTrack(null)
-    loadTrack(!urlPlan.current && !urlReplay.current)
+    setScreen(0); setReached(0); setRunKey(0); setAttach(null); setThinkingDone(false); setTrack(null); trackRef.current = null
+    const n = ++epoch.current
+    const tracked = loadTrack(!urlPlan.current && !urlReplay.current)
+    // Re-attach to this customer's last run if the server still has it (it keeps going without us).
+    if (!urlPlan.current && !urlReplay.current) {
+      const c = cid
+      const id = storedRuns()[c]
+      const known = id ? api<RunMeta>(`/agent/runs/${encodeURIComponent(id)}`).catch(() => { storeRun(c, null); return null }) : Promise.resolve(null)
+      const run = known.then((m) => m ?? api<RunMeta | null>(`/agent/runs/latest?customer_id=${encodeURIComponent(c)}`).catch(() => null))
+      Promise.all([tracked, run]).then(([, m]) => {
+        if (!m || n !== epoch.current) return
+        storeRun(c, m.run_id)
+        setReplay(null); setAttach(m.run_id); setThinkingDone(false); setRunKey((k) => k + 1); setReached((r) => Math.max(r, 1))
+        if (m.status === 'running') { setView('flow'); setScreen(1) }
+      })
+    }
     api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch((e) => setErr(e.message))
     api<Summary>(`/customers/${cid}/summary`).then(setSummary).catch((e) => setErr(e.message))
     api<RC>(`/customers/${cid}/reality-check`).then(setReality).catch(() => setReality(null))
@@ -145,7 +179,8 @@ export default function Home() {
 
   /** Start a live agent run, or (with `rp`) replay a recorded one through the same Thinking screen. */
   function findPlan(rp: ReplayRun | null = null) {
-    setNote(null); setThinkingDone(false); setAi(null); setApproved(null); setReplay(rp); setReached(1); setRunKey((k) => k + 1); go(1)
+    epoch.current++
+    setAttach(null); setNote(null); setThinkingDone(false); setAi(null); setApproved(null); setReplay(rp); setReached(1); setRunKey((k) => k + 1); go(1)
   }
 
   async function approve() {
@@ -182,6 +217,12 @@ export default function Home() {
     if (hit) { setReached(2); openPlan(hit, '') }
   }
 
+  /** Logo click: the dashboard if there's an approved plan, else the Snapshot step. A run in progress keeps going. */
+  function home() {
+    setNote(null)
+    if (trackRef.current) { setErr(null); setView('dash') } else go(0)
+  }
+
   const dash = view === 'dash' && track != null
   const canGo = (j: number) => j <= reached && (j !== 3 || approved != null) && (j !== 2 || ai != null)
 
@@ -189,25 +230,20 @@ export default function Home() {
     <div className="app">
       <header className="masthead">
         <div className="masthead-in">
-          <Brand />
+          <Brand onHome={home} />
           <nav className="dots" aria-label="Steps">
-            {track && (
-              <button className={dash ? 'on' : ''} onClick={() => { setErr(null); setView('dash') }} aria-current={dash ? 'page' : undefined}>
-                Dashboard
-              </button>
-            )}
             {NAMES.map((n, j) => (
               <button key={n} className={!dash && j === screen ? 'on' : j < reached ? 'done' : ''} disabled={!canGo(j)} onClick={() => go(j)} aria-current={!dash && j === screen ? 'step' : undefined}>
                 <span className="n">{j < reached && (dash || j !== screen) ? '✓' : j + 1}</span>{n}
               </button>
             ))}
           </nav>
-          <label className="who">
-            <span>Customer</span>
-            <select value={cid} onChange={(e) => setCid(e.target.value)} aria-label="customer">
-              {(ids.length ? ids : [cid]).map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </label>
+          <div className="seg who" role="tablist" aria-label="Example customer">
+            {EXAMPLES.map(([c, label]) => (
+              <button key={c} role="tab" className={cid === c ? 'on' : ''} aria-selected={cid === c} onClick={() => setCid(c)}>{label}</button>
+            ))}
+            {!EXAMPLES.some(([c]) => c === cid) && <button role="tab" className="on" aria-selected>{cid}</button>}
+          </div>
         </div>
       </header>
       <main className="page flow">
@@ -230,8 +266,9 @@ export default function Home() {
       {runKey > 0 && (
         // Stays mounted after the run so Back/Next doesn't start another one.
         <div style={{ display: screen === 1 ? 'block' : 'none' }}>
-          <Thinking key={cid} cid={cid} model={replay ? (replays.find((r) => r.id === replay.id)?.model ?? health?.model ?? '') : health?.model ?? ''} runKey={runKey} replay={replay}
-            onDone={(p, f) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setFinal(f); setKnobs(knobsFrom(p)); setPast((ps) => [p, ...ps.filter((x) => x.id !== p.id)]) } }} />
+          <Thinking key={cid} cid={cid} model={replay ? (replays.find((r) => r.id === replay.id)?.model ?? health?.model ?? '') : health?.model ?? ''} runKey={runKey} replay={replay} attach={attach}
+            onRun={(m) => storeRun(m.customer_id, m.run_id)}
+            onDone={(p, f) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setFinal(f); setKnobs(knobsFrom(p)); setPast((ps) => [p, ...ps.filter((x) => x.id !== p.id)]); setReached((r) => Math.max(r, 2)) } }} />
         </div>
       )}
       {screen === 1 && thinkingDone && !ai && reality && !reality.realistic && <RealityCheck rc={reality} />}

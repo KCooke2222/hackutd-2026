@@ -3,11 +3,10 @@
 import copy
 
 import pytest
-
-from zeroday.agent import constraints as C
-from zeroday.agent.validator import PlanRejected, validate_plan_v2
-
 from test_wealth import CID, PNC_CARD, REFERENCE
+
+from paidway.agent import constraints as C
+from paidway.agent.validator import PlanRejected, validate_plan_v2
 
 
 def plan(**kw):
@@ -87,7 +86,7 @@ def test_describe_and_remove():
 # ---------------- constraints -> solver inputs (propose_plan solves with the customer's rules) ----------------
 
 def _solve(cons, targets=()):
-    from zeroday import solver, wealth
+    from paidway.planning import solver, wealth
 
     spend = wealth.context(CID, live=False)["spend"]
     inp = C.solver_inputs(cons, 3.0, [dict(t) for t in targets], spend)

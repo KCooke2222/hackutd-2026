@@ -4,8 +4,8 @@ import sqlite3
 
 import pytest
 
-from zeroday.agent import sql_tool
-from zeroday.agent.sql_tool import run_sql
+from paidway.agent import sql_tool
+from paidway.agent.sql_tool import run_sql
 
 C = "C001"
 

@@ -14,9 +14,10 @@ import math
 import sys
 import time
 
-from zeroday import balance_sheet, categories, store
-from zeroday.assumptions import ASSUMPTIONS
-from zeroday.wealth import simulate_plan
+from paidway.data import categories, store
+from paidway.planning import balance_sheet
+from paidway.planning.assumptions import ASSUMPTIONS
+from paidway.planning.wealth import simulate_plan
 
 HURDLE = ASSUMPTIONS["prepay_hurdle_pct"]
 
@@ -32,8 +33,8 @@ def reference_plan(cid: str) -> dict:
     - if high-cost debt is still left, redirect the monthly surplus (if any) and pause flexible contributions;
     - no spending cuts: cuts are the customer's choice, offered as priced options (wealth.cut_options);
     - never a fixed or ask item, never IRA/property, no brokerage sale."""
-    from zeroday import insights
-    from zeroday.wealth import budget_limit, compare_sources, context
+    from paidway.planning import insights
+    from paidway.planning.wealth import budget_limit, compare_sources, context
 
     ctx = context(cid)
     high = sorted((d for d in ctx["debts"] if d["apr_pct"] > HURDLE and d["balance"] > 0), key=lambda d: -d["apr_pct"])
@@ -70,13 +71,13 @@ def reference_plan(cid: str) -> dict:
 
 
 def _fit_lumps(cid: str, plan: dict) -> dict:
-    from zeroday.agent.validator import fit_lumps
+    from paidway.agent.validator import fit_lumps
 
     return fit_lumps(cid, plan)
 
 
 def grade(cid: str, plan: dict, sim: dict, ref_sim: dict, extra: dict) -> list[tuple[str, bool, str]]:
-    from zeroday.wealth import context
+    from paidway.planning.wealth import context
 
     ctx = context(cid)
     debts = {a["account_id"]: a for a in balance_sheet.accounts(cid) if a["side"] == "debt"}
@@ -168,9 +169,9 @@ def _months_between(a: str | None, b: str | None) -> int:
 def adjust_eval(cid: str, message: str) -> bool:
     """PR 4: adjust the latest pending plan with `message`; check the rules were captured and obeyed, the parent
     was superseded, and the shown cost matches the simulations."""
-    from zeroday.agent import constraints as C
-    from zeroday.agent.graph import stream_adjust
-    from zeroday.agent.validator import validate_plan_v2
+    from paidway.agent import constraints as C
+    from paidway.agent.graph import stream_adjust
+    from paidway.agent.validator import validate_plan_v2
 
     parent = next((p for p in store.list_proposals(cid) if p["status"] == "pending"), None)
     if not parent:
@@ -229,7 +230,7 @@ def main() -> int:
         return 0 if adjust_eval(cid, args.adjust) else 1
 
     ref = reference_plan(cid)
-    from zeroday.agent.validator import validate_plan_v2
+    from paidway.agent.validator import validate_plan_v2
 
     ref_sim = validate_plan_v2(cid, ref)  # the reference must pass the same validator the agent faces
     print(f"REFERENCE  free={ref_sim['high_cost_debt_free']}  nw24=${ref_sim['net_worth_24m']:,.0f}  "
@@ -242,7 +243,7 @@ def main() -> int:
         extra: dict = {}
         t0 = time.time()
         if not args.latest:
-            from zeroday.agent import graph
+            from paidway.agent import graph
             before = {p["id"] for p in store.list_proposals(cid)}
             out = graph.run(cid)
             extra = {k: out.get(k) for k in ("diagnosis", "explain", "error")}

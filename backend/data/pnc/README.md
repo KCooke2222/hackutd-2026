@@ -69,7 +69,7 @@ spending, asset/loan flows and final checking balances match PNC; Zeroday's choi
 
 | PNC | Zeroday |
 | --- | --- |
-| A residual `external_cash_management` withdrawal (~$2.9k/mo for C001) to "an unlisted external account", and matching funding deposits | Named lines: payments on linked loans (student loan, store card; amounts match `zeroday.linked`), brokerage auto-invest (only with a linked brokerage), childcare and Zelle to family (some households), then lumpy irregular spending that takes the leftover: travel 26%, home and household 22%, gifts and holidays 14%, car repairs 12%, annual bills 10%, medical 8%, family support 8% (merchant-named, deterministic per customer) |
+| A residual `external_cash_management` withdrawal (~$2.9k/mo for C001) to "an unlisted external account", and matching funding deposits | Named lines: payments on linked loans (student loan, store card; amounts match `paidway.data.linked`), brokerage auto-invest (only with a linked brokerage), childcare and Zelle to family (some households), then lumpy irregular spending that takes the leftover: travel 26%, home and household 22%, gifts and holidays 14%, car repairs 12%, annual bills 10%, medical 8%, family support 8% (merchant-named, deterministic per customer) |
 | Nothing records where the residual went | It is real spending, so it is in `monthly_non_debt_expenses` (profiles.csv) and the emergency buffer; there is no hidden savings balance |
 | Direct spending split .45/.20/.15/rest into housing/utilities/groceries/other | Rent or HOA + escrow + repairs (~40–46%), utilities ~5–7% (seasonal), car and renters insurance, phone + internet, 2–5 subscriptions, healthcare, groceries, other |
 | Card spend in four equal pieces | Per-household weights × monthly noise across groceries/transport/dining/shopping |
@@ -84,7 +84,7 @@ Everything here is generated from `backend/data/customers.yaml`, one entry per c
 | --- | --- |
 | `income`, `spending`, `credit_limit` | PNC's monthly income and non-debt spending base (income grows 4% over the history, ±2% noise; spending +12% in Nov/Dec, ±6%); profiles.csv |
 | `accounts` | PNC accounts and their as-of balances, payments and APRs; every account ends exactly there |
-| `linked` | Student loans, store cards, brokerage, home/car value (`zeroday.linked`); debt minimums are paid from checking monthly |
+| `linked` | Student loans, store cards, brokerage, home/car value (`paidway.data.linked`); debt minimums are paid from checking monthly |
 | `bills` | Housing, insurance, phone/internet, subscriptions (name, amount, day); utilities share of spending and names |
 | `merchants`, `card_mix` | Where the household shops; how card spending (22% of spending) splits |
 | `transfers` | Brokerage auto-invest, childcare, Zelle to family |

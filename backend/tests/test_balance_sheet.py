@@ -2,12 +2,12 @@
 
 import pytest
 
-from zeroday import balance_sheet as bs
+from paidway.planning import balance_sheet as bs
 
 
 def acc(account_type, balance, **kw):
     side = "debt" if account_type in {"credit_card", "personal_loan", "auto_loan", "mortgage", "student_loan"} else "asset"
-    from zeroday.linked import SECURED_TYPES, consequence_tier
+    from paidway.data.linked import SECURED_TYPES, consequence_tier
 
     return {
         "account_id": kw.pop("account_id", f"X-{account_type}-{balance}"),
@@ -99,7 +99,7 @@ def test_priority_extra_goes_to_highest_apr_never_secured_or_cheap(rows):
 
 
 def test_linked_accounts_deterministic():
-    from zeroday import linked
+    from paidway.data import linked
 
     a, b = linked.generate(), linked.generate()
     assert a == b
@@ -111,7 +111,7 @@ def test_linked_accounts_deterministic():
 
 
 def test_c001_sheet_merges_pnc_and_linked(monkeypatch, tmp_path):
-    from zeroday import store
+    from paidway.data import store
 
     monkeypatch.setattr(store, "DB_PATH", tmp_path / "t.sqlite3")
     bs.clear_cache()
@@ -124,8 +124,8 @@ def test_c001_sheet_merges_pnc_and_linked(monkeypatch, tmp_path):
 
 
 def test_plan_can_draw_from_brokerage_with_cost(monkeypatch, tmp_path):
-    from zeroday import balances, store
-    from zeroday.agent.validator import PlanRejected, validate_plan
+    from paidway.agent.validator import PlanRejected, validate_plan
+    from paidway.data import balances, store
 
     monkeypatch.setattr(store, "DB_PATH", tmp_path / "t.sqlite3")
     monkeypatch.setattr(balances.read, "enabled", lambda: False)

@@ -2,7 +2,7 @@
 
 import pytest
 
-from zeroday import insights
+from paidway.planning import insights
 
 BUCKETS = ["essentials", "discretionary", "debt_payments", "savings_invest"]
 

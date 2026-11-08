@@ -3,7 +3,9 @@ import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip,
 import { api, usd } from '../../lib/api'
 import type { PlanV2, ScenarioEvent, ScenarioRange, ScenarioRun, ScenarioSpec, Verdict } from '../../lib/api'
 import { ym, ymShort } from '../../lib/flow'
-import { ACCENT, BAD, GOOD, GREY } from './NetWorth'
+import { ACCENT, BAD, GREY } from './NetWorth'
+
+const ADJ = 'var(--c-adj)'
 
 type Custom = { jobMonths: number; incomePct: number; expense: number; expenseMonth: number }
 const NONE: Custom = { jobMonths: 0, incomePct: 0, expense: 0, expenseMonth: 1 }
@@ -106,7 +108,7 @@ export default function Scenarios({ cid, plan }: { cid: string; plan: PlanV2 }) 
             <div className="legend">
               <span><i style={{ borderColor: ACCENT }} />Plan</span>
               <span><i className="dash" style={{ borderColor: BAD }} />Hit by this</span>
-              <span><i style={{ borderColor: GOOD }} />Adjusted</span>
+              <span><i style={{ borderColor: ADJ }} />Adjusted</span>
               <span><i className="dash" style={{ borderColor: GREY }} />Do nothing</span>
               {range && <span><i style={{ borderColor: 'var(--info-line)' }} />Likely range (p10–p90)</span>}
             </div>
@@ -123,7 +125,7 @@ export default function Scenarios({ cid, plan }: { cid: string; plan: PlanV2 }) 
               <Line dataKey="base" stroke={GREY} strokeDasharray="5 4" strokeWidth={2} dot={false} isAnimationActive={false} />
               <Line dataKey="plan" stroke={ACCENT} strokeWidth={3} dot={false} isAnimationActive={false} />
               <Line dataKey="hit" stroke={BAD} strokeDasharray="6 4" strokeWidth={2} dot={false} isAnimationActive={false} />
-              <Line dataKey="adj" stroke={GOOD} strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line dataKey="adj" stroke={ADJ} strokeWidth={2} dot={false} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
           {range && <div className="small muted">500 simulated lives (each month: on track, drifting or a shock). High-cost debt $0 within 2 years in {Math.round(range.p_high_cost_free * 100)}% · card borrowing needed in {Math.round(range.p_borrowed * 100)}%.</div>}

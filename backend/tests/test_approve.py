@@ -16,8 +16,9 @@ SIM = {"feasible": True, "problems": [], "net_worth_24m": 1.0, "baseline_net_wor
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    from zeroday import api, balances, store
-    from zeroday.agent import execute, validator
+    from paidway.agent import execute, validator
+    from paidway.api import main as api
+    from paidway.data import balances, store
 
     monkeypatch.setattr(store, "DB_PATH", tmp_path / "t.sqlite3")
     monkeypatch.setattr(execute, "NESSIE_KEY", "")
@@ -35,7 +36,7 @@ def client(tmp_path, monkeypatch):
 
 
 def _proposal(cid="C001"):
-    from zeroday import balances, store
+    from paidway.data import balances, store
 
     return store.create_proposal(cid, PLAN, {**SIM, "balances_snapshot": balances.snapshot(cid)}, "test")
 
@@ -57,7 +58,7 @@ def test_only_cash_to_nessie_card_is_a_transfer(client):
 
 
 def test_stale_balances_refused(client, monkeypatch):
-    from zeroday import balances
+    from paidway.data import balances
 
     p = _proposal()
     real = balances.snapshot
