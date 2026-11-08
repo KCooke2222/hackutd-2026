@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { api, usd } from '../../lib/api'
 import type { ApprovePreview, BalanceSheet, MonthSplit, Proposal } from '../../lib/api'
+import { contribLines } from '../../lib/flow'
 import type { Preview } from '../../lib/flow'
 import NessieChip from '../NessieChip'
 import DoneList from './DoneList'
 import NetWorth from './NetWorth'
+import { BillDiffList } from './RecurringBills'
 
 const nth = (d: number) => `${d}${d % 10 === 1 && d !== 11 ? 'st' : d % 10 === 2 && d !== 12 ? 'nd' : d % 10 === 3 && d !== 13 ? 'rd' : 'th'}`
 
@@ -25,6 +27,8 @@ export default function Outcome({ preview, approved, planned, onChange }: {
   const summary = ((ex.scheduled ?? []).find((s) => s.runs === 'summary') as MonthSplit | undefined) ?? planned?.summary ?? null
   const bal = ex.nessie_check ?? []
   const bills = ex.bills ?? []
+  // "IRA paused until Apr 2027; restarts automatically" comes from the bill diff, else from the plan's contributions.
+  const diff = (ex.recurring ?? planned?.recurring)?.filter((r) => r.action !== 'keep')
 
   async function retry() {
     setBusy(true); setErr(null)
@@ -37,6 +41,8 @@ export default function Outcome({ preview, approved, planned, onChange }: {
     <DoneList calls={sent?.length ? sent : held ?? []} held={!sent?.length && !!held?.length}
       recorded={recorded} manual={manual} agent={agent} summary={summary} onRetry={ex.retry_available ? retry : undefined} retrying={busy}
       note={held?.length && !sent?.length ? `${ex.note ?? 'Nessie unavailable'}.` : !sent && !held && planned ? `${planned.nessie_calls.length} Nessie call(s) planned.` : undefined}>
+      <BillDiffList diff={diff} schedule={ex.bill_schedule ?? planned?.bill_schedule} />
+      {!diff?.some((r) => r.action === 'pause') && contribLines(sim).map((t) => <div key={t} className="small">{t}</div>)}
       {err && <div className="error">{err}</div>}
       {ex.error && <div className="error">{ex.error}</div>}
     </DoneList>

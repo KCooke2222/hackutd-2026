@@ -340,7 +340,8 @@ def _fit(customer_id: str, ctx: dict, plan: dict, limits: dict | None = None) ->
             if take >= 1:
                 out.append({**l, "amount": take})
             left -= take
-        return _assemble(ctx, out, plan["redirects"], plan["spending_targets"], limits)
+        return {**_assemble(ctx, out, plan["redirects"], plan["spending_targets"], limits),
+                "risk_profile": plan.get("risk_profile") or "medium"}
 
     lo, hi = 0.0, sum(l["amount"] for l in full)
     for _ in range(30):
@@ -364,6 +365,7 @@ def build_plan(customer_id: str, inputs: dict | None = None, *, live: bool = Tru
     forbid = {str(x).lower() for x in inp.get("forbid_sources") or []}
     limits = {k: inp[k] for k in ("min_debt_budget", "max_debt_budget") if inp.get(k) is not None}
     max_red = inp.get("max_redirect")
+    risk = inp.get("risk_profile") if inp.get("risk_profile") in wealth.RISK_GAMMA else "medium"
 
     # Redirects: fixed amounts when the person gave them; else REDIRECT flows in full and pauses searched below.
     movable = ctx["movable_flows"]
@@ -401,9 +403,17 @@ def build_plan(customer_id: str, inputs: dict | None = None, *, live: bool = Tru
         return out
 
     def plan_for(s: dict, r: dict) -> dict:
-        return _fit(customer_id, ctx, _assemble(ctx, lumps_for(s), redirects(r), targets, limits), limits)
+        return _fit(customer_id, ctx, {**_assemble(ctx, lumps_for(s), redirects(r), targets, limits),
+                                       "risk_profile": risk}, limits)
 
     pausable = [f for f in allowed if movable[f]["flag"] == categories.PAUSE and movable[f]["max_per_month"] > 0]
+    # While any debt costs more than the hurdle (7%), every IRA / brokerage / CD contribution pauses in full: the
+    # debt's rate beats the expected return. Each restarts on its own at high-cost $0 (wealth._run). Not searched.
+    high_cost = any(d["apr_pct"] > ctx["hurdle_pct"] for d in ctx["debts"])
+    if high_cost and not fixed_amounts:
+        for f in pausable:
+            red[f] = movable[f]["max_per_month"]
+        pausable = []
     for _ in range(2 if any_debt else 0):  # coordinate ascent: sales, then pauses, twice
         for src in ("cd", "brokerage"):
             if src in forbid:

@@ -69,3 +69,11 @@ def create_loan(account_id: str, type_: str, amount: float, monthly_payment: flo
     body = {"type": type_, "status": "approved", "credit_score": 700, "monthly_payment": round(monthly_payment, 2),
             "amount": round(amount, 2), "description": description}
     return request("POST", f"/accounts/{account_id}/loans", json=body)
+
+
+def update_bill(bill_id: str, amount: float) -> dict:
+    return send(calls.update_bill(bill_id, amount))
+
+
+def delete_bill(bill_id: str) -> dict:
+    return send(calls.delete_bill(bill_id))

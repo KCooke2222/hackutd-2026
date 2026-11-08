@@ -64,7 +64,7 @@ _CTX: dict[tuple, tuple[float, dict]] = {}
 
 def _context(cid: str, keep: float | None, live: bool) -> dict:
     """wealth.context is a few Nessie reads; cache it briefly so fast-forward clicks stay quick."""
-    key = (cid, keep, live)
+    key = (cid, keep, live, repr((wealth.AT_CHECKIN.get() or {}).get(cid)))
     hit = _CTX.get(key)
     if hit and time.time() - hit[0] < 300:
         return hit[1]

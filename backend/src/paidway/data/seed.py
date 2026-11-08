@@ -60,7 +60,19 @@ def load_pnc() -> None:
 # the account. APRs, minimums and cost basis stay in our own data. Property is not mirrored: no plan moves it.
 PRIMARY = {"A-{cid}-CHECKING": "checking", "A-{cid}-SAVINGS": "savings", "A-{cid}-CREDIT_CARD": "credit_card"}
 NOT_MIRRORED = {"property"}
+MIRROR_NAMES = {"brokerage": "Brokerage", "ira": "IRA"}  # contributions are bills into these mirrors
 LOAN_RECORD = {"mortgage": "home", "auto_loan": "auto"}  # Nessie's loan types: also attach a loan record
+# A customer with no brokerage gets an empty "Brokerage" mirror: the money order's last step invests into it.
+INVEST_MIRROR = "N-{cid}-BROKERAGE"
+
+
+def invest_account(cid: str, rows: list[dict]) -> dict:
+    """The account leftover money is invested into: the largest brokerage, else the empty Brokerage mirror."""
+    brk = [r for r in rows if r["account_type"] == "brokerage" and r["side"] == "asset"]
+    if brk:
+        return max(brk, key=lambda r: float(r["balance"] or 0))
+    return {"account_id": INVEST_MIRROR.format(cid=cid), "account_type": "brokerage", "side": "asset",
+            "name": "Brokerage", "balance": 0.0, "source": "paidway"}
 
 
 def mirror_type(account_type: str, side: str) -> str:
@@ -70,7 +82,7 @@ def mirror_type(account_type: str, side: str) -> str:
 def mirror_nickname(cid: str, row: dict) -> str:
     """The primary PNC accounts keep the seed's old nickname ("C001 savings"); the rest are named after the account."""
     key = PRIMARY.get(row["account_id"].replace(cid, "{cid}"))
-    return f"{cid} {key}" if key else ("Brokerage" if row["account_type"] == "brokerage" else row["name"])
+    return f"{cid} {key}" if key else MIRROR_NAMES.get(row["account_type"]) or row["name"]
 
 
 def mirror_plan(cid: str) -> list[dict]:
@@ -78,10 +90,16 @@ def mirror_plan(cid: str) -> list[dict]:
     from ..planning import balance_sheet
 
     balance_sheet.clear_cache()
-    return [{"account_id": r["account_id"], "type": mirror_type(r["account_type"], r["side"]),
-             "nickname": mirror_nickname(cid, r), "balance": round(float(r["balance"]), 2),
-             "loan": LOAN_RECORD.get(r["account_type"]), "min_payment": r.get("min_payment")}
-            for r in balance_sheet.accounts(cid, live=False) if r["account_type"] not in NOT_MIRRORED]
+    rows = balance_sheet.accounts(cid, live=False)
+    out = [{"account_id": r["account_id"], "type": mirror_type(r["account_type"], r["side"]),
+            "nickname": mirror_nickname(cid, r), "balance": round(float(r["balance"]), 2),
+            "loan": LOAN_RECORD.get(r["account_type"]), "min_payment": r.get("min_payment")}
+           for r in rows if r["account_type"] not in NOT_MIRRORED]
+    inv = invest_account(cid, rows)
+    if inv["account_id"] == INVEST_MIRROR.format(cid=cid):
+        out.append({"account_id": inv["account_id"], "type": "Savings", "nickname": "Brokerage", "balance": 0.0,
+                    "loan": None, "min_payment": None})
+    return out
 
 
 def _create_mirror(write, nessie_customer: str, m: dict) -> dict:
@@ -118,7 +136,8 @@ def seed(customer_ids: list[str], reload_local: bool = True) -> dict:
     merchants = ids.setdefault("_merchants", {})
     for cid in customer_ids:
         entry = ids.get(cid) or {}
-        if entry.get("complete") and entry.get("mirrors_complete"):
+        if entry.get("complete") and entry.get("mirrors_complete") and \
+                all(m["account_id"] in (entry.get("accounts") or {}) for m in mirror_plan(cid)):
             print(f"{cid}: already seeded, skipping")
             continue
         if not entry.get("customer"):  # Nessie can't delete customers: reuse "PNC <cid>" from an earlier seed
@@ -152,7 +171,76 @@ def seed(customer_ids: list[str], reload_local: bool = True) -> dict:
         ids[cid] = entry
         IDS_PATH.write_text(json.dumps(ids, indent=2))
         print(f"{cid}: {len(accounts)} accounts mirrored in Nessie")
+    for cid in customer_ids:
+        if ids.get(cid, {}).get("mirrors_complete") and not ids[cid].get("bills_complete"):
+            seed_bills(cid)
+            ids = _load()
     return ids
+
+
+# ---------- the recurring baseline: today's recurring outflows as Nessie recurring bills ----------
+
+def bill_spec(row: dict, today: str | None = None) -> dict:
+    """The Nessie bill for one baseline row (planning/recurring.py): from checking, first payment next month."""
+    from datetime import date
+
+    from ..planning import finance
+
+    t = date.fromisoformat(today or finance.today())
+    y, m = (t.year + 1, 1) if t.month == 12 else (t.year, t.month + 1)
+    return {"payee": row["payee"][:60], "nickname": f"Paidway: {row['name']}"[:60],
+            "payment_date": date(y, m, row["day"]).isoformat(), "recurring_date": row["day"],
+            "amount": int(row["amount"])}
+
+
+def seed_bills(customer_id: str) -> dict:
+    """Create the customer's recurring baseline as Nessie recurring bills on the checking mirror (once; keys
+    already in the map are skipped). Saves {key: {id, amount, day, ...}} under the customer's "bills"."""
+    from ..nessie import calls, write
+    from ..planning import recurring
+
+    ids = _load()
+    entry = ids.get(customer_id) or {}
+    chk = entry.get("checking")
+    if not NESSIE_KEY or not chk:
+        return {}
+    bills = entry.setdefault("bills", {})
+    entry.setdefault("paused", {})
+    for row in recurring.baseline(customer_id):
+        if row["key"] in bills:
+            continue
+        b = bill_spec(row)
+        res = write.send(calls.bill(chk, b["payee"], b["nickname"], b["payment_date"], b["recurring_date"], b["amount"]))
+        bills[row["key"]] = {"id": ((res or {}).get("objectCreated") or {}).get("_id"), **b,
+                             **{k: row.get(k) for k in ("kind", "name", "to", "category", "flow", "dest")}}
+        ids[customer_id] = entry
+        IDS_PATH.write_text(json.dumps(ids, indent=2))  # save as we go
+    entry["bills_complete"] = True
+    ids[customer_id] = entry
+    IDS_PATH.write_text(json.dumps(ids, indent=2))
+    print(f"{customer_id}: {len(bills)} recurring bills in Nessie")
+    return bills
+
+
+def record_bills(customer_id: str, changes: list[dict]) -> None:
+    """Apply what approve / the check-in did to the bill map. Each change is {key, action, ...}:
+    change {amount}, pause {resume} (spec kept under "paused"), end (gone), new {id, spec...}, resume {id}."""
+    ids = _load()
+    entry = ids.setdefault(customer_id, {})
+    bills, paused = entry.setdefault("bills", {}), entry.setdefault("paused", {})
+    for c in changes:
+        k, a = c["key"], c["action"]
+        if a == "change" and k in bills:
+            bills[k]["amount"] = int(c["amount"])
+        elif a == "pause" and k in bills:
+            paused[k] = {**bills.pop(k), "id": None, "resume": c.get("resume")}
+        elif a == "end":
+            bills.pop(k, None)
+        elif a in ("new", "resume"):
+            spec = paused.pop(k, None) or {}
+            bills[k] = {**spec, **{x: v for x, v in c.items() if x not in ("key", "action", "resume")}}
+            bills[k].pop("resume", None)
+    IDS_PATH.write_text(json.dumps(ids, indent=2))
 
 
 NESSIE_DATA_TYPES = ["Bills", "Deposits", "Loans", "Purchases", "Transfers", "Withdrawals", "Accounts", "Customers"]
@@ -197,10 +285,15 @@ def reset_customer(customer_id: str) -> dict:
 
     Deletes every Nessie mirror of the customer (their transfers, withdrawals and bills go with them), mirrors
     every account again from our data (same Nessie customer, new account ids, balances as in the data) and
-    restores the customer's linked balances locally. Local proposals are left alone (`make reset-local`)."""
+    restores the customer's linked balances locally. Earlier plans become superseded (they point at accounts and
+    bills that are gone, and the dashboard would track the newest approved one) and the options the customer
+    chose to plan with (IDR, pause IRA...) are cleared. Other local rows stay (`make reset-local`)."""
+    from ..planning import options
     from . import linked, store
 
     store.replace_linked_for(customer_id, linked.generate_customer(customer_id))
+    retired = store.retire_plans(customer_id)
+    options.save_applied(customer_id, [])
     if not NESSIE_KEY:
         return {"customer": customer_id, "nessie": "NESSIE_KEY not set; linked balances restored only"}
     from ..nessie import write
@@ -213,7 +306,7 @@ def reset_customer(customer_id: str) -> dict:
     ids[customer_id] = {"customer": entry["customer"]} if entry.get("customer") else {}
     IDS_PATH.write_text(json.dumps(ids, indent=2))
     fresh = seed([customer_id], reload_local=False).get(customer_id, {})
-    return {"customer": customer_id, "deleted_accounts": len(nids),
+    return {"customer": customer_id, "deleted_accounts": len(nids), "plans_superseded": retired,
             "mirrors": {k: {"id": v["id"], "nickname": v["nickname"], "balance": v.get("balance_nessie")}
                         for k, v in (fresh.get("accounts") or {}).items()}}
 

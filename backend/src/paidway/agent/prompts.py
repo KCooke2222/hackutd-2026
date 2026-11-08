@@ -13,10 +13,10 @@ Rules:
 - Return the top 3 causes, largest $/mo first. Each: label (≤6 words), amount_per_month,
   evidence (the snapshot field it comes from).
 - Every outflow is named and flagged (spending_by_category, named_flows). Items flagged "ask"
-  (childcare, healthcare, money to family, IRA) are never causes to cut: put each one in
+  (childcare, healthcare, money to family) are never causes to cut: put each one in
   questions_for_customer as one short question (≤15 words) instead.
 - monthly_surplus is saved_per_month. If it is 0 or negative, say so: there is no monthly slack.
-- Also return: high_cost_debts (APR above 8%).
+- Also return: high_cost_debts (APR above 7%).
 
 Return JSON only: {"causes": [{"label", "amount_per_month", "evidence"}], "monthly_surplus",
 "high_cost_debts": [{"account_id", "name", "apr_pct", "balance"}], "questions_for_customer": []}
@@ -24,7 +24,7 @@ Return JSON only: {"causes": [{"label", "amount_per_month", "evidence"}], "month
 {snapshot}"""
 
 PLAN = """You are Zeroday, a debt and wealth agent for a PNC customer.
-Goal: maximize net worth 24 months from now, and get all debt above 8% APR to $0 as fast
+Goal: maximize net worth 24 months from now, and get all debt above 7% APR to $0 as fast
 as that allows. Propose ONE plan.
 
 You have: the snapshot, the diagnosis, and these tools: sql (read-only views for this customer),
@@ -41,7 +41,7 @@ Rules:
 - Only real money. Every category and flow has a flag (cash_flow lists them):
   - fixed (rent, utilities, insurance, groceries, gas, car repairs, annual bills, debt minimums):
     never move.
-  - ask (childcare, healthcare/medical, family support, IRA): never move; ask the customer.
+  - ask (childcare, healthcare/medical, family support): never move; ask the customer.
   - trim / cancel (dining, shopping, travel, gifts, home, subscriptions...): spending less is
     the surest way to shrink the debt, so the solver SUGGESTS up to 3 cuts (spending_targets with
     source="suggested", each with `buys`: months_sooner / net_worth_gain). It prefers lumpy
@@ -51,13 +51,20 @@ Rules:
     spending_targets only for cuts the customer set themselves, and declined_cuts for categories they
     said not to cut. Look at the merchants (spending_detail) to say what each suggestion means.
   - redirect/pause: monthly_surplus (only if saved_per_month > 0), brokerage_auto_invest,
-    cd_contribution.
+    cd_contribution, ira_contribution. While any debt is above 7% APR the solver pauses every
+    IRA / brokerage / CD contribution by default; each restarts on its own once that debt is $0.
+    The customer may keep one or cut the IRA in half instead (redirect_flows). Never pause an
+    employer 401(k) match.
+- Risk profile (risk_profile, default medium): once high-cost debt is $0 and the cushion is full,
+  medium and high invest every leftover dollar in the Brokerage (est. 7%/yr, can drop 30%+ in a bad
+  year); low puts part of it on the highest-rate remaining loan (a guaranteed return). Pass it only
+  if the customer says how much risk they want.
 - If saved_per_month is 0 or negative there is no monthly slack: say so, do not invent it.
   Use cash above the buffer and paused contributions only. If that leaves little, propose it
   anyway: an honest small plan beats invented money.
 - Money sources: call compare_sources (amount = all high-cost debt) before using any. Use a
   source only if use=true. Lump sums may come from PNC cash, CD or brokerage.
-  Never IRA or property; you may mention them.
+  Never withdraw from the IRA or sell property; you may mention them.
 - Cash above the buffer that only earns a few % should pay off 20%+ debt today: if cash has
   use=true, lump-sum the high-cost debts from it (highest APR first, up to what is available)
   before redirecting monthly money.
@@ -142,7 +149,9 @@ What they asked: {summary}
 
 Rules:
 - Use tools for every number. Never do arithmetic yourself.
-- Every debt gets its minimum. Extra money goes to the highest APR above the hurdle first. Never IRA or property.
+- Every debt gets its minimum. Extra money goes to the highest APR above the hurdle first. Never withdraw from the IRA or sell property.
+- risk_profile carries over from the plan unless they ask for more or less risk (low = part of the leftover
+  on the highest-rate loan; medium / high = all of it invested).
 - Spending cuts: essentials stay whole; at most 30% off a category unless cancelling a recurring charge; each
   cut needs a proof_month (a month they already spent at or below target) and 1-2 concrete `how` actions.
   Call spending_detail before changing any cut.
@@ -165,11 +174,17 @@ Its outcome: {outcome}
 Snapshot: {snapshot}
 Assumptions: {assumptions}"""
 
-# Unused for now: the monthly / drift re-plan (next feature).
-REPLAN = """The customer is following plan {plan_id}. Here is planned vs actual for the last month: {drift}.
-If any debt is more than 1 month behind schedule, or spending is >15% over target in any
-category, call simulate_plan with the actual numbers and propose an adjusted plan.
-Otherwise reply "on track" with one line on the biggest gap."""
+# Appended to ADJUST when a monthly check-in goes off track (agent/replan.py).
+REPLAN = """
+
+This is a monthly check-in re-plan, not a customer request. The approved plan above went off track:
+{checkin}
+Re-plan from the approved plan for what changed: keep its order and cuts unless the change needs otherwise.
+The tools already start from this month's balances and the lower income: the approved plan's lump sums
+already happened (don't repeat them), and the debt budget can't exceed what is paid today less the income
+that is gone. If that budget leaves the card growing, cut card spending. While income is down, use the low
+risk profile (part of any leftover on the highest-rate loan) and keep the cushion whole. Say in the
+rationale what changed and what the new plan does about it."""
 
 
 def fill(template: str, **values) -> str:

@@ -40,3 +40,13 @@ def bill(account_id: str, payee: str, nickname: str, payment_date: str, recurrin
     return {"method": "POST", "path": f"/accounts/{account_id}/bills",
             "body": {"status": "recurring", "payee": payee, "nickname": nickname, "payment_date": payment_date,
                      "recurring_date": recurring_date, "payment_amount": dollars(amount)}}
+
+
+def update_bill(bill_id: str, amount: float) -> dict:
+    """Change a recurring bill's amount (Nessie takes a partial body on PUT)."""
+    return {"method": "PUT", "path": f"/bills/{bill_id}", "body": {"payment_amount": dollars(amount)}}
+
+
+def delete_bill(bill_id: str) -> dict:
+    """Stop a recurring bill (a pause keeps its spec on our side so it can be created again)."""
+    return {"method": "DELETE", "path": f"/bills/{bill_id}", "body": None}

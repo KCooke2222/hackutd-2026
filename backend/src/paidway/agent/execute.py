@@ -55,12 +55,13 @@ def _ids(customer_id: str) -> dict:
 def mirrors(customer_id: str, rows: list[dict], ids: dict | None = None) -> dict[str, dict]:
     """account_id -> {id, nickname} of its Nessie mirror. Unseeded accounts get a placeholder id "<account_id>"
     (shown in the dry-run; approve sends nothing while any call has one)."""
-    from ..data.seed import PRIMARY, mirror_nickname
+    from ..data.seed import PRIMARY, invest_account, mirror_nickname
 
     ids = ids if ids is not None else _ids(customer_id)
     have = ids.get("accounts") or {}
     out = {}
-    for r in rows:
+    inv = invest_account(customer_id, rows)
+    for r in [*rows, *([inv] if inv not in rows else [])]:
         m = have.get(r["account_id"])
         key = PRIMARY.get(r["account_id"].replace(customer_id, "{cid}"))
         nid = (m or {}).get("id") or (ids.get(key) if key else None)
@@ -115,29 +116,11 @@ def _mirror_note(row: dict, nick: str) -> str | None:
 
 
 def current_payments(customer_id: str, months: int = 3) -> dict[str, float]:
-    """What the customer already pays each debt per month (average of the last `months` months of
-    debt_payment rows): PNC debts from their own payment rows, linked debts from checking rows named after
-    the lender. A plan bill equal to this changes nothing, so it is not sent to Nessie."""
-    from ..data import linked, pnc_data
+    """What the customer already pays each debt per month (planning/recurring.py). A plan bill equal to this
+    changes nothing."""
+    from ..planning import recurring
 
-    txs = pnc_data.customer_transactions(customer_id, category="debt_payment")
-    keys = sorted({t["posted_date"][:7] for t in txs})[-months:]
-    win = [t for t in txs if t["posted_date"][:7] in keys and t["balance_change"] < 0]
-    n = max(len(keys), 1)
-    out: dict[str, float] = {}
-    for t in win:
-        if t["account_type"] != "checking":
-            out[t["account_id"]] = out.get(t["account_id"], 0.0) - t["balance_change"]
-    for r in linked.for_customer(customer_id):
-        if r["account_type"] not in balance_sheet.DEBT_TYPES:
-            continue
-        words = {r["account_type"].replace("_", " "), f"{r.get('kind') or ''} card".strip()}
-        paid = sum(-t["balance_change"] for t in win if t["account_type"] == "checking" and not t.get("transfer_id")
-                   and (r.get("institution") or "~") in t["description"]
-                   and any(w and f"({w})" in t["description"] for w in words))
-        if paid:
-            out[r["account_id"]] = paid
-    return {k: round(v / n, 2) for k, v in out.items()}
+    return recurring.current_payments(customer_id, months)
 
 
 def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: bool = True,
@@ -213,7 +196,7 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
                           "replaces": (f"Takes over your current ${cur:,.0f}/mo payment" if same else
                                        f"Replaces your current ${cur:,.0f}/mo payment" if cur else None),
                           "note": _mirror_note(d, mir[k]["nickname"]),
-                          "nessie": {"op": "bill", "from": checking["account_id"], "to": k, "payee": name,
+                          "nessie": {"op": "bill", "from": checking["account_id"], "to": k, "key": f"debt:{k}", "payee": name,
                                      "nickname": f"Paidway plan: {name}", "payment_date": first,
                                      "recurring_date": day, "amount": amt}})
         else:
@@ -250,7 +233,7 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
             text = (f"{name} statement in full ~${stmt:,.0f}/mo: your new purchases, not debt" if a in autopay_now
                     else f"Autopay full statement on {name} once at $0")
             step.update(step=text, runs="nessie", amount=stmt, note=_mirror_note(d, mir[a]["nickname"]),
-                        nessie={"op": "bill", "from": checking["account_id"], "to": a,
+                        nessie={"op": "bill", "from": checking["account_id"], "to": a, "key": f"debt:{a}",
                                 "payee": f"{name} (statement in full)", "nickname": f"Paidway autopay: {name}",
                                 "payment_date": first, "recurring_date": day, "amount": stmt})
         elif payoff and stmt < 1:  # nothing to bill: a Nessie bill is a fixed amount, and no charges are planned
@@ -271,7 +254,137 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
         steps.append({"kind": "budget", "runs": "summary", "extra_order": order,
                       "step": f"Debt shrinks ${net:,.0f}/mo", "budget": float(plan.get("monthly_debt_budget") or 0),
                       "paid": paid, "new_purchases": buys, "net_paydown": net, "left_over": left})
+    inv = (sim or {}).get("investing") or {}
+    if sim_debts and checking and float(inv.get("per_month") or 0) >= 1:
+        steps.append(_invest_step(customer_id, rows, mir, checking["account_id"], inv))
+    base = ((ids if ids is not None else _ids(customer_id)).get("bills") or {}) if sim_debts else {}
+    if base and checking:
+        steps = against_baseline(customer_id, steps, base, sim, debts, checking["account_id"])
     return transfers, steps
+
+
+INVEST_KEY = "invest:brokerage"
+
+
+def _invest_step(customer_id: str, rows: list[dict], mir: dict, checking_id: str, inv: dict) -> dict:
+    """The money order's last step as a Nessie bill: checking -> the Brokerage mirror, every month. When investing
+    starts in the first bill month approve creates it; otherwise the check-in creates it in that month
+    (bill_schedule)."""
+    from ..data.seed import invest_account
+
+    brk = invest_account(customer_id, rows)
+    amt = float(dollars(inv["per_month"]))
+    first, day = _next_month()
+    frm = inv.get("from") or first[:7]
+    pct = inv.get("return_pct") or 7.0
+    name = brk["name"]
+    low = inv.get("risk_profile") == "low"
+    now = frm <= first[:7]
+    text = (f"Invest ${amt:,.0f}/mo into {name} (est. {pct:g}%/yr)"
+            + ("" if now else f" from {_month_name(frm)}, once high-cost debt is $0")
+            + ("; the rest of the leftover goes to your highest-rate loan" if low else ""))
+    step = {"kind": "invest", "step": text, "amount": amt, "from_month": frm, "risk_profile": inv.get("risk_profile"),
+            "account_id": brk["account_id"], "payee": name}
+    if now and brk["account_id"] in mir:
+        step.update(runs="nessie", note=_mirror_note(brk, mir[brk["account_id"]]["nickname"]),
+                    nessie={"op": "bill", "from": checking_id, "to": brk["account_id"], "key": INVEST_KEY,
+                            "payee": name, "nickname": "Paidway: invest the leftover",
+                            "payment_date": first, "recurring_date": day, "amount": amt})
+    else:
+        step.update(runs="agent", watch=f"The monthly check-in creates this Nessie bill in {_month_name(frm)}")
+    return step
+
+
+def _resume_month(sim: dict | None) -> str | None:
+    """A paused contribution restarts the month after high-cost debt reaches $0."""
+    hf = (sim or {}).get("high_cost_debt_free")
+    if not hf:
+        return None
+    y, m = (int(x) for x in hf.split("-"))
+    return f"{y + 1}-01" if m == 12 else f"{y}-{m + 1:02d}"
+
+
+def against_baseline(customer_id: str, steps: list[dict], base: dict, sim: dict | None, debts: dict,
+                     checking_id: str) -> list[dict]:
+    """Turn the plan's bills into a diff against the recurring bills already in Nessie (data/seed.py "bills"):
+    a debt's bill is kept (same amount: no call), changed (PUT) or new (POST); a debt paid off today ends its
+    bill (DELETE); a paused contribution deletes its bill and keeps the spec to re-create it on resume."""
+    out, used = [], set()
+    for s in steps:
+        n = s.get("nessie") or {}
+        if n.get("op") == "bill" and n.get("key") in base:
+            b = base[n["key"]]
+            used.add(n["key"])
+            same = abs(float(b.get("amount") or 0) - float(n["amount"])) < 1
+            n.update(action="keep" if same else "change", bill_id=b.get("id"), was=b.get("amount"))
+            if same:
+                s["replaces"] = f"Your ${n['amount']:,.0f}/mo bill in Nessie stays as it is"
+            else:
+                s["replaces"] = f"Changes your ${float(b.get('amount') or 0):,.0f}/mo bill in Nessie to ${n['amount']:,.0f}"
+        elif n.get("op") == "bill":
+            n["action"] = "new"
+        if s.get("kind") == "redirect" and (categories.FLOWS.get(s["flow"]) or {}).get("dest"):  # a contribution
+            dest = (categories.FLOWS.get(s["flow"]) or {}).get("dest")
+            key = f"contrib:{dest}"
+            b = base.get(key)
+            if b:
+                from ..planning.recurring import CONTRIB_NAME
+
+                b = {**b, "name": b.get("name") or CONTRIB_NAME.get(dest, dest)}
+                used.add(key)
+                left = round(float(b.get("amount") or 0) - float(s["amount_per_month"]))
+                resume = _resume_month(sim)
+                when = f" until {_month_name(resume)}; restarts automatically" if resume else ""
+                if left < 1:
+                    s.update(step=f"Pause {b.get('name')} ${b.get('amount'):,.0f}/mo{when}", runs="nessie", resume=resume,
+                             nessie={"op": "bill", "action": "pause", "key": key, "bill_id": b.get("id"),
+                                     "from": checking_id, "to": b.get("to"), "payee": b.get("payee"),
+                                     "amount": b.get("amount"), "was": b.get("amount"), "resume": resume})
+                else:
+                    s.update(step=f"Lower {b.get('name')} ${b.get('amount'):,.0f} -> ${left:,.0f}/mo{when}", runs="nessie",
+                             resume=resume,
+                             nessie={"op": "bill", "action": "change", "key": key, "bill_id": b.get("id"),
+                                     "from": checking_id, "to": b.get("to"), "payee": b.get("payee"), "amount": left,
+                                     "was": b.get("amount"), "resume": resume})
+                s.pop("how", None)
+                s.pop("link", None)
+        out.append(s)
+    for key, b in base.items():  # a debt bill with no payment left: the debt is paid off today
+        if key in used or not key.startswith("debt:"):
+            continue
+        aid = key.split(":", 1)[1]
+        name = (debts.get(aid) or {}).get("name") or b.get("name")
+        out.insert(next((i for i, x in enumerate(out) if x["runs"] == "summary"), len(out)),
+                   {"kind": "bill_end", "step": f"Stop the ${b.get('amount'):,.0f}/mo {name} bill: paid off today",
+                    "runs": "nessie", "account_id": aid,
+                    "nessie": {"op": "bill", "action": "end", "key": key, "bill_id": b.get("id"), "from": checking_id,
+                               "to": aid, "payee": b.get("payee"), "amount": 0, "was": b.get("amount")}})
+    return out
+
+
+def bill_diff(customer_id: str, steps: list[dict], ids: dict | None = None) -> list[dict]:
+    """The plan as a diff against "Recurring in Nessie": one row per bill, {key, name, kind, action (keep |
+    change | pause | end | new), from, to, resume}."""
+    ids = ids if ids is not None else _ids(customer_id)
+    base = ids.get("bills") or {}
+    by_key = {(s.get("nessie") or {}).get("key"): s for s in steps if (s.get("nessie") or {}).get("op") == "bill"}
+    rows = []
+    for k, b in base.items():
+        s = by_key.get(k)
+        n = (s or {}).get("nessie") or {}
+        act = n.get("action") or "keep"
+        rows.append({"key": k, "name": b.get("name") or b.get("payee") or n.get("payee"),
+                     "kind": b.get("kind") or k.split(":", 1)[0].replace("contrib", "contribution"), "action": act,
+                     "from": b.get("amount"), "to": 0 if act in ("pause", "end") else n.get("amount", b.get("amount")),
+                     "resume": n.get("resume"), "step": (s or {}).get("step")})
+    for k, s in by_key.items():
+        if k not in base and s["nessie"].get("action") == "new":
+            rows.append({"key": k, "name": s["nessie"].get("payee"), "action": "new", "from": None,
+                         "kind": "investing" if k == INVEST_KEY else "debt",
+                         "to": s["nessie"]["amount"], "resume": None, "step": s["step"]})
+    order = {"change": 0, "pause": 1, "end": 2, "new": 3, "keep": 4}
+    rows.sort(key=lambda r: order.get(r["action"], 9))
+    return rows
 
 
 def nessie_calls(customer_id: str, transfers: list[dict], steps: list[dict], ids: dict | None = None,
@@ -309,9 +422,22 @@ def nessie_calls(customer_id: str, transfers: list[dict], steps: list[dict], ids
                         "recurring_date": None, "step": s["step"], "local": [], "expect": {n["from"]: -n["tax"]},
                         "group": f"payoff-{i}"})
     for s, n in ops:
-        if n.get("op") == "bill":
+        if n.get("op") == "bill" and n.get("action") in ("change", "pause", "end"):
             f = mir[n["from"]]
-            out.append({"tool": "nessie.write.create_bill",
+            to = mir.get(n.get("to")) or {}
+            call = calls.update_bill(n["bill_id"], n["amount"]) if n["action"] == "change" else calls.delete_bill(n["bill_id"])
+            out.append({"tool": "nessie.write.update_bill" if n["action"] == "change" else "nessie.write.delete_bill",
+                        **call, "from": f["name"], "to": to.get("name") or n.get("payee"), "from_nickname": f["nickname"],
+                        "to_nickname": to.get("nickname"), "amount": n["amount"], "was": n.get("was"),
+                        "recurring_date": None, "step": s["step"], "bill_key": n["key"], "bill_action": n["action"],
+                        "resume": n.get("resume"),
+                        "note": {"change": f"was ${float(n.get('was') or 0):,.0f}/mo",
+                                 "pause": "paused; the spec is kept so it restarts on its own",
+                                 "end": "paid off today"}[n["action"]],
+                        "local": [], "expect": {}})
+        elif n.get("op") == "bill" and n.get("action") != "keep":
+            f = mir[n["from"]]
+            out.append({"tool": "nessie.write.create_bill", "bill_key": n.get("key"), "bill_action": "new",
                         **calls.bill(f["id"], n["payee"], n["nickname"], n["payment_date"], n["recurring_date"], n["amount"]),
                         "from": f["name"], "to": mir[n["to"]]["name"], "from_nickname": f["nickname"],
                         "to_nickname": mir[n["to"]]["nickname"], "amount": n["amount"],
@@ -322,7 +448,7 @@ def nessie_calls(customer_id: str, transfers: list[dict], steps: list[dict], ids
 
 
 def _unseeded(call: dict) -> bool:
-    return "<" in call["path"] or "<" in str(call.get("body"))
+    return "<" in call["path"] or "<" in str(call.get("body")) or "/None" in call["path"]
 
 
 def _bill_sim(customer_id: str, plan: dict, constraints: dict | None) -> dict | None:
@@ -340,7 +466,8 @@ def _created_id(res) -> str | None:
 
 
 RECEIPT_KEYS = ("tool", "method", "path", "body", "from", "to", "from_nickname", "to_nickname", "amount",
-                "recurring_date", "first_payment", "step", "note", "group", "leg", "local", "expect")
+                "recurring_date", "first_payment", "step", "note", "group", "leg", "local", "expect", "bill_key",
+                "bill_action", "was", "resume")
 MAX_REPAIRS = 2  # deterministic re-formats per call, then one model try
 
 
@@ -479,7 +606,9 @@ def preview(pid: str) -> dict:
             "agent": [s for s in steps if s["runs"] == "agent"],
             "recorded": [s for s in steps if s["runs"] == "recorded"],
             "manual": [s for s in steps if s["runs"] == "manual"],
-            "summary": next((s for s in steps if s["runs"] == "summary"), None)}
+            "summary": next((s for s in steps if s["runs"] == "summary"), None),
+            "recurring": bill_diff(cid, steps),
+            "bill_schedule": bill_schedule(sim, steps, plan.get("autopay_full_cards"))}
 
 
 def approve(pid: str, edits: dict | None = None) -> dict:
@@ -512,9 +641,12 @@ def approve(pid: str, edits: dict | None = None) -> dict:
         store.set_status(pid, "stale", {"error": "balances changed since the proposal; re-run the check", "diffs": diffs})
         raise ApproveError(409, "stale, re-run: balances changed since the proposal (" + "; ".join(diffs) + ")")
 
-    transfers, steps = schedule(cid, plan, _bill_sim(cid, plan, p.get("constraints")))
+    bsim = _bill_sim(cid, plan, p.get("constraints"))
+    transfers, steps = schedule(cid, plan, bsim)
     record = {"plan": plan, "scheduled": steps, "simulation": {k: sim.get(k) for k in
-              ("net_worth_24m", "baseline_net_worth_24m", "high_cost_debt_free", "interest_total")}}
+              ("net_worth_24m", "baseline_net_worth_24m", "high_cost_debt_free", "interest_total")},
+              "recurring": bill_diff(cid, steps),
+              "bill_schedule": bill_schedule(bsim, steps, plan.get("autopay_full_cards"))}
     planned = nessie_calls(cid, transfers, steps)
     if not planned:
         return store.set_status(pid, "approved", {**record, "mode": "local_only", "note": "no step runs in Nessie",
@@ -528,18 +660,158 @@ def approve(pid: str, edits: dict | None = None) -> dict:
     mir = mirrors(cid, balance_sheet.accounts(cid, live=False))
     shown = [k for k, m in mir.items() if not m["id"].startswith("<")]  # every mirrored account, for the Done screen
     before = _read_balances(mir, shown)
+    receipt: list[dict] = []
     try:
         receipt = _send_all(planned)
     finally:
         _mark_posted(cid, receipt)
+        _record_bills(cid, planned, receipt)
         balance_sheet.clear_cache()
     return store.set_status(pid, *_outcome(cid, record, planned, receipt, mir, before, shown, transfers))
+
+
+def _record_bills(cid: str, planned: list[dict], receipt: list[dict]) -> None:
+    """Keep the "Recurring in Nessie" map in step with the bill calls that went through."""
+    from ..data.seed import record_bills
+
+    changes = []
+    for c, r in zip(planned, receipt):
+        if not _ok(r) or not c.get("bill_key"):
+            continue
+        a = c["bill_action"]
+        ch = {"key": c["bill_key"], "action": a, "amount": c["amount"], "resume": c.get("resume")}
+        if a == "new":
+            b = r.get("body") or c.get("body") or {}
+            ch.update(id=r.get("id"), payee=b.get("payee"), nickname=b.get("nickname"), name=b.get("payee"),
+                      payment_date=b.get("payment_date"), recurring_date=b.get("recurring_date"),
+                      amount=b.get("payment_amount"), kind="debt", to=c["bill_key"].split(":", 1)[1])
+        changes.append(ch)
+    if changes:
+        record_bills(cid, changes)
+
+
+def bill_schedule(sim: dict | None, steps: list[dict], autopay: list[str] | None = None) -> list[dict]:
+    """What the monthly check-in does to the approved bills, decided now and shown on the Done screen:
+    when a debt hits $0 its bill ends (or pays the statement, for an autopay card) and the money moves to the
+    next debt's bill (sized by the simulation's own monthly payments); a paused contribution is created again
+    in its resume month. Each entry: {month, key, action (change | end | new | resume), amount, why, done}."""
+    months = (sim or {}).get("months") or []
+    active: dict[str, float] = {}
+    meta: dict[str, dict] = {}
+    for s in steps:
+        n = s.get("nessie") or {}
+        if n.get("op") != "bill" or not str(n.get("key") or "").startswith("debt:"):
+            continue
+        if n.get("action") != "end":
+            active[n["key"]] = float(n["amount"])
+        meta[n["key"]] = {"payee": n.get("payee"), "from": n.get("from"), "to": n.get("to")}
+    names = {d["account_id"]: d.get("name") or d["account_id"] for d in (sim or {}).get("debts") or []}
+    out = []
+    for i in range(1, len(months) - 1):
+        prev, cur = months[i - 1]["balances"]["debts"], months[i]["balances"]["debts"]
+        done_now = [a for a, v in cur.items() if v <= 0.005 and prev.get(a, 0) > 0.005]
+        if not done_now:
+            continue
+        nxt = months[i + 1]
+        pays = (nxt.get("balances") or {}).get("payments") or {}
+        why = ", ".join(names.get(a, a) for a in done_now) + " paid off"
+        for aid in sorted(set(pays) | {k.split(":", 1)[1] for k in active}):
+            key, new = f"debt:{aid}", float(dollars(pays.get(aid, 0.0)))
+            cur_amt = active.get(key)
+            if cur_amt is not None and new < 1:
+                out.append({"month": nxt["month"], "key": key, "action": "end", "amount": 0, "was": cur_amt,
+                            "name": names.get(aid, aid), "why": why})
+                active.pop(key)
+            elif cur_amt is not None and abs(new - cur_amt) >= 1:
+                stmt = aid in (autopay or []) and cur.get(aid, 0) <= 0.005
+                out.append({"month": nxt["month"], "key": key, "action": "change", "amount": new, "was": cur_amt,
+                            "name": names.get(aid, aid), "why": why + ("; now the statement in full" if stmt else "")})
+                active[key] = new
+            elif cur_amt is None and new >= 1:
+                out.append({"month": nxt["month"], "key": key, "action": "new", "amount": new, "was": None,
+                            "name": names.get(aid, aid), "why": why, "to": aid})
+                active[key] = new
+    for s in steps:
+        n = s.get("nessie") or {}
+        if n.get("op") == "bill" and str(n.get("key") or "").startswith("contrib:") and n.get("resume"):
+            out.append({"month": n["resume"], "key": n["key"], "action": "resume", "amount": float(n["was"] or 0),
+                        "was": None if n["action"] == "pause" else n["amount"], "name": n.get("payee"),
+                        "why": "high-cost debt is $0", "to": n.get("to")})
+    for s in steps:  # investing that starts later: the check-in creates its bill in that month
+        if s.get("kind") == "invest" and not s.get("nessie") and s.get("account_id"):
+            out.append({"month": s["from_month"], "key": INVEST_KEY, "action": "new", "amount": s["amount"], "was": None,
+                        "name": s["payee"], "why": "high-cost debt is $0: the leftover goes to investing",
+                        "to": s["account_id"]})
+    for e in out:
+        e["done"] = False
+    out.sort(key=lambda e: e["month"])
+    return out
+
+
+def apply_due_bills(cid: str, pid: str, now: str) -> list[dict]:
+    """Check-in upkeep: send the approved bill schedule's entries due by month `now` ("YYYY-MM"). Only what the
+    customer approved (the schedule saved at approve) runs; nothing new is decided here. Returns what ran."""
+    from ..data.seed import nessie_ids, record_bills
+    from ..nessie import calls
+
+    p = store.get_proposal(pid)
+    ex = dict((p or {}).get("execution") or {})
+    sched = ex.get("bill_schedule") or []
+    due = [e for e in sched if not e.get("done") and e["month"] <= now]
+    if not due:
+        return []
+    ids = nessie_ids(cid)
+    bills, paused, chk = ids.get("bills") or {}, ids.get("paused") or {}, ids.get("checking")
+    planned = []
+    for e in due:
+        b = bills.get(e["key"]) or {}
+        if e["action"] == "change" and b.get("id"):
+            planned.append((e, calls.update_bill(b["id"], e["amount"])))
+        elif e["action"] == "end" and b.get("id"):
+            planned.append((e, calls.delete_bill(b["id"])))
+        elif e["action"] in ("new", "resume") and chk:
+            spec = paused.get(e["key"]) or {}
+            day = int(spec.get("recurring_date") or 28)
+            y, m = (int(x) for x in e["month"].split("-"))
+            first = f"{y:04d}-{m:02d}-{day:02d}"
+            payee = spec.get("payee") or e.get("name") or e["key"]
+            nick = spec.get("nickname") or f"Paidway: {payee}"
+            planned.append((e, calls.bill(chk, payee, nick, first, day, e["amount"])))
+        else:
+            e["done"], e["result"] = True, "skipped: no bill to change"
+    ran = []
+    if planned and NESSIE_KEY and not any("<" in c["path"] for _, c in planned):
+        receipt = _send_all([{**c, "tool": f"nessie.write.{e['action']}_bill", "step": e["why"]} for e, c in planned])
+        changes = []
+        for (e, c), r in zip(planned, receipt):
+            e["done"], e["result"] = _ok(r), r.get("status")
+            if _ok(r):
+                ch = {"key": e["key"], "action": e["action"], "amount": e["amount"]}
+                if e["action"] in ("new", "resume"):
+                    body = c["body"]
+                    ch.update(id=r.get("id"), payee=body["payee"], nickname=body["nickname"],
+                              payment_date=body["payment_date"], recurring_date=body["recurring_date"],
+                              amount=body["payment_amount"], kind="debt" if e["key"].startswith("debt:") else "contribution",
+                              to=e.get("to") or (paused.get(e["key"]) or {}).get("to"))
+                changes.append(ch)
+            ran.append({**e, "method": c["method"], "path": c["path"]})
+        record_bills(cid, changes)
+    else:
+        for e, c in planned:  # no Nessie (tests, local): the schedule still advances, recorded only
+            e["done"], e["result"] = True, "recorded (Nessie off)"
+            ran.append({**e, "method": c["method"], "path": c["path"]})
+    ex["bill_schedule"] = sched
+    ex.setdefault("bill_log", []).extend({k: r.get(k) for k in ("month", "key", "action", "amount", "was", "name",
+                                                                  "why", "result", "method")} for r in ran)
+    store.set_execution(pid, ex)
+    return ran
 
 
 def _mark_posted(cid: str, receipt: list[dict]) -> None:
     from ..data.seed import mark_posted
 
-    nids = [r["path"].split("/")[2] for r in receipt if _ok(r) and not r["tool"].endswith("create_bill")]
+    nids = [r["path"].split("/")[2] for r in receipt if _ok(r) and r["path"].startswith("/accounts/")
+            and not r["tool"].endswith("create_bill")]
     if nids:
         mark_posted(cid, nids)
 
@@ -552,8 +824,12 @@ def _outcome(cid, record, planned, receipt, mir, before, shown, transfers) -> tu
             "nessie_check": _check(planned, receipt, mir, before, after), "nessie_planned": planned,
             "bills": [{"payee": r["body"].get("payee"), "amount": r["body"].get("payment_amount"),
                        "day": r["body"].get("recurring_date"), "first": r["body"].get("payment_date"), "id": r["id"],
-                       "from": r.get("from_nickname") or r.get("from")}
-                      for r in receipt if r["tool"].endswith("create_bill") and _ok(r)]}
+                       "from": r.get("from_nickname") or r.get("from"), "action": "new"}
+                      for r in receipt if r["tool"].endswith("create_bill") and _ok(r)]
+                     + [{"payee": r.get("to"), "amount": r.get("amount"), "was": r.get("was"), "id": r["path"].split("/")[2],
+                         "action": r.get("bill_action"), "resume": r.get("resume"),
+                         "from": r.get("from_nickname") or r.get("from")}
+                        for r in receipt if r["tool"].endswith(("update_bill", "delete_bill")) and _ok(r)]}
     bad = [r for r in receipt if not _ok(r)]
     total = round(sum(t["amount"] for t in transfers), 2)
     if bad:

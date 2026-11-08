@@ -301,7 +301,19 @@ def test_demo_reset_recreates_every_mirror(env, tmp_path):
     seeded = []
     mp.setattr(seed, "seed", lambda cids, reload_local=True: seeded.append((cids, reload_local, seed._load()[cids[0]])) or
                {"C001": {"accounts": {SAV: {"id": "sav2", "nickname": "C001 savings", "balance_nessie": 28000}}}})
+    from paidway.planning import options
+
+    st = env["store"]
+    old = [st.create_proposal("C001", {"monthly_debt_budget": 1}, {}, "x")["id"] for _ in range(3)]
+    st.set_status(old[0], "executed")
+    st.set_status(old[1], "rejected")
+    other = st.create_proposal("C027", {"monthly_debt_budget": 1}, {}, "x")["id"]
+    options.save_applied("C001", sorted(options.APPLYABLE)[:1])
     r = seed.reset_customer("C001")
+    # earlier plans point at mirrors and bills that are gone: superseded, and the chosen options are cleared
+    assert [st.get_proposal(p)["status"] for p in old] == ["superseded", "rejected", "superseded"]
+    assert st.get_proposal(other)["status"] == "pending" and r["plans_superseded"] == 2
+    assert options.applied("C001") == []
     assert sorted(s[1] for s in env["sent"]) == sorted(f"/accounts/{v}" for v in MIRROR.values())
     assert all(s[0] == "DELETE" for s in env["sent"])
     assert seeded == [(["C001"], False, {"customer": "cust1"})] and restored == ["C001"]  # same Nessie customer
@@ -322,7 +334,10 @@ def test_seed_mirrors_every_account(env, tmp_path):
     rows = [*ROWS, _row("A-C001-MORTGAGE", "mortgage", "PNC Mortgage", 1000.5, "debt", min_payment=9.0),
             _row("L-C001-PROPERTY-1", "property", "2019 Honda Civic", 11500.0, "asset", "linked")]
     mp.setattr("paidway.planning.balance_sheet.accounts", lambda cid, live=True: [dict(r) for r in rows])
+    billed = []
+    mp.setattr(seed, "seed_bills", lambda cid: billed.append(cid))  # its own test below
     out = seed.seed(["C001"], reload_local=False)["C001"]
+    assert billed == ["C001"]  # mirrors done, so the recurring bills are seeded next
     posts = [(p, b) for m, p, b in env["sent"] if m == "POST"]
     made = {b["nickname"]: b for p, b in posts if p == "/customers/cust1/accounts"}
     assert set(made) == {"PNC Personal loan", "Brokerage", "Store card", "Federal Direct Loan", "PNC Mortgage"}

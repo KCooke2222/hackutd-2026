@@ -18,11 +18,18 @@ export const pretty = (s: string) => s
   .replace(/^Autopay full statement on (.+) once at \$0$/, 'Autopay $1 in full once it hits $0')
 const tool = (t: string) => t.replace(/^nessie\.write\./, '')
 const nth = (d: number) => `${d}${d % 10 === 1 && d !== 11 ? 'st' : d % 10 === 2 && d !== 12 ? 'nd' : d % 10 === 3 && d !== 13 ? 'rd' : 'th'}`
+export const mon = (m?: string | null) => (m ? new Date(m + '-15T12:00:00').toLocaleString('en-US', { month: 'short', year: 'numeric' }) : '')
 const day = (s?: string) => (s ? new Date(s + 'T12:00:00').toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '')
 
 /** One planned (or sent) Nessie call in plain words. */
 export function what(c: NessieCall): { verb: string; text: string; when: string } {
   const desc = typeof c.body?.description === 'string' ? (c.body.description as string) : ''
+  if (c.tool.endsWith('update_bill'))
+    return { verb: 'Change bill', text: `${c.to ?? 'Bill'}: ${usd(c.was ?? 0)} → ${usd(c.amount)}/mo`, when: '/mo · from the next payment' }
+  if (c.tool.endsWith('delete_bill'))
+    return c.bill_action === 'pause'
+      ? { verb: 'Pause bill', text: `${c.to ?? 'Contribution'}${c.resume ? ` until ${mon(c.resume)}` : ''}`, when: c.resume ? 'restarts automatically' : 'paused' }
+      : { verb: 'End bill', text: `${c.to ?? 'Bill'} (paid off)`, when: 'stops now' }
   if (c.tool.endsWith('create_bill'))
     return { verb: 'Recurring bill', text: `${c.from ?? 'Checking'} pays ${c.to ?? 'the debt'}`, when: `/mo · the ${nth(c.recurring_date ?? 1)}${c.first_payment ? `, from ${day(c.first_payment)}` : ''}` }
   if (c.tool.endsWith('create_transfer'))

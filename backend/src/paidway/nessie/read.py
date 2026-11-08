@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ._http import enabled, request
 
-__all__ = ["enabled", "customers", "customer_accounts", "account", "purchases", "deposits", "withdrawals", "transfers", "bills", "ledger_balance"]
+__all__ = ["enabled", "customers", "customer_accounts", "account", "purchases", "deposits", "withdrawals", "transfers", "bills", "bill", "ledger_balance"]
 
 
 def customers() -> list[dict]:
@@ -33,6 +33,10 @@ def transfers(account_id: str) -> list[dict]:
 
 def bills(account_id: str) -> list[dict]:
     return request("GET", f"/accounts/{account_id}/bills")
+
+
+def bill(bill_id: str) -> dict:
+    return request("GET", f"/bills/{bill_id}")
 
 
 def withdrawals(account_id: str) -> list[dict]:

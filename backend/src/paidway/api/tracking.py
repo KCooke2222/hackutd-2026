@@ -1,11 +1,14 @@
 """Goal tracking + demo fast-forward routes. Demo months live in our own DB; choose() only saves a PENDING
-proposal (no approve, no execute, no Nessie writes)."""
+proposal (no approve, no execute). The one Nessie write here is bill upkeep: when a month passes (step,
+check-in), the bill schedule the customer approved runs for that month (execute.apply_due_bills: a paid-off
+debt's bill ends or moves to the next debt, a paused contribution restarts). Nothing new is decided here."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ..agent import execute
 from ..data import pnc_data
 from ..planning import tracking
 
@@ -45,9 +48,10 @@ def get_tracking(cid: str) -> dict:
 def step(cid: str, body: StepIn) -> dict:
     p = _need(cid)
     try:
-        return {"active": True, **tracking.step(cid, p, body.scenario)}
+        t = tracking.step(cid, p, body.scenario)
     except ValueError as e:
         raise HTTPException(422, str(e))
+    return {"active": True, **t, "bills_applied": execute.apply_due_bills(cid, p["id"], t["now"])}
 
 
 @router.post("/api/customers/{cid}/tracking/reset")
@@ -71,6 +75,39 @@ def choose(cid: str, body: ChooseIn) -> dict:
     return {"proposal_id": new["id"], "status": new["status"], "headline": new["simulation"]["explain"]["headline"]}
 
 
+@router.post("/api/customers/{cid}/tracking/replan")
+def replan(cid: str) -> dict:
+    """Full agent re-plan from the approved plan for the current (demo) month: what changed, the actual balances,
+    an income drop as a debt-budget cap. Blocking; returns the `done` event (proposal_id = the new PENDING plan,
+    compare = the diff vs the approved one). The approved plan stays approved until the customer approves."""
+    from ..agent import replan as rp
+
+    p = _need(cid)
+    r = rp.run(cid, p)
+    if r.get("type") != "done":
+        raise HTTPException(422, r.get("error") or "re-plan failed")
+    r.pop("messages", None)
+    return r
+
+
+@router.get("/api/customers/{cid}/tracking/replan/stream")
+def replan_stream(cid: str):
+    """The same re-plan as server-sent events (the /api/proposals/{pid}/adjust/stream events, plus `replan` first)."""
+    import json
+
+    from fastapi.responses import StreamingResponse
+
+    from ..agent import replan as rp
+
+    p = _need(cid)
+
+    def gen():
+        for ev in rp.events(cid, p):
+            yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 class CheckinIn(BaseModel):
     scenario: str | None = None
 
@@ -87,4 +124,5 @@ def checkin(cid: str, body: CheckinIn) -> dict:
     except (ValueError, AgentUnavailable) as e:
         raise HTTPException(422, str(e))
     t = r.pop("tracking")
-    return {"active": True, **t, "checkin": r}
+    ran = execute.apply_due_bills(cid, p["id"], t["now"]) if body.scenario else []
+    return {"active": True, **t, "checkin": r, "bills_applied": ran}

@@ -38,7 +38,7 @@ REFERENCE = {
     "autopay_full_cards": [STORE, PNC_CARD],
     "keep_emergency_months": 3,
 }
-C002 = {"version": 2, "monthly_debt_budget": 1503.52, "extra_order": ["A-C002-CREDIT_CARD", "A-C002-PERSONAL_LOAN"],
+C002 = {"version": 2, "monthly_debt_budget": 1503.52, "extra_order": ["A-C002-CREDIT_CARD", "A-C002-PERSONAL_LOAN", "A-C002-AUTO_LOAN"],
         "lump_sums": [], "redirects": [], "spending_targets": [], "autopay_full_cards": ["A-C002-CREDIT_CARD"],
         "keep_emergency_months": 3}
 
@@ -109,17 +109,22 @@ def test_reference_plan_feasible_and_better(reference, baseline):
     by_id = {d["account_id"]: d for d in reference["debts"]}
     assert by_id[STUDENT]["payoff_month"] is None  # minimum only
     base_cash = [m["cash"] for m in baseline["months"]]
-    assert all(m["cash"] >= c - 1 for m, c in zip(reference["months"], base_cash))  # cash never below today's path
+    cushion = wealth.context(CID, live=False)["emergency_buffer"]
+    # cash never below today's path or the cushion, whichever is lower (above the cushion it is invested)
+    assert all(m["cash"] >= min(c, cushion) - 1 for m, c in zip(reference["months"], base_cash))
+    assert reference["investing"]["per_month"] > 0 and reference["investing"]["from"]
 
 
 def test_net_worth_is_honest(reference, baseline):
-    """Month 0 matches the balance sheet, and the gain is no more than interest saved + cuts (+ a little yield)."""
+    """Month 0 matches the balance sheet, and the gain is no more than interest saved + cuts + what the invested
+    leftovers can earn at 7% (+ a little yield)."""
     from paidway.planning import balance_sheet
 
     assert reference["months"][0]["net_worth"] == pytest.approx(balance_sheet.balance_sheet(CID)["totals"]["net_worth"], abs=1)
     gain = reference["net_worth_24m"] - baseline["net_worth_24m"]
     cuts = sum(t["current"] - t["target"] for t in CUTS) * 24
-    assert gain <= baseline["interest_total"] - reference["interest_total"] + cuts + 300
+    growth = reference["investing"]["total_24m"] * 0.07 * 2
+    assert gain <= baseline["interest_total"] - reference["interest_total"] + cuts + growth + 300
 
 
 def test_lumpy_trims_have_limits():
@@ -150,7 +155,7 @@ def test_rejects_budget_over_sources():
 
 
 def test_rejects_student_loan_in_extra_order():
-    assert "below the 8% hurdle" in reasons(plan(extra_order=[STORE, PNC_CARD, LOAN, STUDENT]))
+    assert "below the 7% hurdle" in reasons(plan(extra_order=[STORE, PNC_CARD, LOAN, STUDENT]))
 
 
 def test_rejects_other_rules():
@@ -192,7 +197,7 @@ def test_redirect_flags():
         return reasons(plan(redirects=[{"flow": flow, "amount_per_month": amt}]))
 
     assert "unknown" in r("external_cash_management", 100)
-    assert "ask the customer" in r("ira_contribution", 10)
+    assert "ask the customer" not in r("ira_contribution", 10)  # pausable by default now (7% hurdle)
     assert "never moved" in r("debt_minimums", 100)
     assert "exceeds" in r("monthly_surplus", 1)  # C001 has no surplus
     assert "unknown" in r("outside_savings_sweep", 100)  # the old sweep is gone
@@ -217,12 +222,13 @@ def test_missing_lumps_adds_idle_cash_only():
     assert c001 and c001["net_worth_gain"] > 0
     assert {x["source"] for x in c001["lump_sums"]} == {"cash"}
     assert sum(x["amount"] for x in c001["lump_sums"]) == pytest.approx(3176.49, abs=1)
-    # C002: $6.2k above the buffer pays off the 22.5% card and the 11% loan today.
+    # C002: $6.2k above the buffer pays off the 22.5% card and the 11% loan today (the 7.5% auto loan is next).
     sim = validate_plan_v2("C002", C002, live=False)
     added = missing_lumps("C002", C002, sim, live=False)
     assert added and added["net_worth_gain"] > 0
     assert {l["source"] for l in added["lump_sums"]} == {"cash"}
-    assert added["sim"]["feasible"] and added["sim"]["high_cost_debt_free"] == "2026-10"
+    paid = {d["name"]: d["payoff_month"] for d in added["sim"]["debts"]}
+    assert added["sim"]["feasible"] and paid["PNC Credit card"] == paid["PNC Personal loan"] == "2026-10"
 
 
 

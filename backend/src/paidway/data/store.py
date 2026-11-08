@@ -100,9 +100,10 @@ class Conflict(RuntimeError):
 
 
 def create_proposal(customer_id: str, plan: dict, simulation: dict, rationale: str, *, parent_id: str | None = None,
-                    constraints: dict | None = None, request: str | None = None) -> dict:
+                    constraints: dict | None = None, request: str | None = None, supersede: bool = True) -> dict:
     """Save a pending proposal. With parent_id (an adjustment), the parent goes pending -> superseded in the
-    same transaction, so the customer has one pending plan at a time."""
+    same transaction, so the customer has one pending plan at a time. supersede=False (a check-in re-plan of
+    the approved plan): the parent keeps its status and is only linked."""
     pid = uuid.uuid4().hex[:12]
     with _conn() as c:
         c.execute(
@@ -111,12 +112,21 @@ def create_proposal(customer_id: str, plan: dict, simulation: dict, rationale: s
             (pid, customer_id, _now(), json.dumps(plan), json.dumps(simulation), rationale, parent_id,
              json.dumps(constraints) if constraints else None, request),
         )
-        if parent_id:
+        if parent_id and supersede:
             cur = c.execute("update proposals set status = 'superseded', decided_at = ? where id = ? and status = 'pending'",
                             (_now(), parent_id))
             if cur.rowcount != 1:  # raising inside the `with` rolls back the insert too
                 raise Conflict(f"proposal {parent_id} is no longer pending")
     return get_proposal(pid)
+
+
+def retire_plans(customer_id: str) -> int:
+    """A demo reset recreated the customer's Nessie accounts: every plan from before it (pending, approved or
+    executed) refers to moves and bills that no longer exist, so it becomes superseded. Returns how many."""
+    with _conn() as c:
+        cur = c.execute("update proposals set status = 'superseded', decided_at = ? where customer_id = ? "
+                        "and status in ('pending', 'approved', 'executed')", (_now(), customer_id))
+    return cur.rowcount
 
 
 def restore(pid: str) -> dict | None:
@@ -155,6 +165,13 @@ def set_status(pid: str, status: str, execution: dict | None = None) -> dict | N
             "update proposals set status = ?, decided_at = ?, execution = coalesce(?, execution) where id = ?",
             (status, _now(), json.dumps(execution) if execution is not None else None, pid),
         )
+    return get_proposal(pid)
+
+
+def set_execution(pid: str, execution: dict) -> dict | None:
+    """Replace a proposal's execution record, keeping its status and decided_at (check-in bill upkeep)."""
+    with _conn() as c:
+        c.execute("update proposals set execution = ? where id = ?", (json.dumps(execution), pid))
     return get_proposal(pid)
 
 

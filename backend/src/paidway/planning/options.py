@@ -63,6 +63,8 @@ def _pause_ira(ctx: dict, _amt=None):
     f["contrib"]["ira"] = 0.0
     f["invest_contrib"] -= ira
     f["residual"] += ira
+    if ira > 0:  # a plan restarts it at high-cost $0, like any paused contribution (wealth._run)
+        f["paused_by_option"] = {**f.get("paused_by_option", {}), "ira": ira}
 
 
 def _idr(ctx: dict, _amt=None):

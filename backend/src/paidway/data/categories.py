@@ -1,7 +1,7 @@
 """What a plan may move, per spending category and named cash flow. One table; the validator enforces it.
 
     fixed     never moved (rent, utilities, insurance, groceries, gas, debt minimums)
-    ask       never moved by a plan; the agent asks the customer instead (childcare, healthcare, family, IRA)
+    ask       never moved by a plan; the agent asks the customer instead (childcare, healthcare, family)
     trim      a spending target may lower it by at most `max_pct` of its average, never below the lowest month
     cancel    only by cancelling named recurring charges (subscriptions)
     redirect  a named flow that may go to debt instead (the monthly surplus: money that would stay in cash)
@@ -43,8 +43,9 @@ FLOWS: dict[str, dict] = {
                                 "in cash, so redirecting it only gains the APR minus the cash yield"},
     "brokerage_auto_invest": {"flag": PAUSE, "label": "Brokerage auto-invest", "dest": "brokerage"},
     "cd_contribution": {"flag": PAUSE, "label": "CD contributions", "dest": "cd"},
-    "ira_contribution": {"flag": ASK, "label": "IRA contributions", "dest": "ira",
-                         "note": "retirement saving: ask, never pause in a plan"},
+    "ira_contribution": {"flag": PAUSE, "label": "IRA contributions", "dest": "ira",
+                         "note": "paused while any debt costs more than 7% APR, restarts automatically at high-cost $0; "
+                                 "an employer 401(k) match is payroll, not a flow here, and is never paused"},
 }
 
 MOVABLE_FLOWS = tuple(k for k, v in FLOWS.items() if v["flag"] in (REDIRECT, PAUSE))

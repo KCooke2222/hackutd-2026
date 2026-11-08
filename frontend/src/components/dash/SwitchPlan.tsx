@@ -12,6 +12,20 @@ export default function SwitchPlan({ cid, sw, onChose, onReplan }: {
   const [saved, setSaved] = useState<{ id: string; headline: string } | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
+  /** Full agent re-plan from the approved plan (POST /tracking/replan); ~1-2 min live, instant in replay. */
+  async function replan() {
+    setBusy('replan'); setErr(null)
+    try {
+      const r = await api<{ proposal_id: string; explain?: { headline?: string } }>(`/customers/${cid}/tracking/replan`, { method: 'POST' })
+      setSaved({ id: r.proposal_id, headline: r.explain?.headline ?? 'Re-planned for this month' })
+    } catch (e) {
+      setErr((e as Error).message)
+      onReplan()
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function choose(key: string) {
     setBusy(key); setErr(null)
     try {
@@ -42,7 +56,7 @@ export default function SwitchPlan({ cid, sw, onChose, onReplan }: {
       )}
       {err && <div className="error">{err}</div>}
       {sw.replan && !saved && (
-        <div className="notice small">Neither option gets you there. <button className="primary" onClick={onReplan}>Run full re-plan</button></div>
+        <div className="notice small">Neither option gets you there. <button className="primary" disabled={busy != null} onClick={replan}>{busy === 'replan' ? 'Re-planning…' : 'Run full re-plan'}</button></div>
       )}
     </div>
   )
