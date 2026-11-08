@@ -5,6 +5,7 @@ import type { Preview } from '../../lib/flow'
 import NessieChip from '../NessieChip'
 import DoneList from './DoneList'
 import NetWorth from './NetWorth'
+import { BillDiffList } from './RecurringBills'
 
 const nth = (d: number) => `${d}${d % 10 === 1 && d !== 11 ? 'st' : d % 10 === 2 && d !== 12 ? 'nd' : d % 10 === 3 && d !== 13 ? 'rd' : 'th'}`
 
@@ -37,6 +38,7 @@ export default function Outcome({ preview, approved, planned, onChange }: {
     <DoneList calls={sent?.length ? sent : held ?? []} held={!sent?.length && !!held?.length}
       recorded={recorded} manual={manual} agent={agent} summary={summary} onRetry={ex.retry_available ? retry : undefined} retrying={busy}
       note={held?.length && !sent?.length ? `${ex.note ?? 'Nessie unavailable'}.` : !sent && !held && planned ? `${planned.nessie_calls.length} Nessie call(s) planned.` : undefined}>
+      <BillDiffList diff={(ex.recurring ?? planned?.recurring)?.filter((r) => r.action !== 'keep')} schedule={ex.bill_schedule ?? planned?.bill_schedule} />
       {err && <div className="error">{err}</div>}
       {ex.error && <div className="error">{ex.error}</div>}
     </DoneList>

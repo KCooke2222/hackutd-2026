@@ -158,6 +158,13 @@ def set_status(pid: str, status: str, execution: dict | None = None) -> dict | N
     return get_proposal(pid)
 
 
+def set_execution(pid: str, execution: dict) -> dict | None:
+    """Replace a proposal's execution record, keeping its status and decided_at (check-in bill upkeep)."""
+    with _conn() as c:
+        c.execute("update proposals set execution = ? where id = ?", (json.dumps(execution), pid))
+    return get_proposal(pid)
+
+
 def annotate(pid: str, **fields) -> dict | None:
     """Merge display fields (e.g. explain labels) into a proposal's simulation json."""
     with _conn() as c:

@@ -4,6 +4,7 @@ import { api, fmtDuration } from '../lib/api'
 import type { AppliedOption, ApprovePreview, BalanceSheet, Proposal, RealityCheck as RC, ReplayMeta, ReplayRun, SimV2, Tracking } from '../lib/api'
 import { isV2, knobsFrom, planFrom } from '../lib/flow'
 import type { Knobs, Preview, Schedule } from '../lib/flow'
+import RecurringBills, { BillDiffList } from '../components/flow/RecurringBills'
 import Snapshot from '../components/flow/Snapshot'
 import Thinking from '../components/flow/Thinking'
 import type { RunMeta } from '../components/flow/Thinking'
@@ -278,6 +279,7 @@ export default function Home() {
       <div style={{ display: dash ? 'none' : 'block' }}>
 
       {screen === 0 && sheet && <Snapshot sheet={sheet} />}
+      {screen === 0 && sheet && <RecurringBills cid={cid} />}
       {screen === 0 && <IncomeExpense cid={cid} />}
       {runKey > 0 && (
         // Stays mounted after the run so Back/Next doesn't start another one.
@@ -314,6 +316,7 @@ export default function Home() {
           ) : undefined}>
           <AgentActions title={ai.status === 'pending' ? 'What the agent will do on approve' : 'What approve does'} {...callsFor(pv, extras?.schedule)}
             note={pv && (!pv.nessie_enabled || !pv.seeded) ? "This customer isn't set up in Nessie yet: approve records these calls without sending them." : undefined}>
+            <BillDiffList diff={pv?.recurring} schedule={pv?.bill_schedule} />
             {outlook && !outlook.valid && <div className="error">{outlook.reasons.join('; ')}</div>}
             {err && <div className="error">{err}</div>}
             {ai.status === 'pending' && (

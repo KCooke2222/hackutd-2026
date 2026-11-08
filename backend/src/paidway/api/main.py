@@ -89,6 +89,15 @@ def customer_balance_sheet(cid: str, keep_months: float = Query(3, ge=3, le=24))
     return balance_sheet.balance_sheet(cid, keep_months=keep_months)
 
 
+@app.get("/api/customers/{cid}/nessie-bills")
+def customer_recurring(cid: str) -> dict:
+    """The recurring outflows that run as Nessie recurring bills (debts, contributions, fixed bills)."""
+    from ..planning import recurring
+
+    _need_customer(cid)
+    return recurring.in_nessie(cid)
+
+
 @app.get("/api/customers/{cid}/debts")
 def customer_debts(cid: str) -> dict:
     _need_customer(cid)

@@ -1,11 +1,14 @@
 """Goal tracking + demo fast-forward routes. Demo months live in our own DB; choose() only saves a PENDING
-proposal (no approve, no execute, no Nessie writes)."""
+proposal (no approve, no execute). The one Nessie write here is bill upkeep: when a month passes (step,
+check-in), the bill schedule the customer approved runs for that month (execute.apply_due_bills: a paid-off
+debt's bill ends or moves to the next debt, a paused contribution restarts). Nothing new is decided here."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from ..agent import execute
 from ..data import pnc_data
 from ..planning import tracking
 
@@ -45,9 +48,10 @@ def get_tracking(cid: str) -> dict:
 def step(cid: str, body: StepIn) -> dict:
     p = _need(cid)
     try:
-        return {"active": True, **tracking.step(cid, p, body.scenario)}
+        t = tracking.step(cid, p, body.scenario)
     except ValueError as e:
         raise HTTPException(422, str(e))
+    return {"active": True, **t, "bills_applied": execute.apply_due_bills(cid, p["id"], t["now"])}
 
 
 @router.post("/api/customers/{cid}/tracking/reset")
@@ -87,4 +91,5 @@ def checkin(cid: str, body: CheckinIn) -> dict:
     except (ValueError, AgentUnavailable) as e:
         raise HTTPException(422, str(e))
     t = r.pop("tracking")
-    return {"active": True, **t, "checkin": r}
+    ran = execute.apply_due_bills(cid, p["id"], t["now"]) if body.scenario else []
+    return {"active": True, **t, "checkin": r, "bills_applied": ran}

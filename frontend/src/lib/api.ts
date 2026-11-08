@@ -23,6 +23,11 @@ export type Refill = {
   share_of_payment_refilled: number
 }
 
+export type NessieBill = { key: string; kind: 'debt' | 'contribution' | 'bill' | 'subscription'; name: string; amount: number | null; day: number | null; to: string | null; nessie_id: string | null; status: 'active' | 'paused'; resume?: string | null }
+export type NessieBills = { customer_id: string; seeded: boolean; bills: NessieBill[]; total: number }
+export type BillDiff = { key: string; kind: string; name: string; action: 'keep' | 'change' | 'pause' | 'end' | 'new'; from: number | null; to: number | null; resume?: string | null; step?: string }
+export type BillScheduleEntry = { month: string; key: string; action: 'change' | 'end' | 'new' | 'resume'; amount: number | null; was: number | null; name: string; why: string; done: boolean }
+
 // ---------- plan v2 (docs/agent-v2/CONTRACT.md) ----------
 
 export type LumpSum = { source: 'cash' | 'cd' | 'brokerage'; amount: number; to_debt: string }
@@ -141,6 +146,9 @@ export type Proposal = {
     error?: string
     /** The receipt: each Nessie write call approve sent, with its status and the id Nessie created. */
     nessie_calls?: NessieCall[]
+    recurring?: BillDiff[]
+    bill_schedule?: BillScheduleEntry[]
+    bill_log?: (BillScheduleEntry & { method?: string; path?: string; status?: number | string })[]
     /** Planned but not sent (no key, or the customer isn't seeded into Nessie). */
     nessie_pending?: NessieCall[]
     nessie_balances_after?: Record<string, number | string>
@@ -160,6 +168,7 @@ export type NessieCall = {
   status?: number | string; id?: string | null; error?: string; note?: string | null
   /** How approve re-formatted the body after a validation error, e.g. "reformatted after 400: dropped payee_id". */
   repairs?: string[]; retried?: boolean; leg?: number; group?: string
+  bill_key?: string; bill_action?: 'change' | 'pause' | 'end' | 'new' | 'resume'; was?: number | null; resume?: string | null
 }
 export type ApprovePreview = {
   proposal_id: string; customer_id: string; status: string; nessie_enabled: boolean; seeded: boolean
@@ -169,6 +178,10 @@ export type ApprovePreview = {
   /** Watched at the monthly check-in (spending targets, leftover, autopay switch-overs). */
   agent?: AgentStep[]
   summary?: MonthSplit | null
+  /** The plan as a diff against the recurring bills in Nessie. */
+  recurring?: BillDiff[]
+  /** Bill changes the monthly check-in makes later (a debt hits $0, a pause ends). */
+  bill_schedule?: BillScheduleEntry[]
 }
 export type AgentStep = { kind: string; step: string; runs?: string; watch?: string; amount?: number }
 /** The month's split from execute.schedule: paid to debts = new purchases + net paydown; left_over stays in cash. */

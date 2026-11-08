@@ -322,7 +322,10 @@ def test_seed_mirrors_every_account(env, tmp_path):
     rows = [*ROWS, _row("A-C001-MORTGAGE", "mortgage", "PNC Mortgage", 1000.5, "debt", min_payment=9.0),
             _row("L-C001-PROPERTY-1", "property", "2019 Honda Civic", 11500.0, "asset", "linked")]
     mp.setattr("paidway.planning.balance_sheet.accounts", lambda cid, live=True: [dict(r) for r in rows])
+    billed = []
+    mp.setattr(seed, "seed_bills", lambda cid: billed.append(cid))  # its own test below
     out = seed.seed(["C001"], reload_local=False)["C001"]
+    assert billed == ["C001"]  # mirrors done, so the recurring bills are seeded next
     posts = [(p, b) for m, p, b in env["sent"] if m == "POST"]
     made = {b["nickname"]: b for p, b in posts if p == "/customers/cust1/accounts"}
     assert set(made) == {"PNC Personal loan", "Brokerage", "Store card", "Federal Direct Loan", "PNC Mortgage"}
