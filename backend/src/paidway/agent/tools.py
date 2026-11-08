@@ -42,7 +42,7 @@ class SpendingTarget(BaseModel):
 
 class PlanArgs(BaseModel):
     monthly_debt_budget: float = Field(description="total paid to ALL debts per month, minimums included")
-    extra_order: list[str] = Field(description="account_ids getting extra money, highest APR first; only debts above the 8% hurdle")
+    extra_order: list[str] = Field(description="account_ids getting extra money, highest APR first; only debts above the 7% hurdle")
     lump_sums: list[LumpSum] = Field(default_factory=list)
     redirects: list[Redirect] = Field(default_factory=list)
     spending_targets: list[SpendingTarget] = Field(default_factory=list)
@@ -220,7 +220,7 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
 
     @tool
     def debt_priority() -> dict:
-        """All debts: minimums in order of consequence; extra money to the highest APR above the 8% hurdle.
+        """All debts: minimums in order of consequence; extra money to the highest APR above the 7% hurdle.
         Low-rate and secured debt get minimums only."""
         return _try(lambda: _sheet()["priority"])
 

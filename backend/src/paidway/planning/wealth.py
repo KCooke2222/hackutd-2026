@@ -591,7 +591,34 @@ def simulate_plan(customer_id: str, plan: dict | None, *, live: bool = True, ctx
         b = budget_limit(ctx, plan)
         res["budget"] = {**b, **paid_split(res, b["monthly_debt_budget"])}
         res["money_order"] = money_order_line(ctx, plan, res)
+        res["contributions"] = contributions(ctx, plan, res)
     return res
+
+
+def contributions(ctx: dict, plan: dict, sim: dict) -> list[dict]:
+    """Each IRA / brokerage / CD contribution and what the plan does with it: {flow, dest, label, per_month,
+    paused (the $/mo the plan takes from it), action (pause | half | keep | lower), resume (the month it restarts:
+    the month after high-cost $0), by_option (the part an applied option already paused)}. An employer 401(k) match is payroll, not here, and never paused."""
+    red = {r["flow"]: float(r["amount_per_month"]) for r in plan.get("redirects") or []}
+    by_opt = ctx["flows"].get("paused_by_option") or {}
+    hf = sim.get("high_cost_debt_free")
+    resume = None
+    if hf and plan.get("resume_paused_when_high_cost_free", True):
+        y, m = (int(x) for x in hf.split("-"))
+        resume = f"{y + 1}-01" if m == 12 else f"{y}-{m + 1:02d}"
+    out = []
+    for flow, meta in categories.FLOWS.items():
+        dest = meta.get("dest")
+        opt = by_opt.get(dest or "", 0.0)
+        amt = ctx["flows"]["contrib"].get(dest or "", 0.0) + opt
+        if not dest or amt < 1:
+            continue
+        p = min(red.get(flow, 0.0) + opt, amt)
+        act = ("pause" if p >= amt - 0.5 else "half" if abs(p - amt / 2) <= 0.5 else "keep" if p < 0.5 else "lower")
+        out.append({"flow": flow, "dest": dest, "label": meta["label"], "per_month": round(amt, 2),
+                    "paused": round(p, 2), "action": act, "resume": resume if act != "keep" else None,
+                    "by_option": round(opt, 2)})
+    return out
 
 
 def _mon(label: str) -> str:
@@ -713,6 +740,8 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None, sho
                 problems.append(f"pausing ${amt:,.0f}/mo of {dest} contributions exceeds the ${contrib.get(dest, 0):,.0f}/mo made")
             contrib[dest] = max(contrib.get(dest, 0.0) - amt, 0.0)
         paused_contrib = dict(pf["paused"])
+        for dest, amt in (f.get("paused_by_option") or {}).items():  # e.g. the "pause IRA" option
+            paused_contrib[dest] = paused_contrib.get(dest, 0.0) + amt
         # The budget is paid from today's payments + freed money; whatever it doesn't use is still saved.
         saved = f["residual"] + ctx["current_debt_payments"] + sum(pf["paused"].values()) + cuts["cash"] - budget
         minimums = sum(d["min_payment"] for d in debts.values())

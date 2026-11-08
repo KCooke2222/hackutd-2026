@@ -197,7 +197,7 @@ def test_redirect_flags():
         return reasons(plan(redirects=[{"flow": flow, "amount_per_month": amt}]))
 
     assert "unknown" in r("external_cash_management", 100)
-    assert "ask the customer" in r("ira_contribution", 10)
+    assert "ask the customer" not in r("ira_contribution", 10)  # pausable by default now (7% hurdle)
     assert "never moved" in r("debt_minimums", 100)
     assert "exceeds" in r("monthly_surplus", 1)  # C001 has no surplus
     assert "unknown" in r("outside_savings_sweep", 100)  # the old sweep is gone

@@ -71,6 +71,13 @@ export type SimV2 = {
   no_cuts?: { net_worth_24m: number; high_cost_debt_free: string | null; interest_total: number; monthly_debt_budget: number; net_paydown_per_month: number; suggested_cut_per_month?: number; suggested_buys?: CutBuys }
   baseline_high_cost_debt_free?: string | null
   monthly_card_spending?: number
+  /** Each IRA / brokerage / CD contribution and what the plan does with it (paused while debt costs > 7%). */
+  contributions?: Contribution[]
+}
+
+export type Contribution = {
+  flow: string; dest: string; label: string; per_month: number; paused: number
+  action: 'pause' | 'half' | 'keep' | 'lower'; resume: string | null; by_option: number
 }
 
 export type Explain = {

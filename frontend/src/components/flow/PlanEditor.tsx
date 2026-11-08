@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { usd } from '../../lib/api'
 import type { Proposal, SimDebt, SimV2 } from '../../lib/api'
-import { SOURCE_NAME, knobsFrom, title, ym } from '../../lib/flow'
+import { CONTRIB_SHORT, SOURCE_NAME, knobsFrom, title, ym } from '../../lib/flow'
 import type { Knobs, Preview } from '../../lib/flow'
 import NetWorth from './NetWorth'
 import { ACCENT, GOOD, GREY } from '../../lib/chart'
@@ -68,6 +68,9 @@ export default function PlanEditor({ ai, knobs, setKnobs, preview, busy, error, 
   const budgetMax = roundUp(Math.max(aiB?.max_monthly_debt_budget ?? 0, aiK.budget) * 1.05, 50)
   const redirectMax = roundUp(Math.max(aiK.redirect, 500) * 1.25, 100)
   const debtNames = Object.fromEntries(sim.debts.map((d) => [d.account_id, d.name]))
+  // Rows from the live preview (resume month moves with the plan), falling back to the agent's.
+  const contribs = sim.contributions ?? ai.simulation.contributions ?? []
+  const highCost = sim.debts.some((d) => d.apr_pct > 7 && d.balance > 0)
 
   const sliders: SliderDef[] = [
     { label: 'Paid to all debts', min: Math.ceil(minimums), max: budgetMax, step: 25, value: knobs.budget, ai: aiK.budget,
@@ -99,6 +102,39 @@ export default function PlanEditor({ ai, knobs, setKnobs, preview, busy, error, 
         </div>
         {sliders.map((s) => <Slider key={s.label} s={s} />)}
       </div>
+
+      {contribs.length > 0 && (
+        <div className="card">
+          <h3 style={{ margin: '0 0 6px' }}>Contributions</h3>
+          <div className="small muted" style={{ marginBottom: 8 }}>
+            {highCost ? 'Paused while any debt costs more than 7% a year; they restart automatically once it is $0.' : 'No debt costs more than 7% a year, so contributions keep going.'}
+          </div>
+          {contribs.map((c) => {
+            const room = Math.max(c.per_month - c.by_option, 0)
+            const v = knobs.contrib?.[c.flow] ?? 0
+            const locked = room < 0.5
+            const pick = (n: number) => setKnobs({ ...knobs, contrib: { ...knobs.contrib, [c.flow]: n }, budget: Math.max(knobs.budget + n - v, minimums) })
+            const choices: [string, number][] = [['Pause', room], ...(c.dest === 'ira' ? [['Cut in half', room / 2] as [string, number]] : []), ['Keep', 0]]
+            return (
+              <div key={c.flow} className="sl">
+                <div className="top"><span>{CONTRIB_SHORT[c.dest] ?? c.label} <span className="small muted">{usd(c.per_month)}/mo</span></span>
+                  {locked ? <span className="small muted">paused by an option you applied</span> : (
+                    <div className="seg" role="radiogroup" aria-label={`${c.label} choice`}>
+                      {choices.map(([lbl, n]) => (
+                        <button key={lbl} className={Math.abs(v - n) < 0.5 ? 'on' : ''} role="radio" aria-checked={Math.abs(v - n) < 0.5} onClick={() => pick(n)}>{lbl}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="meta">{v > 0.5 || locked
+                  ? `${usd(v + c.by_option)}/mo to debt${c.resume ? ` until ${ym(c.resume)}; restarts automatically` : ''}`
+                  : 'keeps going as today'}</div>
+              </div>
+            )
+          })}
+          <div className="meta" style={{ marginTop: 6 }}>An employer 401(k) match is never paused.</div>
+        </div>
+      )}
 
       {pl.spending_targets.length > 0 && (
         <div className="card">
