@@ -40,18 +40,18 @@ function steps(ai: Proposal, calls: NessieCall[], manual: { step: string; how?: 
     const parts = ls.map((l) => {
       const d = debt.get(l.to_debt)
       const clears = d && l.amount >= d.balance - 1
-      return `${money(l.amount)} ${clears ? 'clears' : 'to'} ${name(l.to_debt)}${d ? ` (${pct(d.apr_pct)})` : ''}`
+      return `${clears ? 'clears' : `${money(l.amount)} to`} ${name(l.to_debt)}`
     })
     out.push({
       text: <>{src === 'cash' ? 'Pay' : 'Sell'} <b>{money(total)}</b> {src === 'cash' ? `from ${SOURCE_NAME.cash}` : `of ${SOURCE_NAME[src]?.toLowerCase() ?? src}`}</>,
-      sub: <>{parts.join(', ')}.{ex.lumps_why ? ` ${ex.lumps_why}` : ''}{src === 'brokerage' && sim.upfront_cost > 0 ? ` Tax cost ≈ ${money(sim.upfront_cost)}.` : ''}</>,
+      sub: <>{parts.join(', ')}{src === 'brokerage' && sim.upfront_cost > 0 ? `, tax ≈ ${money(sim.upfront_cost)}` : ''}</>,
       runs: moves ? 'nessie' : 'recorded',
     })
   }
   const order = pl.extra_order.map(name)
   out.push({
     text: <>Pay <b>{money(pl.monthly_debt_budget)}/mo</b> to debt</>,
-    sub: order.length ? <>Minimums on all, the extra goes {order.join(' → ')} (highest rate first).</> : undefined,
+    sub: order.length ? <>Extra goes {order.join(' → ')}</> : undefined,
     runs: payBill ? 'bill' : 'recorded',
   })
   const red = pl.redirects.reduce((a, r) => a + r.amount_per_month, 0)
@@ -63,9 +63,15 @@ function steps(ai: Proposal, calls: NessieCall[], manual: { step: string; how?: 
   }
   if (pl.autopay_full_cards.length)
     out.push({ text: <>Autopay in full once a card hits $0</>, sub: pl.autopay_full_cards.map(name).join(', '), runs: autopayBill ? 'bill' : 'recorded', label: 'Nessie bill' })
-  out.push({ text: <>Keep {pl.keep_emergency_months} months of cash</>, sub: ex.buffer_why, runs: 'recorded' })
-  for (const m of manual) out.push({ text: m.step, sub: Array.isArray(m.how) ? m.how.join(' · ') : m.how, runs: 'manual' })
+  out.push({ text: <>Keep {pl.keep_emergency_months} months of cash</>, sub: brief(ex.buffer_why) || undefined, runs: 'recorded' })
+  for (const m of manual) out.push({ text: m.step, sub: brief(Array.isArray(m.how) ? m.how[0] : m.how, 60), runs: 'manual' })
   return out
+}
+
+/** First clause of agent text, capped: the plan reads as fragments, not sentences. */
+function brief(s?: string | null, max = 48): string {
+  const c = (s ?? '').split(/(?<=[a-z])[.;:]\s|\s[—–-]\s|, (?:so|which|because|and) /)[0].trim().replace(/\.$/, '')
+  return c.length > max ? c.slice(0, max).replace(/\s+\S*$/, '') + '…' : c
 }
 
 function Kpis({ sim, base }: { sim: SimV2; base: SimV2 | null }) {
@@ -90,7 +96,6 @@ function PaydownBar({ sim }: { sim: SimV2 }) {
   if (!b?.monthly_debt_budget || b.net_paydown_per_month == null) return null
   const buys = b.new_card_purchases ?? 0, shrink = Math.max(0, b.net_paydown_per_month)
   const tot = buys + shrink || 1
-  const extra = b.monthly_debt_budget - b.current_debt_payments
   return (
     <div style={{ marginTop: 16 }}>
       <div className="col-head"><h3 style={{ margin: 0 }}>Where the {money(b.monthly_debt_budget)}/mo to debt goes</h3></div>
@@ -102,10 +107,6 @@ function PaydownBar({ sim }: { sim: SimV2 }) {
         <span><i className="sw" style={{ background: GREY }} />New card purchases {money(buys)}</span>
         <span><i className="sw" style={{ background: GOOD }} />Shrinks the debt {money(shrink)}</span>
       </div>
-      <p className="small muted" style={{ margin: '6px 0 0' }}>
-        Today {money(b.current_debt_payments)}/mo, only {money(b.current_net_paydown_per_month ?? 0)} shrinks debt.
-        {extra > 1 && <> The extra {money(extra)}/mo comes from the cuts below.</>}
-      </p>
     </div>
   )
 }
@@ -128,7 +129,7 @@ function Cuts({ ai }: { ai: Proposal }) {
               <td className="bad" style={{ whiteSpace: 'nowrap' }}>
                 {t.buys ? <>{t.buys.months_sooner ? `${t.buys.months_sooner} mo later, ` : ''}−{money(t.buys.net_worth_gain)} at 2 yrs</> : '—'}
               </td>
-              <td className="why">{why.get(t.category) ?? t.how?.[0]}</td>
+              <td className="why">{brief(why.get(t.category) ?? t.how?.[0], 40)}</td>
             </tr>
           ))}
         </tbody>

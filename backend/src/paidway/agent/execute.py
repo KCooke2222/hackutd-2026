@@ -191,7 +191,7 @@ def schedule(customer_id: str, plan: dict, sim: dict | None = None, *, live: boo
             first, day = _next_month()
             steps.append({"kind": "payment", "step": f"Pay {name} ${amt:,.2f}/mo from checking", "runs": "nessie",
                           "account_id": k, "amount": amt, "current": cur,
-                          "replaces": f"replaces your current ${cur:,.0f}/mo payment" if cur else None,
+                          "replaces": "Updates your current payment to this" if cur else None,
                           "note": _mirror_note(d, mir[k]["nickname"]),
                           "nessie": {"op": "bill", "from": checking["account_id"], "to": k, "payee": name,
                                      "nickname": f"Paidway plan: {name}", "payment_date": first,

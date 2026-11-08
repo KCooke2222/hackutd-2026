@@ -211,13 +211,13 @@ in it is computed. Your job is the judgement calls and the words.
 Decide:
 1. buffer_months: the cash cushion to keep, one of the keys in `buffers` (default {default_buffer}).
    Each key shows what the plan becomes with that cushion. Pick a smaller one only if it buys a lot
-   and income looks steady; pick a larger one if income or spending is erratic. One-line why.
+   and income looks steady; pick a larger one if income or spending is erratic. Why in <=8 words.
 2. driver: what is really keeping this person in debt, in one or two plain sentences (e.g. new card
    purchases eat most of the payment; a specific category; minimums only on a high APR).
-3. For every suggested cut in plan.spending_targets (source "suggested"), a why (<=15 words): why
-   this category, using its merchants or pattern. The cuts stay in the plan; the customer can decline
+3. For every suggested cut in plan.spending_targets (source "suggested"), a why (<=6 words, a fragment,
+   no full sentence, e.g. "mostly two flights a year"): why this category. The cuts stay in the plan; the customer can decline
    any of them later, so don't drop them.
-4. lumps_why: one line on the lump sums (what is sold or moved and why that order), or "" if none.
+4. lumps_why: <=8 words on the lump sums, or "" if none.
 5. downsides: 1-3 short honest costs of this plan (e.g. a smaller cushion, selling investments).
 6. If reality.realistic is false: one line on what has to change (income, spending), no verdict.
    Then work the `underwater` options (computed by code: closes_per_month is how much of the monthly
