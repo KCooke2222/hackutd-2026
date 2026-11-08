@@ -1,6 +1,6 @@
 customer_id,account_type,balance,monthly_payment,apr_pct,account_id,opening_balance,history_start,as_of_date,annual_yield_pct
 C001,checking,1604.0,0,0,A-C001-CHECKING,1443.60,2024-11-01,2026-10-31,0
-C001,savings,24800.00,0,0,A-C001-SAVINGS,21780.69,2024-11-01,2026-10-31,2.5
+C001,savings,10000.00,0,0,A-C001-SAVINGS,6980.69,2024-11-01,2026-10-31,2.5
 C001,ira,6994.56,0,0,A-C001-IRA,6058.32,2024-11-01,2026-10-31,3.5
 C001,credit_card,6571.46,197.14,22.5,A-C001-CREDIT_CARD,6440.03,2024-11-01,2026-10-31,0
 C001,personal_loan,1050.28,29.17,11.0,A-C001-PERSONAL_LOAN,1234.39,2024-11-01,2026-10-31,0
