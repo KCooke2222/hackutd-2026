@@ -344,7 +344,7 @@ export default function Home() {
         <button disabled={screen === 0} style={{ visibility: screen === 0 ? 'hidden' : 'visible' }} onClick={() => go(screen - 1)}>Back</button>
         {screen === 0 && (
           <span className="flow-actions">
-            {past.length > 0 && (
+            {demo && past.length > 0 && (
               <select aria-label="Previous runs" value="" onChange={(e) => { const p = past.find((x) => x.id === e.target.value); if (p) openPlan(p) }}>
                 <option value="">Previous runs ({past.length})</option>
                 {past.map((p) => (
@@ -352,8 +352,8 @@ export default function Home() {
                 ))}
               </select>
             )}
-            {lastPending && <button className="ghost" onClick={() => openPlan(lastPending)}>Open last plan</button>}
-            {replays.length > 0 && (
+            {demo && lastPending && <button className="ghost" onClick={() => openPlan(lastPending)}>Open last plan</button>}
+            {demo && replays.length > 0 && (
               <select value="" aria-label="Load cached run" title="Replay a recorded agent run (no model call), sped up 8×"
                 onChange={(e) => { const r = replays.find((x) => x.id === e.target.value); if (r) findPlan({ id: r.id, speed: 8, duration_ms: r.duration_ms }) }}>
                 <option value="" disabled>Load cached run</option>
