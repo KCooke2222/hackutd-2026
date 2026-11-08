@@ -41,7 +41,7 @@ def test_agent_tools_are_read_only_plus_propose():
     names = {t.name for t in make_tools("C001")}
     assert names == {
         "sql", "cash_flow", "spending_detail", "find_recurring", "compare_sources",
-        "simulate_plan", "debt_priority", "liquidity_ladder", "propose_plan",
+        "simulate_plan", "optimize_plan", "debt_priority", "liquidity_ladder", "propose_plan",
     }
 
 
@@ -55,6 +55,7 @@ READ_CALLS = {
     "debt_priority": {},
     "liquidity_ladder": {"amount_needed": 1000},
     "simulate_plan": PLAN,
+    "optimize_plan": {"keep_emergency_months": 3},
 }
 
 

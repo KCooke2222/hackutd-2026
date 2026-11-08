@@ -46,6 +46,18 @@ class PlanArgs(BaseModel):
     keep_emergency_months: float = 3.0
 
 
+class Cut(BaseModel):
+    category: str
+    target: float = Field(description="the monthly target the PERSON agreed to")
+    how: list[str] = Field(default_factory=list, description="optional; 'Cancel <name>' for subscriptions")
+
+
+class OptimizeArgs(BaseModel):
+    keep_emergency_months: float = Field(3.0, description="months of expenses kept as cash (min 2)")
+    spending_targets: list[Cut] = Field(default_factory=list, description="only cuts the person chose; the solver never adds any")
+    redirect_flows: list[str] | None = Field(None, description="limit which movable flows may go to debt; omit = all their flags allow")
+
+
 class ProposeArgs(PlanArgs):
     rationale: str = Field(description="one sentence, at most 15 words")
 
@@ -180,25 +192,19 @@ def make_tools(customer_id: str, state: dict | None = None) -> list:
     def propose_plan(**kwargs) -> dict:
         """Save ONE plan v2 for the customer to approve, edit or reject. This does NOT move money.
         The server recomputes everything and rejects unsafe or unrealistic plans with reasons; fix them and retry."""
-        from .validator import PlanRejected, validate_plan_v2
+        from .validator import PlanRejected
 
         if st.get("proposal_id"):
             return {"saved": True, "proposal_id": st["proposal_id"], "note": "already proposed; stop"}
-        plan = to_plan(kwargs)
+        # The numbers come from the solver: the model only relays the person's soft inputs (buffer months, the
+        # cuts they agreed to); lump sums, budget, order, redirects and autopay are computed, never guessed.
+        from .. import solver
+
+        given = to_plan(kwargs)
         try:
-            # The model picks sources; the server does the arithmetic: every freed dollar goes to debt
-            # while any debt above the hurdle remains (an under-filled budget only delays payoff).
-            from ..wealth import budget_limit, context
-            if plan.get("extra_order"):
-                cap = budget_limit(context(customer_id), plan)["max_monthly_debt_budget"]
-                plan["monthly_debt_budget"] = max(float(plan.get("monthly_debt_budget") or 0), round(cap, 2))
-            sim = validate_plan_v2(customer_id, plan)
-            # Idle cash above the buffer next to high-cost debt only costs interest: when paying it in today
-            # (fitted to keep the buffer) raises 24-month net worth, the server adds it, as it fills the budget.
-            from .validator import missing_lumps
-            added = missing_lumps(customer_id, plan, sim)
-            if added:
-                plan, sim = added["plan"], added["sim"]
+            solved = solver.solve(customer_id, {"keep_emergency_months": given["keep_emergency_months"],
+                                                "spending_targets": given["spending_targets"]}, with_tradeoffs=False)
+            plan, sim = solved["plan"], solved["sim"]
         except (PlanRejected, ValueError, KeyError, TypeError, AttributeError) as e:
             st["rejections"] += 1
             reasons = list(getattr(e, "reasons", None) or [str(e)])
@@ -218,9 +224,26 @@ def make_tools(customer_id: str, state: dict | None = None) -> list:
         p = store.create_proposal(customer_id, plan, sim, str(kwargs.get("rationale") or ""))
         st["proposal_id"] = p["id"]
         out = {"saved": True, "proposal_id": p["id"], **{k: v for k, v in sim_brief(sim).items() if k != "debts"}}
-        if added:
-            out["server_added_lump_sums"] = added["lump_sums"]
+        out["server_filled"] = {k: plan[k] for k in ("monthly_debt_budget", "extra_order", "lump_sums", "redirects")}
         return out
 
+    @tool(args_schema=OptimizeArgs)
+    def optimize_plan(**kwargs) -> dict:
+        """The optimal plan for the person's soft inputs (buffer months, cuts they chose, flows they allow):
+        lump sums, monthly budget and order, payoff month per debt, net worth vs baseline, interest saved, and
+        `tradeoffs`: what cutting each flexible category to its floor would buy (months sooner, $ net worth).
+        Deterministic and read-only; it never adds cuts. propose_plan uses the same solver."""
+        from .. import solver
+
+        def go():
+            inp = {"keep_emergency_months": kwargs.get("keep_emergency_months"),
+                   "spending_targets": [c.model_dump() if hasattr(c, "model_dump") else dict(c)
+                                        for c in kwargs.get("spending_targets") or []],
+                   "redirect_flows": kwargs.get("redirect_flows")}
+            r = solver.solve(customer_id, inp)
+            return {"plan": r["plan"], "brief": r["brief"]}
+
+        return _try(go)
+
     return [sql, cash_flow, spending_detail, find_recurring, compare_sources, debt_priority, liquidity_ladder,
-            simulate_plan, propose_plan]
+            simulate_plan, optimize_plan, propose_plan]

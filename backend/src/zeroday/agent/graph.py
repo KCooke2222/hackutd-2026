@@ -201,7 +201,7 @@ def _label_raw(name: str, args: dict) -> str:
         return "SQL query"
     return {
         "cash_flow": "Cash flow", "find_recurring": "Recurring charges", "debt_priority": "Debt ranking",
-        "liquidity_ladder": "Cash ladder", "propose_plan": "Propose plan",
+        "liquidity_ladder": "Cash ladder", "optimize_plan": "Optimize plan", "propose_plan": "Propose plan",
     }.get(name, name)
 
 

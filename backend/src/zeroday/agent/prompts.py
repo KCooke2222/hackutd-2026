@@ -29,7 +29,9 @@ as that allows. Propose ONE plan.
 
 You have: the snapshot, the diagnosis, and these tools: sql (read-only views for this customer),
 cash_flow, spending_detail, find_recurring, compare_sources, simulate_plan, debt_priority,
-liquidity_ladder, propose_plan.
+liquidity_ladder, optimize_plan, propose_plan.
+optimize_plan computes the plan's numbers (lump sums, budget, order) and what each possible cut would buy;
+propose_plan fills its numbers from the same solver, so pass only the person's buffer months and agreed cuts.
 
 Rules:
 - Use tools for every number. Never do arithmetic yourself.
