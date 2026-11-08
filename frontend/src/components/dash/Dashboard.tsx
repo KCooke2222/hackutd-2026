@@ -4,7 +4,6 @@ import type { TrackLevel, TrackPoint, Tracking } from '../../lib/api'
 import { ym, ymShort } from '../../lib/flow'
 import { C } from '../../lib/chart'
 import { ArrowRight, Check as CheckIcon, Circle } from 'lucide-react'
-import SwitchPlan from './SwitchPlan'
 
 const LEVEL: Record<TrackLevel | 'good', [string, string]> = {
   on_track: ['On track', 'good'], drifting: ['Drifting', 'warn'], off_track: ['Off track', 'red'], good: ['Ahead', 'good'],
@@ -24,7 +23,7 @@ function labels(t: Tracking) {
 }
 
 /** Home once a plan is approved: one goal (high-cost debt $0 by a month) and how the months are tracking against it. */
-export default function Dashboard({ cid, t, onChose, onReplan, onSnapshot }: {
+export default function Dashboard({ t, onReplan, onSnapshot }: {
   cid: string; t: Tracking; onChose: (proposalId: string) => void; onReplan: () => void; onSnapshot: () => void
 }) {
   const st = t.status
@@ -71,7 +70,24 @@ export default function Dashboard({ cid, t, onChose, onReplan, onSnapshot }: {
         )}
       </div>
 
-      {t.switch && <SwitchPlan key={k} cid={cid} sw={t.switch} onChose={onChose} onReplan={onReplan} />}
+      {t.switch && (
+        <div key={k} className="card switch pop-late">
+          <div className="switch-opts">
+            <div className="opt off">
+              <span className="k">Old plan</span>
+              <h3>Doesn't work anymore</h3>
+              <div className="big num">{st.projected_month ? L.long(st.projected_month) : 'Never'}</div>
+              <div className="small muted">High-cost debt $0 by then; the goal was {L.long(t.goal.month)}{st.projected_month && st.late_months > 0 ? ` (${st.late_months} mo late)` : ''}.</div>
+            </div>
+            <div className="opt">
+              <span className="k">Replan</span>
+              <h3>Find a new plan</h3>
+              <div className="small muted">The agent reruns with your numbers as they are now.</div>
+              <button className="primary" onClick={onReplan}>Replan</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <DebtChart t={t} />
 
