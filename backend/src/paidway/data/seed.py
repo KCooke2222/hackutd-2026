@@ -4,7 +4,8 @@
     uv run python -m paidway.data.seed C005
     uv run python -m paidway.data.seed reseed     # DELETE all Nessie data for this key, then seed
 
-Both also (re)load the linked external accounts into SQLite.
+Both also (re)load the PNC CSVs (profiles, accounts, transactions, monthly_statements) and the linked
+external accounts into SQLite.
 
 No-op without NESSIE_KEY. Nessie ids are saved to backend/data/nessie_ids.json (gitignored),
 because Nessie data is per API key: the whole team should share one key and one seed.
@@ -39,7 +40,14 @@ def load_linked() -> None:
     print(f"loaded {linked.load()} linked accounts into SQLite")
 
 
+def load_pnc() -> None:
+    """The PNC CSVs go into SQLite tables, dropped and reloaded (see pnc_data.TABLES)."""
+    counts = pnc_data.load_into_db(force=True)
+    print("loaded PNC data into SQLite: " + ", ".join(f"{t} {n}" for t, n in counts.items()))
+
+
 def seed(customer_ids: list[str]) -> dict:
+    load_pnc()
     load_linked()
     if not NESSIE_KEY:
         print("NESSIE_KEY not set; nothing to seed (app runs on local PNC CSVs).")
@@ -89,6 +97,7 @@ def reseed(customer_ids: list[str]) -> dict:
     """
     if not NESSIE_KEY:
         print("NESSIE_KEY not set; nothing to reseed in Nessie (app runs on local PNC CSVs).")
+        load_pnc()
         load_linked()
         return {}
     from ..nessie import read
