@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: install backend frontend test seed reseed linked data record reset-local dry-run demo-reset fresh
+.PHONY: install backend frontend test seed reseed linked data record reset-local dry-run demo-reset fresh fresh-prod
 
 install:
 	cd backend && $(UV) sync
@@ -50,6 +50,10 @@ demo-reset:
 fresh:
 	cd backend && $(UV) run python scripts/reset_local.py C001 C027
 	cd backend && $(UV) run python -m paidway.data.seed reset C001 C027
+
+# Same reset on the public VM (paidway.kevin-cooke.com), its own Nessie customers.
+fresh-prod:
+	ssh paidway-prod 'cd /opt/paidway/backend && set -a && . /opt/paidway/deploy/paidway.env && set +a && .venv/bin/python scripts/reset_local.py C001 C027 && .venv/bin/python -m paidway.data.seed reset C001 C027 >/dev/null && echo reset done'
 
 # Clear a customer's local proposals and demo tracking (SQLite only; never touches Nessie). Demo examples by default.
 reset-local:
