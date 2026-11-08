@@ -232,11 +232,6 @@ export default function Home() {
         <div className="masthead-in">
           <Brand onHome={home} />
           <nav className="dots" aria-label="Steps">
-            {track && (
-              <button className={dash ? 'on' : ''} onClick={() => { setErr(null); setView('dash') }} aria-current={dash ? 'page' : undefined}>
-                Dashboard
-              </button>
-            )}
             {NAMES.map((n, j) => (
               <button key={n} className={!dash && j === screen ? 'on' : j < reached ? 'done' : ''} disabled={!canGo(j)} onClick={() => go(j)} aria-current={!dash && j === screen ? 'step' : undefined}>
                 <span className="n">{j < reached && (dash || j !== screen) ? '✓' : j + 1}</span>{n}

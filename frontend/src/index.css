@@ -1,4 +1,4 @@
-/* Paidway: warm neutrals, one accent (vermilion), serif display numbers. Light + dark via tokens. */
+/* Paidway: warm neutrals, one accent (vermilion), serif display numbers. Light mode only. */
 :root {
   --bg: #f6f5f1; --panel: #ffffff; --soft: #f1efe9; --text: #1d1b18; --muted: #6e695f; --grey: #a8a297;
   --line: #e6e2d9; --line-strong: #d3cec2;
@@ -23,18 +23,6 @@
   font-family: var(--font-ui); font-feature-settings: 'cv11', 'ss01';
   color: var(--text); background: var(--bg); font-size: var(--fs); line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #131210; --panel: #1c1a17; --soft: #25221e; --text: #ece8e0; --muted: #a29c90; --grey: #6f6a61;
-    --line: #2f2c27; --line-strong: #403c35;
-    --accent: #f26b2a; --accent-ink: #ff9a66; --accent-soft: #3a2014; --accent-line: #6b3519;
-    --good: #4ade80; --good-soft: #163021; --bad: #f87171; --bad-soft: #3a1a19; --bad-ink: #fca5a5;
-    --warn-soft: #3a2f12; --warn-ink: #f4c86a; --info-soft: #172337; --info-line: #2b3f62;
-    --ink: #ece8e0; --on-ink: #131210;
-    --shadow: none;
-    color-scheme: dark;
-  }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); }
