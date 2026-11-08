@@ -15,8 +15,8 @@ Method (greedy avalanche, checked against an LP in tests/test_solver.py):
        pool first, only where the APR beats that pool's yield. Fitted so cash never drops below the buffer.
     2. CD / brokerage are sold only for debt left after cash, only if APR > their return + penalty/tax drag,
        and only as much as raises 24-month net worth. IRA and property are never sources.
-    3. Monthly: minimums, then every freed dollar to the highest-APR debt above the hurdle. The savings sweep
-       is redirected in full (what the budget doesn't use still goes to savings); a contribution is paused
+    3. Monthly: minimums, then every freed dollar to the highest-APR debt above the hurdle. The monthly
+       surplus (a REDIRECT flow) is redirected in full (what the budget doesn't use still stays as savings); a contribution is paused
        only as far as it raises 24-month net worth (debt APR beats what the money earns invested).
     4. The plan passes validate_plan_v2 and is simulated by wealth.simulate_plan.
 
@@ -32,7 +32,7 @@ import math
 from . import assumptions as A
 from . import categories, wealth
 
-CASH_POOLS = ("cash", "outside_savings")
+CASH_POOLS = ("cash", "outside_savings")  # cash-like lump sources; a pool missing from the data is skipped
 
 
 # ---------------- inputs ----------------
@@ -105,7 +105,7 @@ def _hurdles(ctx: dict, expected_return: float) -> dict:
     a, years = ctx["assets"], A.get("horizon_months") / 12
     cd_drag = (1 - 1 / wealth._gross_needed("cd", 1.0, ctx)) * 100 / years
     tax_drag = (1 - 1 / wealth._gross_needed("brokerage", 1.0, ctx)) * 100 / years
-    return {"cash": a["cash_yield_pct"], "outside_savings": a["outside_yield_pct"],
+    return {"cash": a["cash_yield_pct"], "outside_savings": a.get("outside_yield_pct", a["cash_yield_pct"]),
             "cd": A.ret("cd") + cd_drag, "brokerage": expected_return + tax_drag}
 
 
@@ -116,7 +116,7 @@ def _eligible(ctx: dict) -> list[dict]:
 def cash_lumps(ctx: dict, hurdles: dict) -> list[dict]:
     """Cash above the buffer to the highest-APR debts, lowest-yield pool first."""
     avail = dict(ctx["lump_available"])
-    pools = sorted(CASH_POOLS, key=lambda s: hurdles[s])
+    pools = sorted((s for s in CASH_POOLS if s in avail), key=lambda s: hurdles[s])
     out = []
     for d in _eligible(ctx):
         left = d["balance"]
@@ -235,7 +235,7 @@ def build_plan(customer_id: str, inputs: dict | None = None, *, live: bool = Tru
     hurdles = _hurdles(ctx, exp_ret)
     any_debt = bool(_eligible(ctx))
 
-    # Redirects: fixed amounts when the person gave them; else the sweep in full and pauses searched below.
+    # Redirects: fixed amounts when the person gave them; else REDIRECT flows in full and pauses searched below.
     movable = ctx["movable_flows"]
     rf = inp.get("redirect_flows")
     fixed_amounts = isinstance(rf, dict)

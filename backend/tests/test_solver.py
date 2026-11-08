@@ -1,17 +1,18 @@
-"""The greedy solver against an LP optimum (scipy linprog) of the same 24-month problem.
+"""The greedy solver against an LP optimum (scipy milp / HiGHS) of the same 24-month problem.
 
 The LP has the plan's rules but none of its heuristics: monthly payment variables per debt, linear interest,
-card charges, the cash buffer every month, lump sums from any allowed source split any way, any sweep
+card charges, the cash buffer every month, lump sums from any allowed source split any way, any surplus
 redirect and any contribution pause up to their limits, the monthly budget cap, low-rate / secured debt on
-minimums only. Objective: net worth at 24 months. Minimums on high-cost debt are relaxed (the LP may skip a
-minimum to pay a higher APR), so the LP is an upper bound and the greedy must come within $50 of it.
+minimums only, and the minimum rule on high-cost debt (each month pay at least the minimum or pay it off: one
+binary per debt-month). Objective: net worth at 24 months. Payments may split any way (no avalanche order), so
+the LP is an upper bound on any plan and the greedy must come within $50 of it.
 """
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
-from scipy.optimize import linprog
+from scipy.optimize import Bounds, LinearConstraint, milp
 from scipy.sparse import lil_matrix
 
 from zeroday import assumptions as A
@@ -24,13 +25,14 @@ TOL = 50.0
 
 class LP:
     def __init__(self):
-        self.n, self.lo, self.hi, self.names = 0, [], [], []
+        self.n, self.lo, self.hi, self.names, self.ints = 0, [], [], [], []
         self.eq, self.ub = [], []  # (coeffs {var: c}, rhs)
 
-    def var(self, name, lo=0.0, hi=None):
-        self.lo.append(lo)
-        self.hi.append(hi)
+    def var(self, name, lo=0.0, hi=None, integer=False):
+        self.lo.append(-np.inf if lo is None else lo)
+        self.hi.append(np.inf if hi is None else hi)
         self.names.append(name)
+        self.ints.append(1 if integer else 0)
         self.n += 1
         return self.n - 1
 
@@ -46,8 +48,10 @@ class LP:
         for j, v in objective.items():
             c[j] -= v  # maximize
         Ae, be = mat(self.eq)
-        Au, bu = mat(self.ub) if self.ub else (None, None)
-        res = linprog(c, A_ub=Au, b_ub=bu, A_eq=Ae, b_eq=be, bounds=list(zip(self.lo, self.hi)), method="highs")
+        Au, bu = mat(self.ub)
+        cons = [LinearConstraint(Ae, be, be), LinearConstraint(Au, -np.inf, bu)]
+        res = milp(c, constraints=cons, integrality=np.array(self.ints), bounds=Bounds(self.lo, self.hi),
+                   options={"mip_rel_gap": 1e-9})
         assert res.status == 0, res.message
         return res
 
@@ -60,10 +64,13 @@ def lp_optimum(cid: str, targets: list[dict], keep: float | None = None) -> dict
     charges = max(ctx["card_spend"] - cuts["card"], 0.0)
     elig = [d for d in ctx["debts"] if d["extra_eligible"] and d["balance"] > 0]
     inel = [d for d in ctx["debts"] if d not in elig]
-    rc, ro = 1 + a["cash_yield_pct"] / 1200, 1 + a["outside_yield_pct"] / 1200
+    # Outside savings (when the data has it) is O; without it O is just the cash the monthly flows land in.
+    has_out = "outside_savings" in ctx["lump_available"]
+    out_bal, out_yield = a.get("outside_savings", 0.0), a.get("outside_yield_pct", a["cash_yield_pct"])
+    rc, ro = 1 + a["cash_yield_pct"] / 1200, 1 + out_yield / 1200
     rk = {k: 1 + (A.ret(k) or 0) / 1200 for k in ("cd", "brokerage", "ira")}
     base_cash = [m["cash"] for m in wealth.simulate_plan(cid, None, ctx=ctx)["months"]]
-    floor = min(ctx["emergency_buffer"], a["cash"] + a["outside_savings"]) - 1
+    floor = min(ctx["emergency_buffer"], a["cash"] + out_bal) - 1
 
     # Low-rate / secured debt: minimums only (the plan's rule), a fixed schedule.
     inel_pay, inel_bal = [0.0] * (H + 1), 0.0
@@ -78,11 +85,12 @@ def lp_optimum(cid: str, targets: list[dict], keep: float | None = None) -> dict
         inel_bal += b
 
     lp = LP()
-    srcs = ["cash", "outside_savings", "cd", "brokerage"]
+    srcs = ["cash", *(["outside_savings"] if has_out else []), "cd", "brokerage"]
     gross = {s: wealth._gross_needed(s, 1.0, ctx) for s in srcs}
     L = {(s, d["account_id"]): lp.var(f"L_{s}_{d['account_id']}") for s in srcs for d in elig}
     mov = ctx["movable_flows"]
-    sweep = lp.var("sweep", 0, mov[wealth.SWEEP]["max_per_month"])
+    redirect = [k for k, m in mov.items() if m["flag"] == categories.REDIRECT]
+    sweep = lp.var("sweep", 0, sum(mov[k]["max_per_month"] for k in redirect))
     pause = {m["dest"]: lp.var(f"pause_{k}", 0, m["max_per_month"]) for k, m in mov.items()
              if m["flag"] == categories.PAUSE and m["max_per_month"] > 0}
 
@@ -90,8 +98,11 @@ def lp_optimum(cid: str, targets: list[dict], keep: float | None = None) -> dict
         return {L[s, d["account_id"]]: 1.0 for d in elig}
 
     lp.ub.append(({**lumps("cash")}, ctx["lump_available"]["cash"]))
-    lp.ub.append(({**lumps("outside_savings")}, ctx["lump_available"]["outside_savings"]))
-    lp.ub.append(({**lumps("cash"), **lumps("outside_savings")}, ctx["lump_available"]["cash_total"]))
+    if has_out:
+        lp.ub.append(({**lumps("outside_savings")}, ctx["lump_available"]["outside_savings"]))
+        lp.ub.append(({**lumps("cash"), **lumps("outside_savings")}, ctx["lump_available"]["cash_total"]))
+    else:
+        lp.ub.append(({**lumps("cash")}, ctx["lump_available"]["cash_total"]))
     for s in ("cd", "brokerage"):
         lp.ub.append(({j: gross[s] for j in lumps(s)}, ctx["ladder"][s]["available"]))
     for d in elig:
@@ -99,7 +110,7 @@ def lp_optimum(cid: str, targets: list[dict], keep: float | None = None) -> dict
 
     # State: C (PNC cash, only yields), O (savings), investments, eligible balances. Expressions as {var: c} + const.
     C = ({j: -1.0 for j in lumps("cash")}, a["cash"])
-    O = ({j: -1.0 for j in lumps("outside_savings")}, a["outside_savings"])
+    O = ({j: -1.0 for j in lumps("outside_savings")} if has_out else {}, out_bal)
     inv = {k: ({j: -gross[k] for j in lumps(k)} if k in ("cd", "brokerage") else {}, a[k]) for k in ("cd", "brokerage", "ira")}
     bal = {d["account_id"]: ({L[s, d["account_id"]]: -1.0 for s in srcs}, d["balance"]) for d in elig}
 
@@ -131,14 +142,21 @@ def lp_optimum(cid: str, targets: list[dict], keep: float | None = None) -> dict
             pays[d["account_id"]] = p
             co = {**co, p: co.get(p, 0.0) - 1.0}
             bal[d["account_id"]] = fresh(f"b_{d['account_id']}_{t}", co, c0)  # b >= 0
-        # Budget cap: debt payments this month <= today's payments + sweep redirect + pauses + checking cuts.
+            # The plan's minimum rule: pay at least the minimum, or pay the debt off (z = 0 means b = 0).
+            z = lp.var(f"z_{d['account_id']}_{t}", 0, 1, integer=True)
+            big = d["balance"] * 2 + charges * (H + 1) + 1
+            lp.ub.append(({p: -1.0, z: d["min_payment"]}, 0.0))
+            lp.ub.append(({**bal[d["account_id"]][0], z: -big}, -bal[d["account_id"]][1]))
+        # Budget cap: debt payments this month <= today's payments + surplus redirect + pauses + checking cuts.
         lp.ub.append(({**{p: 1.0 for p in pays.values()}, sweep: -1.0, **{v: -1.0 for v in pause.values()}},
                       budget_const - inel_pay[t]))
         co, c0 = scale(O, ro)
         co = {**co, **{p: co.get(p, 0.0) - 1.0 for p in pays.values()}}
         for v in pause.values():
             co[v] = co.get(v, 0.0) + 1.0
-        O = fresh(f"O_{t}", co, c0 + inflow_const - inel_pay[t])  # O >= 0: residuals here are non-negative
+        # With an outside account O >= 0 (short months draw it first; residuals there are non-negative). Without
+        # one, O is part of PNC cash and may go negative: only C + O (the buffer row below) is bounded.
+        O = fresh(f"O_{t}", co, c0 + inflow_const - inel_pay[t], lo=0.0 if has_out else None)
         # Cash buffer every month.
         need = min(floor, base_cash[t] - 1)
         row = {j: -c for j, c in C[0].items()}
