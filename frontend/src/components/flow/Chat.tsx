@@ -115,6 +115,14 @@ export default function Chat({ ai, onAdjusted, onRules, onQuestion, bare = false
       const d = JSON.parse((e as MessageEvent).data)
       setRun((r) => (r ? { ...r, notes: [...new Set([...r.notes, ...(d.notes ?? [])])] } : r))
     })
+    s.addEventListener('saved', (e) => {  // the new plan, before its headline arrives
+      const d = JSON.parse((e as MessageEvent).data)
+      if (d.proposal && d.compare) {
+        setResult({ compare: d.compare, proposal: d.proposal, request: m })
+        setText('')
+        onAdjusted(d.proposal)
+      }
+    })
     s.addEventListener('done', (e) => {
       const d = JSON.parse((e as MessageEvent).data)
       if (d.clarify) return end({ clarify: d.clarify })
