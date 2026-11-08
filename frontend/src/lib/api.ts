@@ -249,3 +249,26 @@ export type Tracking = {
   tolerance_pct: number
   switch?: { options: SwitchOption[]; replan: boolean }
 }
+
+export type RealityCheck = {
+  realistic: boolean
+  message: string
+  gap_per_month: number
+  close_gap: null | {
+    spend_less_per_month: number
+    earn_more_per_month: number
+    spending_target_per_month: number
+    income_target_per_month: number
+    spending_alone_can_close: boolean
+    min_extra_income_if_spending_maxed: number
+  }
+  monthly: { income: number; spending: number; debt_room: number; interest: number; card_charges: number; minimums: number; principal_paydown: number }
+  today: { debt_change_per_month: number; cash_change_per_month: number }
+  levers: {
+    spending_cuts_per_month: number
+    cuts: { category: string; current: number; target: number; save: number }[]
+    redirect_per_month: number
+    lump_sums: { source: string; to_debt: string; name: string; amount: number }[]
+    discretionary_left_per_month: number
+  }
+}

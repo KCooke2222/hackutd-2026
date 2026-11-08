@@ -119,8 +119,27 @@ def gather_snapshot(customer_id: str) -> dict:
         "ladder": {"emergency_buffer": lad["emergency_buffer"], "keep_months": lad["keep_months"],
                    "tiers": [{k: t[k] for k in ("key", "proposable", "available", "cost_pct")} for t in lad["tiers"]]},
         "totals": sheet["totals"],
+        "reality_check": _reality_brief(customer_id),
         "assumptions": ASSUMPTIONS,
     }
+
+
+def _reality_brief(customer_id: str) -> dict | None:
+    """The reality check without the per-category detail (the LLM gets the verdict and the gap)."""
+    try:
+        from .. import wealth
+
+        rc = wealth.reality_check(customer_id)
+    except Exception:  # noqa: BLE001 - the plan still runs without it
+        return None
+    return _reality_fields(rc)
+
+
+def _reality_fields(rc: dict | None) -> dict:
+    """The verdict and the gap, for prompts (an {"error"} or a missing check gives {})."""
+    if not isinstance(rc, dict) or "realistic" not in rc:
+        return {}
+    return {k: rc.get(k) for k in ("realistic", "message", "gap_per_month", "close_gap", "monthly")}
 
 
 # ---------- message log helpers ----------
@@ -284,10 +303,15 @@ def _explain(llm, w, proposal_id: str, messages: list, extra: dict | None = None
         prompts.EXPLAIN, plan=p["plan"], simulation=sim_brief(p["simulation"]),
         cut_options=[{k: o.get(k) for k in ("category", "label", "cut_per_month", "merchants", "high_cost_debt_free",
                                             "months_sooner", "net_worth_24m_gain")}
-                     for o in p["simulation"].get("cut_options") or []]))
+                     for o in p["simulation"].get("cut_options") or []],
+        reality=_reality_fields(p["simulation"].get("reality_check"))))
     if not isinstance(data, dict) or not isinstance(data.get("headline"), str) or not data["headline"]:
         sim = p["simulation"]
         data = {"headline": f"High-cost debt $0 by {sim.get('high_cost_debt_free') or 'never'}", "levers": [], "cuts": [], "options": []}
+    rc = p["simulation"].get("reality_check") or {}
+    gap = rc.get("gap_per_month") or 0
+    if rc and rc.get("realistic") is False and f"{gap:,.0f}" not in data["headline"]:
+        data["headline"] = f"${gap:,.0f}/mo short: {data['headline']}"  # the gap always leads
     data = {**data, **(extra or {})}
     try:
         store.annotate(p["id"], explain=data)
@@ -342,7 +366,9 @@ def build_graph(customer_id: str):
         out: dict = {"messages": messages, "final": final, "proposal_id": st.get("proposal_id")}
         if not st.get("proposal_id"):
             reasons = "; ".join(st.get("last_reasons") or []) or "the agent did not propose a plan"
-            out["error"] = f"No valid plan: {reasons}"[:400]
+            rc = s["snapshot"].get("reality_check") or {}
+            lead = f"{rc['message']} " if rc and not rc.get("realistic") else ""
+            out["error"] = f"{lead}No valid plan: {reasons}"[:700]
         return out
 
     def explain(s: AgentState) -> dict:

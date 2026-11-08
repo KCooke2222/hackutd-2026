@@ -240,6 +240,8 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
         except Exception:  # noqa: BLE001
             sim["cut_options"] = []
         sim["balances_snapshot"] = balances.snapshot(customer_id)
+        from ..wealth import reality_check
+        sim["reality_check"] = _try(lambda: reality_check(customer_id))
         try:
             p = store.create_proposal(customer_id, plan, sim, str(kwargs.get("rationale") or ""),
                                       parent_id=st.get("parent_id"), constraints=cons or None, request=st.get("request"))

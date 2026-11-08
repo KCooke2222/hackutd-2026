@@ -425,6 +425,107 @@ def budget_limit(ctx: dict, plan: dict) -> dict:
     }
 
 
+def reality_check(customer_id: str, *, live: bool = True, ctx: dict | None = None) -> dict:
+    """Can the debt shrink at all with this income and spending, even with the best plan the solver can build?
+
+    Best case = solver.build_plan with every optional cut at its floor (solver.floor_target: trim to
+    max(lowest month, avg - max_cut_pct), cancel the named recurring charges), every movable flow it allows,
+    and the lump sums it finds worth making. Then, in month 1 (interest only falls as the debt shrinks, so
+    month 1 binds):
+        room      = that plan's monthly debt budget, less any monthly shortfall that drains cash
+        growth    = interest (after the lump sums) + card charges (after card cuts)
+        shrinks  <=> room > growth and room >= every minimum
+    When it can't shrink, `gap_per_month` is the shortfall: spend `gap` less (beyond those cuts) or earn
+    `gap` more, or a mix.
+    """
+    from . import solver
+
+    ctx = ctx or context(customer_id, live=live)
+    floors = [ft for cat in ctx["spend"] if (ft := solver.floor_target(customer_id, ctx, cat))]
+    targets = [{"category": ft["category"], "target": ft["target"],
+                **({"how": [f"Cancel {n}" for n in ft["cancel"]]} if ft.get("cancel") else {})} for ft in floors]
+    plan, _ = solver.build_plan(customer_id, {"keep_emergency_months": ctx["keep_months"], "spending_targets": targets},
+                                live=live, ctx=ctx)
+    return _reality(ctx, plan)
+
+
+def _reality(ctx: dict, plan: dict) -> dict:
+    f = ctx["flows"]
+    split = cut_split(ctx, plan.get("spending_targets") or [])
+    card_cut, cash_cut = split["card"], split["cash"]
+    cut_total = card_cut + cash_cut
+    cuts = sorted(({"category": t["category"], "current": round(ctx["spend"][t["category"]]["avg"], 2),
+                    "target": round(float(t["target"]), 2),
+                    "save": round(ctx["spend"][t["category"]]["avg"] - float(t["target"]), 2)}
+                   for t in plan.get("spending_targets") or [] if t["category"] in ctx["spend"]), key=lambda x: -x["save"])
+    disc_now = sum(c["avg"] for c in ctx["spend"].values() if not c["essential"] and c["avg"] > 0)
+
+    names = {d["account_id"]: d["name"] for d in ctx["debts"]}
+    bal = {d["account_id"]: d["balance"] for d in ctx["debts"]}
+    for ls in plan.get("lump_sums") or []:
+        bal[ls["to_debt"]] = max(bal.get(ls["to_debt"], 0.0) - float(ls["amount"]), 0.0)
+    lumps = [{**x, "name": names.get(x["to_debt"], x["to_debt"])} for x in plan.get("lump_sums") or []]
+    redirect = sum(float(r["amount_per_month"]) for r in plan.get("redirects") or [])
+
+    interest_now = sum(d["balance"] * d["apr_pct"] / 1200 for d in ctx["debts"])
+    interest = sum(bal[d["account_id"]] * d["apr_pct"] / 1200 for d in ctx["debts"])
+    minimums = sum(d["min_payment"] for d in ctx["debts"] if bal[d["account_id"]] > 0.005)
+    charges = max(ctx["card_spend"] - card_cut, 0.0)
+    room = float(plan["monthly_debt_budget"]) + min(f["residual"], 0.0)  # a negative residual drains cash first
+    growth = interest + charges
+    paydown = room - growth
+    needed = max(minimums, growth)
+    gap = max(needed - room, 0.0)
+    realistic = paydown > 0.5 and room >= minimums - 0.005
+    if not realistic and gap < 1:
+        gap = 1.0  # break-even: the debt doesn't shrink, so they still need a little more room
+    disc_left = max(disc_now - cut_total, 0.0)
+
+    if realistic:
+        msg = f"The debt can shrink: with the best plan, about ${paydown:,.0f}/mo goes to principal."
+    else:
+        msg = (f"Even after every realistic change you are ${gap:,.0f}/mo short, so the debt keeps growing. "
+               f"To close it, spend ${gap:,.0f}/mo less or earn ${gap:,.0f}/mo more (or a mix).")
+        if gap > disc_left + 0.5:
+            msg += (f" Spending cuts alone can't do it: only ${disc_left:,.0f}/mo of discretionary spending is left, "
+                    f"so income must rise by at least ${gap - disc_left:,.0f}/mo.")
+
+    r = lambda x: round(x, 2)  # noqa: E731
+    return {
+        "realistic": realistic,
+        "message": msg,
+        "gap_per_month": r(gap) if not realistic else 0.0,
+        "close_gap": None if realistic else {
+            "spend_less_per_month": r(gap),
+            "earn_more_per_month": r(gap),
+            "spending_target_per_month": r(max(f["expenses"] - cut_total - gap, 0.0)),
+            "income_target_per_month": r(f["income"] + gap),
+            "spending_alone_can_close": gap <= disc_left + 0.5,
+            "min_extra_income_if_spending_maxed": r(max(gap - disc_left, 0.0)),
+        },
+        "monthly": {
+            "income": r(f["income"]),
+            "spending": r(f["expenses"]),
+            "debt_room": r(room),            # the best plan's debt budget that keeps cash flat
+            "interest": r(interest),         # after the lump sums
+            "card_charges": r(charges),      # after the card cuts
+            "minimums": r(minimums),
+            "principal_paydown": r(paydown),  # negative = the debt grows
+        },
+        "today": {  # no changes at all
+            "debt_change_per_month": r(interest_now + ctx["card_spend"] - ctx["current_debt_payments"]),
+            "cash_change_per_month": r(f["residual"]),
+        },
+        "levers": {
+            "spending_cuts_per_month": r(cut_total),
+            "cuts": cuts,
+            "redirect_per_month": r(redirect),
+            "lump_sums": lumps,
+            "discretionary_left_per_month": r(disc_left),
+        },
+    }
+
+
 def simulate_plan(customer_id: str, plan: dict | None, *, live: bool = True, ctx: dict | None = None) -> dict:
     """Month-by-month: every debt, cash, invested, net worth. plan None = baseline (current behaviour)."""
     keep = (plan or {}).get("keep_emergency_months")

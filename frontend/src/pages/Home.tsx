@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import type { BalanceSheet, Proposal, Tracking } from '../lib/api'
+import type { BalanceSheet, Proposal, RealityCheck as RC, Tracking } from '../lib/api'
 import { isV2, knobsFrom, planFrom } from '../lib/flow'
 import type { Knobs, Preview } from '../lib/flow'
 import Snapshot from '../components/flow/Snapshot'
@@ -10,6 +10,7 @@ import PlanEditor from '../components/flow/PlanEditor'
 import Outcome from '../components/flow/Outcome'
 import PlanTimeline from '../components/flow/PlanTimeline'
 import Chat from '../components/flow/Chat'
+import RealityCheck from '../components/flow/RealityCheck'
 import IncomeExpense from '../components/IncomeExpense'
 import Brand from '../components/Brand'
 import Dashboard from '../components/dash/Dashboard'
@@ -56,6 +57,7 @@ export default function Home() {
     if (show) setView(on ? 'dash' : 'flow')
     return on
   }
+  const [reality, setReality] = useState<RC | null>(null)
 
   useEffect(() => {
     api<{ customer_id: string }[]>('/customers').then((l) => setIds(l.map((c) => c.customer_id)))
@@ -63,11 +65,12 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    setSheet(null); setSummary(null); setAi(null); setKnobs(null); setOutlook(null); setApproved(null); setErr(null)
+    setSheet(null); setSummary(null); setReality(null); setAi(null); setKnobs(null); setOutlook(null); setApproved(null); setErr(null)
     setScreen(0); setReached(0); setRunKey(0); setTrack(null)
     loadTrack(!urlPlan.current)
     api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch((e) => setErr(e.message))
     api<Summary>(`/customers/${cid}/summary`).then(setSummary).catch((e) => setErr(e.message))
+    api<RC>(`/customers/${cid}/reality-check`).then(setReality).catch(() => setReality(null))
     api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => {
       const v2 = ps.filter((p) => isV2(p)).sort((a, b) => b.created_at.localeCompare(a.created_at))
       setPast(v2)
@@ -190,6 +193,7 @@ export default function Home() {
       <div style={{ display: dash ? 'none' : 'block' }}>
 
       {screen === 0 && sheet && summary && <Snapshot sheet={sheet} summary={summary} />}
+      {screen === 0 && reality && <RealityCheck rc={reality} />}
       {screen === 0 && <IncomeExpense cid={cid} />}
       {runKey > 0 && (
         // Stays mounted after the run so Back/Next doesn't start another one.
@@ -198,6 +202,8 @@ export default function Home() {
             onDone={(p, f) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setFinal(f); setKnobs(knobsFrom(p)); setPast((ps) => [p, ...ps.filter((x) => x.id !== p.id)]) } }} />
         </div>
       )}
+      {screen === 1 && thinkingDone && !ai && reality && !reality.realistic && <RealityCheck rc={reality} />}
+      {screen === 2 && reality && <RealityCheck rc={reality} />}
       {screen === 2 && ai && knobs && (
         <PlanEditor ai={ai} headline={ai.simulation.explain?.headline ?? (final ? firstSentence(final) : firstSentence(ai.rationale))} knobs={knobs} setKnobs={setKnobs}
           preview={outlook} busy={busy} error={err} onApprove={approve} onReject={reject}

@@ -61,6 +61,15 @@ def customer_debts(cid: str) -> dict:
     return balance_sheet.balance_sheet(cid)["priority"]
 
 
+@app.get("/api/customers/{cid}/reality-check")
+def customer_reality_check(cid: str) -> dict:
+    """Can the debt shrink with this income and spending, even after every lever? If not, the monthly gap."""
+    _need_customer(cid)
+    from . import wealth
+
+    return wealth.reality_check(cid)
+
+
 # ---------- agent-facing numbers ----------
 
 @app.get("/api/customers/{cid}/summary")
