@@ -2,6 +2,7 @@ import { usd } from '../../lib/api'
 import type { Proposal } from '../../lib/api'
 import type { Preview } from '../../lib/flow'
 import NetWorth from './NetWorth'
+import PlanTimeline from './PlanTimeline'
 
 /** After approve: the net-worth path and what was executed vs scheduled. */
 export default function Outcome({ preview, approved }: { preview: Preview | null; approved: Proposal }) {
@@ -25,6 +26,7 @@ export default function Outcome({ preview, approved }: { preview: Preview | null
         ))}
         {ex.error && <div className="error">{ex.error}</div>}
       </div>
+      <PlanTimeline cid={approved.customer_id} plan={approved.plan} />
     </>
   )
 }
