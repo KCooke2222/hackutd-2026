@@ -118,8 +118,20 @@ def gather_snapshot(customer_id: str) -> dict:
         "ladder": {"emergency_buffer": lad["emergency_buffer"], "keep_months": lad["keep_months"],
                    "tiers": [{k: t[k] for k in ("key", "proposable", "available", "cost_pct")} for t in lad["tiers"]]},
         "totals": sheet["totals"],
+        "reality_check": _reality_brief(customer_id),
         "assumptions": ASSUMPTIONS,
     }
+
+
+def _reality_brief(customer_id: str) -> dict | None:
+    """The reality check without the per-category detail (the LLM gets the verdict and the gap)."""
+    try:
+        from .. import wealth
+
+        rc = wealth.reality_check(customer_id)
+    except Exception:  # noqa: BLE001 - the plan still runs without it
+        return None
+    return {k: rc[k] for k in ("realistic", "message", "gap_per_month", "close_gap", "monthly", "relies_on_redirect")}
 
 
 # ---------- message log helpers ----------
@@ -312,17 +324,24 @@ def build_graph(customer_id: str):
         out: dict = {"messages": messages, "final": final, "proposal_id": st.get("proposal_id")}
         if not st.get("proposal_id"):
             reasons = "; ".join(st.get("last_reasons") or []) or "the agent did not propose a plan"
-            out["error"] = f"No valid plan: {reasons}"[:400]
+            rc = s["snapshot"].get("reality_check") or {}
+            lead = f"{rc['message']} " if rc and not rc.get("realistic") else ""
+            out["error"] = f"{lead}No valid plan: {reasons}"[:700]
         return out
 
     def explain(s: AgentState) -> dict:
         w = _writer()
         _phase(w, "explain", "Writing it up")
         p = store.get_proposal(s["proposal_id"])
-        data, e = _ask_json(llm, prompts.fill(prompts.EXPLAIN, plan=p["plan"], simulation=sim_brief(p["simulation"])))
+        data, e = _ask_json(llm, prompts.fill(prompts.EXPLAIN, plan=p["plan"], simulation=sim_brief(p["simulation"]),
+                                               reality=s["snapshot"].get("reality_check") or {}))
         if not isinstance(data, dict) or not isinstance(data.get("headline"), str) or not data["headline"]:
             sim = p["simulation"]
             data = {"headline": f"High-cost debt $0 by {sim.get('high_cost_debt_free') or 'never'}", "levers": [], "cuts": []}
+        rc = s["snapshot"].get("reality_check") or {}
+        gap = rc.get("gap_per_month") or 0
+        if rc and not rc.get("realistic") and f"{gap:,.0f}" not in data["headline"]:
+            data["headline"] = f"${gap:,.0f}/mo short: {data['headline']}"  # the gap always leads
         try:
             store.annotate(p["id"], explain=data)
         except AttributeError:

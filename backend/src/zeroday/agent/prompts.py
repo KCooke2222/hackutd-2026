@@ -46,7 +46,12 @@ Rules:
 - Compare 2-3 options with simulate_plan. Pick the one with the highest 24-month net worth.
 - Call propose_plan exactly once. If it is rejected, fix the listed reasons and call it again.
   You cannot move money; the customer approves.
-- Then reply with ONE sentence of at most 12 words: the main lever and the result.
+- Read snapshot.reality_check first. It says whether the debt can shrink at all with this income and
+  spending, even after every allowed change. If realistic is false, still propose the best plan you
+  can (it slows the growth), but your reply must lead with the gap_per_month: how much they need to
+  spend less or earn more each month.
+- Then reply with ONE sentence of at most 12 words: the main lever and the result
+  (if reality_check.realistic is false: the monthly gap first).
 This is not financial advice; describe tradeoffs, not orders.
 
 SQL views: {sql_schema}
@@ -61,12 +66,14 @@ Rules:
 - One label per lever (debt payment, source, cut, redirect), ≤6 words, with its $ amount.
 - One headline, ≤10 words: the outcome (e.g. "Both cards $0 by Feb, +$3,900 net worth").
 - For each spending cut, one "how" line, ≤8 words.
-- No advice language, no hedging, no numbers that aren't in the plan.
+- No advice language, no hedging, no numbers that aren't in the plan or the reality check.
+- If reality.realistic is false, the headline starts with the gap: "$<gap_per_month>/mo short: ...".
 
 Return JSON only: {"headline", "levers": [{"kind", "label", "amount"}], "cuts": [{"category", "how"}]}
 
 {plan}
-{simulation}"""
+{simulation}
+Reality check: {reality}"""
 
 # Unused for now: the monthly / drift re-plan (next feature).
 REPLAN = """The customer is following plan {plan_id}. Here is planned vs actual for the last month: {drift}.

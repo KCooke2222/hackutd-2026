@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import type { BalanceSheet, Proposal } from '../lib/api'
+import type { BalanceSheet, Proposal, RealityCheck as RC } from '../lib/api'
 import { isV2, knobsFrom, planFrom } from '../lib/flow'
 import type { Knobs, Preview } from '../lib/flow'
 import Snapshot from '../components/flow/Snapshot'
@@ -8,6 +8,7 @@ import type { Summary } from '../components/flow/Snapshot'
 import Thinking from '../components/flow/Thinking'
 import PlanEditor from '../components/flow/PlanEditor'
 import Outcome from '../components/flow/Outcome'
+import RealityCheck from '../components/flow/RealityCheck'
 import IncomeExpense from '../components/IncomeExpense'
 
 type Health = { nessie: boolean; nvidia: boolean; model: string }
@@ -37,6 +38,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const [reality, setReality] = useState<RC | null>(null)
 
   useEffect(() => {
     api<{ customer_id: string }[]>('/customers').then((l) => setIds(l.map((c) => c.customer_id)))
@@ -44,10 +46,11 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    setSheet(null); setSummary(null); setAi(null); setKnobs(null); setOutlook(null); setApproved(null); setErr(null)
+    setSheet(null); setSummary(null); setReality(null); setAi(null); setKnobs(null); setOutlook(null); setApproved(null); setErr(null)
     setScreen(0); setReached(0); setRunKey(0)
     api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch((e) => setErr(e.message))
     api<Summary>(`/customers/${cid}/summary`).then(setSummary).catch((e) => setErr(e.message))
+    api<RC>(`/customers/${cid}/reality-check`).then(setReality).catch(() => setReality(null))
     api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => setLastPending(ps.find((p) => p.status === 'pending' && isV2(p)) ?? null))
   }, [cid])
 
@@ -121,6 +124,7 @@ export default function Home() {
       {err && screen !== 2 && <div className="error">{err}</div>}
 
       {screen === 0 && sheet && summary && <Snapshot sheet={sheet} summary={summary} />}
+      {screen === 0 && reality && <RealityCheck rc={reality} />}
       {screen === 0 && <IncomeExpense cid={cid} />}
       {runKey > 0 && (
         // Stays mounted after the run so Back/Next doesn't start another one.
@@ -129,6 +133,8 @@ export default function Home() {
             onDone={(p, f) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setFinal(f); setKnobs(knobsFrom(p)); setLastPending(p) } }} />
         </div>
       )}
+      {screen === 1 && thinkingDone && !ai && reality && !reality.realistic && <RealityCheck rc={reality} />}
+      {screen === 2 && reality && <RealityCheck rc={reality} />}
       {screen === 2 && ai && knobs && (
         <PlanEditor ai={ai} headline={ai.simulation.explain?.headline ?? (final ? firstSentence(final) : firstSentence(ai.rationale))} knobs={knobs} setKnobs={setKnobs}
           preview={outlook} busy={busy} error={err} onApprove={approve} onReject={reject} />

@@ -196,6 +196,8 @@ def make_tools(customer_id: str, state: dict | None = None) -> list:
                     "attempts_left": MAX_REJECTIONS + 1 - st["rejections"]}
         sim = dict(sim)
         sim["balances_snapshot"] = balances.snapshot(customer_id)
+        from ..wealth import reality_check
+        sim["reality_check"] = _try(lambda: reality_check(customer_id))
         p = store.create_proposal(customer_id, plan, sim, str(kwargs.get("rationale") or ""))
         st["proposal_id"] = p["id"]
         return {"saved": True, "proposal_id": p["id"], **{k: v for k, v in sim_brief(sim).items() if k != "debts"}}
