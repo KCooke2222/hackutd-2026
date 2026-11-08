@@ -186,9 +186,9 @@ button.primary:hover:not(:disabled) { background: var(--accent-ink); border-colo
 .alert { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .alert:last-child { border-bottom: 0; }
 .dash-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: var(--gap) 0 8px; }
-.dash-tiles > div { display: flex; flex-direction: column; gap: 1px; background: var(--soft); border-radius: var(--tile-radius); padding: 8px 12px; color: var(--muted); }
+.dash-tiles > div { display: flex; flex-direction: column; gap: 1px; background: var(--panel); border-radius: var(--tile-radius); padding: 8px 12px; color: var(--muted); }
 .dash-tiles b { font-size: 15px; color: var(--muted); font-weight: 600; }
-.switch { border-color: var(--accent-line); }
+.switch { border: 1px solid var(--accent-line); }
 .switch-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
 .opt { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--line); border-radius: var(--tile-radius); padding: 12px 14px; background: var(--panel); }
 .opt h3 { margin: 0; }
