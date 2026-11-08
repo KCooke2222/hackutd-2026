@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, usd } from '../lib/api'
-import { C, FLOW_SERIES, short } from '../lib/chart'
+import { C, FLOW_SERIES, INK, short } from '../lib/chart'
 
 type Month = {
   month: string; income: number; essentials: number; discretionary: number; debt_payments: number
@@ -24,9 +24,9 @@ export default function IncomeExpense({ cid }: { cid: string }) {
   const data = cf.months.map((m) => ({ ...m, debt_payments: Math.max(0, m.debt_payments), label: mon(m.month) }))
   // Left over = what stays in cash (the change in PNC cash), so it is the "saved" number too.
   const stats = [
-    { k: 'Income', v: a.income, color: C.income, line: 'solid' },
-    ...FLOW_SERIES.map((s) => ({ k: s.name, v: a[s.key], color: s.color, line: 'bar' })),
-    { k: 'Left over', v: a.surplus, color: C.leftOver, line: 'dash' },
+    { k: 'Income', v: a.income, color: C.income, ink: INK.income, line: 'solid' },
+    ...FLOW_SERIES.map((s) => ({ k: s.name, v: a[s.key], color: s.color, ink: s.ink, line: 'bar' })),
+    { k: 'Left over', v: a.surplus, color: C.leftOver, ink: INK.leftOver, line: 'dash' },
   ]
 
   return (
@@ -36,7 +36,7 @@ export default function IncomeExpense({ cid }: { cid: string }) {
         {stats.map((s) => (
           <div key={s.k}>
             <div className="k"><i className={s.line} style={{ borderColor: s.color }} />{s.k}</div>
-            <div className="v" style={{ color: s.color }}>{usd(s.v)}</div>
+            <div className="v" style={{ color: s.ink }}>{usd(s.v)}</div>
           </div>
         ))}
       </div>

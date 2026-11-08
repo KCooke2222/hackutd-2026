@@ -258,12 +258,14 @@ html[data-direction="mac-light"] { --bg: #f2f2f7; --panel: #ffffff; --soft: #f2f
   --accent: #0f7a4a; --accent-ink: #0a5c37; --accent-soft: #e3f1e9; --accent-line: #a9d5bd; --on-accent: #fff;
   --good: #2e8b2e; --good-soft: #e8f5e3;
   --info-soft: #edf5f0; --info-line: #c9e2d3;
-  /* Chart palette (lib/chart.ts): the plan and money kept are the logo green; doing nothing is grey;
-     income is ink; spending is grey + ochre; debt is clay; cash / left over is steel blue. */
-  --c-in: #1d1d1f; --c-ess: #a1a1a6; --c-disc: #d9962b; --c-debt: #c2502e; --c-save: #0f7a4a;
-  --c-left: #3a7ca5; --c-adj: #3a7ca5;
-  --d1: #c2502e; --d2: #d9962b; --d3: #8a5a9e; --d4: #b23a5f; --d5: #7a5a3a; --d6: #e07b5a;
-  --a1: #3a7ca5; --a2: #0f7a4a; --a3: #5fa37f; --a4: #6d9fc4; --a5: #a1a1a6; --a6: #9aa83a; }
+  /* Chart palette (lib/chart.ts), "Evergreen" toned less blue: greens and teals around the logo green;
+     debt is the one warm colour (coral). *-ink = darker shade for numbers printed in a series colour. */
+  --c-in: #1f2d26; --c-ess: #69c59f; --c-disc: #1a9483; --c-debt: #ea856b; --c-save: #0f7a4a;
+  --c-left: #3d6b78; --c-adj: #3d6b78;
+  --c-in-ink: #1f2d26; --c-ess-ink: #006d4c; --c-disc-ink: #0b6b5e; --c-debt-ink: #953922;
+  --c-save-ink: #0f7a4a; --c-left-ink: #2f5662;
+  --d1: #973e28; --d2: #b85c45; --d3: #da7a62; --d4: #f9967d; --d5: #c9714f; --d6: #7d3322;
+  --a1: #3d6b78; --a2: #0f7a4a; --a3: #69c59f; --a4: #a6aea9; --a5: #a1a1a6; --a6: #1a9483; }
 html[data-direction="mac-light"] .card { padding: 6px 16px 10px; }
 html[data-direction="mac-light"] .card h2 { margin: 10px 0 4px; font-size: 16px; }
 html[data-direction="mac-light"] .hero .big { font-weight: 700; letter-spacing: -.025em; }
