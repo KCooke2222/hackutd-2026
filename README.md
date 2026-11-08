@@ -3,7 +3,7 @@
 By Team Paidway (HackUTD 2026).
 
 
-A proactive credit-card payoff agent for the PNC challenge (HackUTD 2026). It reads a customer's
+A proactive financial advisory agent that helps customers proactively pay off their debt for the PNC challenge (HackUTD 2026). It reads a customer's
 accounts, explains why the card balance isn't going down (new spending + 22.5% interest refill
 every payment), and proposes one plan to reach $0. **The agent can't move money.** It only saves
 a pending proposal; a human approves, edits or rejects it, and only the approve endpoint can call
