@@ -150,6 +150,7 @@ def agent_stream(customer_id: str, instruction: str | None = None) -> StreamingR
 
 class PlanIn(BaseModel):
     plan: dict
+    constraints: dict | None = None  # the proposal's customer rules (PR 4), so the preview matches approve
 
 
 @app.post("/api/customers/{cid}/plan/simulate")
@@ -167,7 +168,7 @@ def plan_simulate(cid: str, body: PlanIn) -> dict:
     try:
         from .agent.validator import validate_plan_v2
 
-        validate_plan_v2(cid, plan)
+        validate_plan_v2(cid, plan, constraints=body.constraints)
         reasons: list[str] = []
     except PlanRejected as e:
         reasons = list(getattr(e, "reasons", None) or [str(e)])
@@ -201,3 +202,89 @@ def reject_proposal(pid: str) -> dict:
     if not p:
         raise HTTPException(404, "no such proposal")
     return store.set_status(pid, "rejected")
+
+
+# ---------- talk to the plan (PR 4) ----------
+
+class AdjustIn(BaseModel):
+    message: str
+
+
+def _adjust_events(pid: str, message: str):
+    from .agent.graph import stream_adjust
+
+    p = store.get_proposal(pid)
+    for ev in stream_adjust(pid, message):
+        msgs = ev.pop("messages", None)
+        if msgs and p:
+            store.log_run(p["customer_id"], msgs)
+        if ev["type"] == "done":
+            ev["proposal"] = store.get_proposal(ev["proposal_id"]) if ev.get("proposal_id") else None
+        yield ev
+
+
+def _check_adjustable(pid: str) -> None:
+    from .agent.graph import AdjustError, adjustable
+
+    try:
+        adjustable(pid)
+    except AdjustError as e:
+        raise HTTPException(e.status, e.detail)
+
+
+@app.get("/api/proposals/{pid}/adjust/stream")
+def adjust_stream(pid: str, message: str = Query(..., min_length=1, max_length=500)) -> StreamingResponse:
+    """Server-sent events for one "talk to the plan" change; same events as /api/agent/stream plus
+    `constraints`, `clarify` and `compare`. `done` carries the new pending proposal (the old one is superseded)."""
+    _check_adjustable(pid)
+
+    def events():
+        import json
+
+        for ev in _adjust_events(pid, message):
+            yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.post("/api/proposals/{pid}/adjust")
+def adjust_proposal(pid: str, body: AdjustIn) -> dict:
+    """Blocking version of adjust/stream (scripts, eval). Returns the `done` event, or 422 with the error."""
+    _check_adjustable(pid)
+    last: dict = {}
+    for ev in _adjust_events(pid, body.message):
+        if ev["type"] in ("done", "error"):
+            last = ev
+    if last.get("type") != "done":
+        raise HTTPException(422, last.get("error") or "adjust failed")
+    return last
+
+
+@app.post("/api/proposals/{pid}/restore")
+def restore_proposal(pid: str) -> dict:
+    """"Keep previous": supersede this adjusted plan and make its parent pending again."""
+    p = store.restore(pid)
+    if not p:
+        raise HTTPException(409, "only the latest adjusted plan can be undone")
+    return p
+
+
+class RuleIn(BaseModel):
+    key: str
+    item: str | None = None
+
+
+@app.post("/api/proposals/{pid}/constraints/remove")
+def remove_constraint(pid: str, body: RuleIn) -> dict:
+    """Drop one customer rule. The plan itself doesn't change; ask for a change to re-plan without it."""
+    from .agent import constraints as C
+
+    p = store.get_proposal(pid)
+    if not p:
+        raise HTTPException(404, "no such proposal")
+    if p["status"] != "pending":
+        raise HTTPException(409, f"proposal is {p['status']}, not pending")
+    out = store.set_constraints(pid, C.remove(p.get("constraints"), body.key, body.item))
+    sim = {**(out["simulation"] or {}), "constraint_labels": C.describe(out.get("constraints"))}
+    store.annotate(pid, constraint_labels=sim["constraint_labels"])
+    return {**out, "simulation": sim}

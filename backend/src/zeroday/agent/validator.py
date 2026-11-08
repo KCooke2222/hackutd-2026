@@ -178,9 +178,10 @@ MAX_HOW_WORDS = 8
 NEVER_SOURCES = {"ira", "retirement", "property", "401k", "home"}
 
 
-def validate_plan_v2(customer_id: str, plan: dict, *, live: bool = True) -> dict:
+def validate_plan_v2(customer_id: str, plan: dict, *, live: bool = True, constraints: dict | None = None) -> dict:
     """Check a v2 plan against the data and assumptions; return wealth.simulate_plan(...) or raise PlanRejected
-    listing every reason. Recomputes every number: the plan's own `current` figures are ignored."""
+    listing every reason. Recomputes every number: the plan's own `current` figures are ignored.
+    `constraints` are the customer's own rules from "talk to the plan" (agent/constraints.py)."""
     from .. import assumptions as A
     from .. import wealth
 
@@ -278,6 +279,11 @@ def validate_plan_v2(customer_id: str, plan: dict, *, live: bool = True) -> dict
     for x in plan.get("autopay_full_cards") or []:
         if x not in debts or not debts[x]["is_card"]:
             reasons.append(f"autopay_full_cards: {x!r} is not a credit card with a balance")
+
+    if constraints:
+        from .constraints import check
+
+        reasons += check(plan, constraints, ctx["spend"])
 
     if reasons:
         raise PlanRejected(reasons)
