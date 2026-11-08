@@ -527,7 +527,10 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
                 # per-account balances for the plan timeline (timeline.py); not sent to the LLM
                 "balances": {"debts": {k: round(d["bal"], 2) for k, d in debts.items()},
                              "assets": {"cash": round(cash, 2), **{k: round(v, 2) for k, v in inv.items()},
-                                        "property": round(prop, 2)}}}
+                                        "property": round(prop, 2)}},
+                # the same balances, rounded to dollars (plan-view breakdown)
+                "parts": {"cash": round(cash), **{k: round(v) for k, v in inv.items()}, "property": round(prop),
+                          "debts": {k: round(d["bal"]) for k, d in debts.items()}}}
 
     months = [snapshot(0)]
     high_free = 0 if months[0]["high_cost_debt"] <= 0.01 else None
