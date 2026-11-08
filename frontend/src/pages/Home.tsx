@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Check } from 'lucide-react'
 import { api, fmtDuration } from '../lib/api'
 import type { BalanceSheet, Proposal, RealityCheck as RC, ReplayMeta, ReplayRun, Tracking } from '../lib/api'
 import { isV2, knobsFrom, planFrom } from '../lib/flow'
@@ -36,11 +37,6 @@ function storeRun(c: string, id: string | null) {
   } catch { /* private window: re-attach falls back to /agent/runs/latest */ }
 }
 
-const firstSentence = (s: string) => {
-  const w = (s.match(/^.*?[.!?](\s|$)/)?.[0] ?? s).trim().split(/\s+/)
-  return w.length > 12 ? `${w.slice(0, 12).join(' ')}…` : w.join(' ')
-}
-
 export default function Home() {
   const [cid, setCid] = useState(() => new URLSearchParams(location.search).get('customer') ?? 'C001')
   const [health, setHealth] = useState<Health | null>(null)
@@ -57,7 +53,6 @@ export default function Home() {
   const lastPending = past.find((p) => p.status === 'pending') ?? null
   const urlPlan = useRef(new URLSearchParams(location.search).get('plan'))
   const urlReplay = useRef(new URLSearchParams(location.search).get('replay'))
-  const [final, setFinal] = useState('')
   const [knobs, setKnobs] = useState<Knobs | null>(null)
   const [outlook, setOutlook] = useState<Preview | null>(null)
   const [approved, setApproved] = useState<Proposal | null>(null)
@@ -138,7 +133,7 @@ export default function Home() {
       if (want) {
         urlPlan.current = null
         const hit = want === 'last' ? v2.find((p) => p.status === 'pending') ?? v2[0] : v2.find((p) => p.id === want)
-        if (hit) openPlan(hit, '')
+        if (hit) openPlan(hit)
       }
     })
     setReplays([])
@@ -163,15 +158,15 @@ export default function Home() {
     setView('flow'); setScreen(i); setReached((r) => Math.max(r, i)); setErr(null)
   }
 
-  function openPlan(p: Proposal, why: string) {
-    setAi(p); setFinal(why); setKnobs(knobsFrom(p)); setApproved(null); go(2)
+  function openPlan(p: Proposal) {
+    setAi(p); setKnobs(knobsFrom(p)); setApproved(null); go(2)
   }
 
   /** Talk to the plan produced a new pending plan (or Undo restored the previous one). */
   function adjusted(p: Proposal) {
     const prev = ai?.id
     setPast((ps) => [p, ...ps.filter((x) => x.id !== p.id).map((x) => (x.id === prev ? { ...x, status: 'superseded' } : x))])
-    setAi(p); setFinal(''); setKnobs(knobsFrom(p)); setApproved(null); setErr(null)
+    setAi(p); setKnobs(knobsFrom(p)); setApproved(null); setErr(null)
   }
 
   /** Start a live agent run, or (with `rp`) replay a recorded one through the same Thinking screen. */
@@ -211,7 +206,7 @@ export default function Home() {
     const v2 = ps.filter((p) => isV2(p)).sort((a, b) => b.created_at.localeCompare(a.created_at))
     setPast(v2)
     const hit = v2.find((p) => p.id === id)
-    if (hit) { setReached(2); openPlan(hit, '') }
+    if (hit) { setReached(2); openPlan(hit) }
   }
 
   /** Logo click: the dashboard if there's an approved plan, else the Snapshot step. A run in progress keeps going. */
@@ -231,7 +226,7 @@ export default function Home() {
           <nav className="dots" aria-label="Steps">
             {NAMES.map((n, j) => (
               <button key={n} className={!dash && j === screen ? 'on' : j < reached ? 'done' : ''} disabled={!canGo(j)} onClick={() => go(j)} aria-current={!dash && j === screen ? 'step' : undefined}>
-                <span className="n">{j < reached && (dash || j !== screen) ? '✓' : j + 1}</span>{n}
+                <span className="n">{j < reached && (dash || j !== screen) ? <Check size={12} strokeWidth={3} /> : j + 1}</span>{n}
               </button>
             ))}
           </nav>
@@ -264,13 +259,13 @@ export default function Home() {
         <div style={{ display: screen === 1 ? 'block' : 'none' }}>
           <Thinking key={cid} cid={cid} model={replay ? (replays.find((r) => r.id === replay.id)?.model ?? health?.model ?? '') : health?.model ?? ''} runKey={runKey} replay={replay} attach={attach}
             onRun={(m) => storeRun(m.customer_id, m.run_id)}
-            onDone={(p, f) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setFinal(f); setKnobs(knobsFrom(p)); setPast((ps) => [p, ...ps.filter((x) => x.id !== p.id)]); setReached((r) => Math.max(r, 2)) } }} />
+            onDone={(p) => { setThinkingDone(true); if (isV2(p)) { setAi(p); setKnobs(knobsFrom(p)); setPast((ps) => [p, ...ps.filter((x) => x.id !== p.id)]); setReached((r) => Math.max(r, 2)) } }} />
         </div>
       )}
       {screen === 1 && thinkingDone && !ai && reality && !reality.realistic && <RealityCheck rc={reality} />}
-      {screen === 2 && reality && <RealityCheck rc={reality} />}
+      {screen === 2 && reality && !reality.realistic && <RealityCheck rc={reality} />}
       {screen === 2 && ai && knobs && (
-        <PlanEditor ai={ai} headline={ai.simulation.explain?.headline ?? (final ? firstSentence(final) : firstSentence(ai.rationale))} knobs={knobs} setKnobs={setKnobs}
+        <PlanEditor ai={ai} knobs={knobs} setKnobs={setKnobs}
           preview={outlook} busy={busy} error={err} onApprove={approve} onReject={reject}
           chat={<Chat ai={ai} onAdjusted={adjusted} onRules={setAi} />} />
       )}
@@ -289,14 +284,14 @@ export default function Home() {
         {screen === 0 && (
           <span className="flow-actions">
             {past.length > 0 && (
-              <select aria-label="Previous runs" value="" onChange={(e) => { const p = past.find((x) => x.id === e.target.value); if (p) openPlan(p, '') }}>
+              <select aria-label="Previous runs" value="" onChange={(e) => { const p = past.find((x) => x.id === e.target.value); if (p) openPlan(p) }}>
                 <option value="">Previous runs ({past.length})</option>
                 {past.map((p) => (
                   <option key={p.id} value={p.id}>{new Date(p.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · {p.status}{p.simulation?.explain?.headline ? ` · ${p.simulation.explain.headline}` : ''}</option>
                 ))}
               </select>
             )}
-            {lastPending && <button className="ghost" onClick={() => openPlan(lastPending, '')}>Open last plan</button>}
+            {lastPending && <button className="ghost" onClick={() => openPlan(lastPending)}>Open last plan</button>}
             {replays.length > 0 && (
               <select value="" aria-label="Load cached run" title="Replay a recorded agent run (no model call), sped up 8×"
                 onChange={(e) => { const r = replays.find((x) => x.id === e.target.value); if (r) findPlan({ id: r.id, speed: 8, duration_ms: r.duration_ms }) }}>

@@ -1,12 +1,35 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, usd } from '../../lib/api'
 import type { Compare, Proposal, RuleLabel } from '../../lib/api'
-import { ym } from '../../lib/flow'
+import { title, ym } from '../../lib/flow'
+import { Mic, Square, X } from 'lucide-react'
 import Steps from './Steps'
 import { listenSteps } from '../../lib/steps'
 import type { Step } from '../../lib/steps'
 
-const SUGGEST = ["Don't touch my savings", 'Keep 6 months of cash', 'I can cut dining more', "Don't cut shopping"]
+const FALLBACK = ['Finish sooner', 'Lower my monthly payment', 'Keep 6 months of cash']
+
+/** 3-4 suggestions that fit this plan: what it spends from, what it cuts, which debt goes first. */
+function suggest(p: Proposal): string[] {
+  const pl = p.plan
+  const out: string[] = []
+  const src = new Set(pl.lump_sums.map((l) => l.source))
+  if (src.has('cash')) out.push("Don't touch my savings")
+  if (src.has('brokerage')) out.push("Don't sell my investments")
+  if (src.has('cd')) out.push('Leave my CD alone')
+  if (pl.redirects.length) out.push('Keep investing every month')
+  const cuts = [...pl.spending_targets].sort((a, b) => (b.current - b.target) - (a.current - a.target))
+  if (cuts[0]) out.push(`Don't cut ${title(cuts[0].category).toLowerCase()}`)
+  if (cuts[1]) out.push(`I can cut ${title(cuts[1].category).toLowerCase()} more`)
+  const debts = p.simulation.debts.filter((d) => d.balance > 0)
+  const top = [...debts].sort((a, b) => b.apr_pct - a.apr_pct)[0]
+  if (top && pl.extra_order[0] !== top.account_id) out.push(`Pay ${top.name} off first`)
+  const late = debts.filter((d) => d.payoff_month == null).sort((a, b) => b.apr_pct - a.apr_pct)[0]
+  if (late && late !== top) out.push(`Pay off ${late.name} within 2 years`)
+  for (const f of FALLBACK) out.push(f)
+  const rules = new Set((p.simulation.constraint_labels ?? []).map((r) => r.label.toLowerCase()))
+  return [...new Set(out)].filter((x) => !rules.has(x.toLowerCase())).slice(0, 4)
+}
 
 type Run = { steps: Step[]; done: boolean; error: string | null; clarify: string | null; added: RuleLabel[]; dropped: string[] }
 type Result = { compare: Compare; proposal: Proposal; request: string }
@@ -140,7 +163,7 @@ export default function Chat({ ai, onAdjusted, onRules }: {
           {rules.map((r) => (
             <span key={`${r.key}:${r.item}`} className="tag" style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
               {r.label}
-              <button className="ghost" aria-label={`remove rule ${r.label}`} disabled={busy || running} onClick={() => dropRule(r)}>×</button>
+              <button className="ghost" aria-label={`remove rule ${r.label}`} disabled={busy || running} onClick={() => dropRule(r)}><X size={12} strokeWidth={2} className="ic-inline" /></button>
             </span>
           ))}
         </div>
@@ -148,12 +171,12 @@ export default function Chat({ ai, onAdjusted, onRules }: {
       <form style={{ display: 'flex', gap: 6 }} onSubmit={(e) => { e.preventDefault(); send(text) }}>
         <input style={{ flex: 1 }} value={text} onChange={(e) => setText(e.target.value)} disabled={running}
           placeholder={listening ? 'Listening…' : 'e.g. "don\'t touch my savings"'} aria-label="change the plan" maxLength={500} />
-        {SpeechCtor && <button type="button" onClick={mic} disabled={running} aria-label="speak" className={listening ? 'primary' : ''}>{listening ? '■' : '🎤'}</button>}
+        {SpeechCtor && <button type="button" onClick={mic} disabled={running} aria-label="speak" className={`icon-btn ${listening ? 'primary' : ''}`}>{listening ? <Square size={14} strokeWidth={2} /> : <Mic size={16} strokeWidth={2} />}</button>}
         <button className="primary" type="submit" disabled={running || !text.trim()}>{running ? 'Working…' : 'Send'}</button>
       </form>
       {!run && !result && (
         <div className="chips" style={{ marginTop: 8 }}>
-          {SUGGEST.map((s) => <button key={s} className="chip" onClick={() => send(s)}>{s}</button>)}
+          {suggest(ai).map((s) => <button key={s} className="chip" onClick={() => send(s)}>{s}</button>)}
         </div>
       )}
       {run && (running || run.error || run.clarify) && <Steps steps={run.steps} done={run.done} waiting="Reading your plan" />}

@@ -36,7 +36,7 @@ h2 { font-size: 18px; } h3 { font-size: 16px; }
 .brand { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); font-family: var(--font-display); font-weight: 600; font-size: 19px; letter-spacing: -.02em; }
 .brand .mark { display: block; flex: none; }
 .who { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
-.who.seg { gap: 0; color: inherit; }
+.who.seg { gap: 2px; font-size: 13px; color: inherit; }
 .page { max-width: var(--w); margin: 0 auto; padding: 24px 24px 0; }
 
 .muted { color: var(--muted); } .small { font-size: 12px; }
@@ -87,6 +87,8 @@ button.primary:hover:not(:disabled) { background: var(--accent-ink); border-colo
 .flow-actions select { max-width: 340px; min-width: 0; text-overflow: ellipsis; }
 .ghost { border: 0 !important; background: none !important; color: var(--muted); font-size: 13px; padding: 2px 4px !important; }
 .ghost:hover:not(:disabled) { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.icon-btn { display: inline-grid; place-items: center; padding: 0 10px; }
+.ghost .ic-inline, .ghost svg { display: block; }
 
 /* snapshot */
 .hero { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; align-items: center; border-top: 3px solid var(--accent); padding-top: 18px; }
@@ -110,7 +112,10 @@ button.primary:hover:not(:disabled) { background: var(--accent-ink); border-colo
 /* thinking */
 .step { display: grid; grid-template-columns: 24px 1fr auto; gap: 2px 10px; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--line); animation: step-in .25s ease; }
 .step:last-child { border-bottom: 0; }
-.step .ic { width: 24px; height: 24px; border-radius: 7px; background: var(--soft); display: grid; place-items: center; font-size: 12px; }
+.step .ic { width: 24px; height: 24px; border-radius: 7px; background: var(--soft); display: grid; place-items: center; font-size: 12px; color: var(--muted); }
+.step.run .ic { color: var(--accent); }
+.spin-ic { animation: spin .9s linear infinite; }
+.ic-inline { vertical-align: -3px; }
 .step.run .ic { background: var(--accent-soft); }
 .step .res { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .step.run .res { color: var(--muted); font-weight: 400; }
@@ -161,9 +166,11 @@ button.primary:hover:not(:disabled) { background: var(--accent-ink); border-colo
 .scrub .when { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 82px; }
 .scrub input { width: 100%; accent-color: var(--accent); border: 0; padding: 0; background: none; }
 .was { color: var(--muted); font-weight: 400; font-size: 12px; text-decoration: line-through; margin-right: 6px; }
-.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
-.seg button { border: 0; border-radius: 0; padding: 4px 11px; font-size: 12px; background: transparent; }
-.seg button.on { background: var(--ink); color: var(--on-ink); }
+/* Segmented control: one look for every switch (customer, plan tabs, chart toggles). */
+.seg { display: inline-flex; gap: 2px; padding: 2px; background: var(--line); border-radius: 8px; }
+.seg button { border: 0; border-radius: 6px; padding: 4px 12px; font-size: 13px; line-height: 20px; background: transparent; color: var(--muted); }
+.seg button:hover:not(:disabled):not(.on) { color: var(--text); }
+.seg button.on { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
 
 /* recharts in both themes */
 .recharts-default-tooltip { background: var(--panel) !important; border: 1px solid var(--line) !important; border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, .12); }
@@ -204,7 +211,7 @@ button.primary:hover:not(:disabled) { background: var(--accent-ink); border-colo
 
 /* scenarios (what if) */
 .scn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 8px; }
-.scn { text-align: left; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); padding: 8px 10px; cursor: pointer; font: inherit; display: grid; gap: 4px; }
+.scn { white-space: normal; min-width: 0; overflow-wrap: anywhere; text-align: left; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); padding: 8px 10px; cursor: pointer; font: inherit; display: grid; gap: 4px; }
 .scn.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .scn .lbl { font-weight: 600; font-size: 13px; }
 .scn .sub { font-size: 12px; color: var(--muted); }

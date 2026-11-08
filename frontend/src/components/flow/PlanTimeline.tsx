@@ -3,6 +3,7 @@ import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Too
 import { api, usd } from '../../lib/api'
 import type { PlanV2, Timeline, TimelineAccount, TimelineChange } from '../../lib/api'
 import { ym, ymShort } from '../../lib/flow'
+import { ArrowRight, Equal } from 'lucide-react'
 import CashflowAhead from './CashflowAhead'
 import { ASSET_COLORS, C, DEBT_COLORS, GREY, short } from '../../lib/chart'
 
@@ -161,7 +162,7 @@ function Changes({ changes }: { changes: TimelineChange[] }) {
             <div className="group-label">{g}</div>
             {rows.map((c) => (
               <div key={c.label} className="move">
-                {c.changed ? <span className="ok" style={{ color: 'var(--accent)' }}>→</span> : <span className="same">=</span>}
+                {c.changed ? <span className="ok" style={{ color: 'var(--accent)' }}><ArrowRight size={14} strokeWidth={2} className="ic-inline" /></span> : <span className="same"><Equal size={14} strokeWidth={2} className="ic-inline" /></span>}
                 <span><b>{c.label}</b>: <span className={c.changed ? '' : 'muted'}>{c.text}</span></span>
                 <span />
                 {c.sub && <span className="sub">{c.sub}</span>}
@@ -171,7 +172,7 @@ function Changes({ changes }: { changes: TimelineChange[] }) {
         )
       })}
       <div className="small muted" style={{ marginTop: 6 }}>
-        <span style={{ color: 'var(--accent)' }}>→</span> changes under the plan · = keep doing what you do now
+        <span style={{ color: 'var(--accent)' }}><ArrowRight size={14} strokeWidth={2} className="ic-inline" /></span> changes under the plan · <Equal size={14} strokeWidth={2} className="ic-inline" /> keep doing what you do now
       </div>
     </div>
   )

@@ -3,6 +3,7 @@ import { usd } from '../../lib/api'
 import type { TrackDebt, TrackLevel, Tracking } from '../../lib/api'
 import { ym, ymShort } from '../../lib/flow'
 import { C } from '../../lib/chart'
+import { ArrowRight, Check as CheckIcon, Circle } from 'lucide-react'
 import SwitchPlan from './SwitchPlan'
 
 const LEVEL: Record<TrackLevel | 'good', [string, string]> = {
@@ -35,7 +36,7 @@ export default function Dashboard({ cid, t, onChose, onReplan, onSnapshot }: {
           <div key={k} className="dash-why pop">
             {st.breaks.map((b) => <div key={b} className="move"><span className="bad">!</span><span>{b}</span><span /></div>)}
             {st.level !== 'on_track' && st.reasons.map((r) => <div key={r} className="move"><span className="same">·</span><span>{r}</span><span /></div>)}
-            {st.nudges.map((n) => <div key={n} className="move"><span className="ok" style={{ color: 'var(--warn-ink)' }}>→</span><span>{n}</span><span /></div>)}
+            {st.nudges.map((n) => <div key={n} className="move"><span className="ok" style={{ color: 'var(--warn-ink)' }}><ArrowRight size={14} strokeWidth={2} className="ic-inline" /></span><span>{n}</span><span /></div>)}
           </div>
         )}
       </div>
@@ -111,7 +112,7 @@ function Milestones({ t }: { t: Tracking }) {
       {rows.map((d) => <Check key={d.account_id} done={d.done} late={!d.done && d.late_months > 0} label={`${d.name} $0`} goal={d.goal_month} proj={d.done ? null : d.projected_month} />)}
       <Check done={t.status.goal_reached} late={!t.status.goal_reached && t.status.late_months > 0} label="All high-cost debt $0" goal={t.goal.month} proj={t.status.goal_reached ? null : t.status.projected_month} strong />
       <div className="move dim">
-        <span className={nwOk ? 'ok' : 'same'}>{nwOk ? '✓' : '○'}</span>
+        <span className={nwOk ? 'ok' : 'same'}>{nwOk ? <CheckIcon size={14} strokeWidth={2.5} className="ic-inline" /> : <Circle size={14} strokeWidth={2} className="ic-inline" />}</span>
         <span className="muted">Net worth in 24 mo ≥ {usd(t.goal.net_worth_24m)}</span>
         <span className="small muted num">{usd(t.goal.projected_net_worth_24m)}</span>
       </div>
@@ -122,7 +123,7 @@ function Milestones({ t }: { t: Tracking }) {
 function Check({ done, late, label, goal, proj, strong }: { done: boolean; late: boolean; label: string; goal: string | null; proj: string | null; strong?: boolean }) {
   return (
     <div className="move">
-      <span className={done ? 'ok' : late ? 'bad' : 'same'}>{done ? '✓' : '○'}</span>
+      <span className={done ? 'ok' : late ? 'bad' : 'same'}>{done ? <CheckIcon size={14} strokeWidth={2.5} className="ic-inline" /> : <Circle size={14} strokeWidth={2} className="ic-inline" />}</span>
       <span>{strong ? <b>{label}</b> : label}</span>
       <span className="small num">{done ? <span className="good">done</span> : <>{ym(goal)}</>}</span>
       {!done && proj && proj !== goal && <span className="sub">{late ? 'now' : 'now ahead:'} {ym(proj)}</span>}
