@@ -1,0 +1,9 @@
+[Unit]
+Description=Check every minute whether the Paidway demo has been idle long enough to reset
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target

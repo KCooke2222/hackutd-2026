@@ -1,0 +1,14 @@
+[Unit]
+Description=Paidway API (public demo)
+After=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/paidway/backend
+EnvironmentFile=/opt/paidway/deploy/paidway.env
+ExecStart=/opt/paidway/backend/.venv/bin/uvicorn paidway.api.main:app --app-dir src --host 127.0.0.1 --port 8720 --timeout-graceful-shutdown 5
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

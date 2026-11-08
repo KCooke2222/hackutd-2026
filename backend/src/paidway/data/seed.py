@@ -16,10 +16,10 @@ from __future__ import annotations
 import json
 import sys
 
-from ..config import BACKEND_DIR, NESSIE_KEY
+from ..config import NESSIE_IDS_PATH, NESSIE_KEY, NESSIE_SEED_TAG
 from . import pnc_data
 
-IDS_PATH = BACKEND_DIR / "data" / "nessie_ids.json"
+IDS_PATH = NESSIE_IDS_PATH
 NESSIE_TYPES = {"checking": "Checking", "savings": "Savings", "credit_card": "Credit Card"}
 DEFAULT_CUSTOMERS = ["C001", "C027"]  # the seeded demo customers
 PURCHASE_MONTHS = 2
@@ -123,8 +123,8 @@ def seed(customer_ids: list[str], reload_local: bool = True) -> dict:
             continue
         if not entry.get("customer"):  # Nessie can't delete customers: reuse "PNC <cid>" from an earlier seed
             if existing is None:
-                existing = {c.get("last_name"): c for c in read.customers() if c.get("first_name") == "PNC"}
-            entry["customer"] = (existing.get(cid) or write.create_customer("PNC", cid)["objectCreated"])["_id"]
+                existing = {c.get("last_name"): c for c in read.customers() if c.get("first_name") == NESSIE_SEED_TAG}
+            entry["customer"] = (existing.get(cid) or write.create_customer(NESSIE_SEED_TAG, cid)["objectCreated"])["_id"]
         accounts = entry.setdefault("accounts", {})
         for k, aid in PRIMARY.items():  # accounts an older seed made: adopt them
             if entry.get(aid) and k.format(cid=cid) not in accounts:
@@ -163,6 +163,8 @@ def reseed(customer_ids: list[str]) -> dict:
 
     Nessie assigns new ids on every seed, so the map is always rebuilt from scratch.
     """
+    if NESSIE_SEED_TAG != "PNC":  # a deployment sharing the key must never wipe the whole key's data
+        raise SystemExit(f"reseed wipes every account on this Nessie key; refused for tag {NESSIE_SEED_TAG!r}")
     if not NESSIE_KEY:
         print("NESSIE_KEY not set; nothing to reseed in Nessie (app runs on local PNC CSVs).")
         load_pnc()
