@@ -325,7 +325,7 @@ export default function Home() {
           </AgentActions>
         </PlanReport>
       )}
-      {screen === 2 && ai && knobs && planTab === 'whatif' && <Scenarios cid={cid} plan={planFrom(ai, knobs)} />}
+      {screen === 2 && ai && knobs && planTab === 'whatif' && <Scenarios cid={cid} plan={planFrom(ai, knobs)} ai={ai} onAdjusted={adjusted} onShowPlan={() => setPlanTab('plan')} />}
       {screen === 3 && approved && <Outcome preview={outlook} approved={approved} planned={pv} sheet={sheet} onChange={(p) => { setApproved(p); loadTrack(false) }} />}
 
       <div className="flow-nav">

@@ -29,6 +29,10 @@ async def _lifespan(_app):
 
 app = FastAPI(title="Paidway", lifespan=_lifespan)
 
+from .guard import install as _install_guard  # noqa: E402
+
+_install_guard(app)  # rate limits + idle-reset stamp, public deploy only (PAIDWAY_PUBLIC=1)
+
 from .insights import router as _insights_router  # noqa: E402
 
 app.include_router(_insights_router)

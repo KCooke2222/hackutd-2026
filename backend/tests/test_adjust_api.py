@@ -24,6 +24,9 @@ class FakeLLM:
         self.replies = list(replies)
         self.prompts: list[str] = []
 
+    def bind(self, **_):  # graph._budgeted caps reasoning tokens; the fake ignores it
+        return self
+
     def invoke(self, messages):
         self.prompts.append(messages[0][1])
         return FakeMsg(json.dumps(self.replies.pop(0)))

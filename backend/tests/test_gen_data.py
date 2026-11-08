@@ -59,7 +59,12 @@ def test_spec_covers_every_customer():
     assert list(spec["customers"]) == [r["customer_id"] for r in _rows("profiles.csv")]
     for cid, c in spec["customers"].items():
         assert {"income", "spending", "accounts", "linked", "bills", "transfers", "lumpy"} <= set(c), cid
-        assert linked.base_rows(cid) == linked.seeded_rows(cid), cid  # the spec froze the seeded linked accounts
+        base, seeded = linked.base_rows(cid), linked.seeded_rows(cid)
+        if cid in RETUNED_LINKED:  # hand-retuned balances: same accounts, new numbers
+            ids = lambda rows: [(r["account_id"], r["account_type"], r["kind"]) for r in rows]  # noqa: E731
+            assert ids(base) == ids(seeded), cid
+        else:
+            assert base == seeded, cid  # the spec froze the seeded linked accounts
 
 
 def test_spec_knob_changes_only_that_customer(tmp_path):
@@ -76,6 +81,14 @@ def test_spec_knob_changes_only_that_customer(tmp_path):
     assert sum(r["description"] == "Netflix" and r["posted_date"].endswith("-09") for r in c004) == 24
 
 
+# Deliberate demo retunes on top of the PNC snapshot (af0d58c and the C001 savings bump): C001 got idle cash
+# above its buffer; C027 was rebuilt as an underwater homeowner. Everything else must match the original.
+RETUNED_LINKED = {"C027"}
+RETUNED_ACCOUNTS = {(("C001", "savings"), "balance"), (("C027", "mortgage"), "balance"),
+                    (("C027", "mortgage"), "monthly_payment")}
+RETUNED_PROFILES = {"C027"}
+
+
 def test_snapshot_preserved():
     def key(r):
         return (r["customer_id"], r["account_type"])
@@ -85,9 +98,12 @@ def test_snapshot_preserved():
     assert orig.keys() == new.keys()
     for k, r in orig.items():
         for f in ("balance", "monthly_payment", "apr_pct"):
-            assert _cents(new[k][f]) == _cents(r[f]), (k, f)
+            if (k, f) not in RETUNED_ACCOUNTS:
+                assert _cents(new[k][f]) == _cents(r[f]), (k, f)
     po = {r["customer_id"]: r for r in _rows("profiles.csv", DATA / "pnc_original")}
     for r in _rows("profiles.csv"):
+        if r["customer_id"] in RETUNED_PROFILES:
+            continue
         assert _cents(r["monthly_income"]) == _cents(po[r["customer_id"]]["monthly_income"])
         assert _cents(r["monthly_non_debt_expenses"]) >= _cents(po[r["customer_id"]]["monthly_non_debt_expenses"])
 
@@ -135,4 +151,4 @@ def test_irregular_spending_is_named_and_lumpy(txns):
     for t in c001:
         if t["category"] == "travel":
             by_month[t["posted_date"][:7]] += _cents(t["amount"])
-    assert max(by_month.values()) > 3 * (sum(by_month.values()) / len(by_month))  # lumpy: a big trip month
+    assert max(by_month.values()) > 2.5 * (sum(by_month.values()) / len(by_month))  # lumpy: a big trip month

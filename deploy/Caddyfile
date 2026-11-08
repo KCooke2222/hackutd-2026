@@ -1,0 +1,15 @@
+paidway.kevin-cooke.com, paidway.3-229-64-25.sslip.io {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8720 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		root * /opt/paidway/frontend/dist
+		try_files {path} /index.html
+		file_server
+	}
+}

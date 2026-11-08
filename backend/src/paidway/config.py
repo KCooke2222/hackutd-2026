@@ -19,6 +19,10 @@ DB_PATH = Path(os.getenv("PAIDWAY_DB") or os.getenv("ZERODAY_DB") or BACKEND_DIR
 
 NESSIE_BASE_URL = os.getenv("NESSIE_BASE_URL", "https://api.nessieisreal.com").rstrip("/")
 NESSIE_KEY = os.getenv("NESSIE_KEY", "").strip()
+# A second deployment on the same key keeps its own id map and its own Nessie customers ("<tag> C001"),
+# so resetting one never touches the other's accounts.
+NESSIE_IDS_PATH = Path(os.getenv("PAIDWAY_NESSIE_IDS") or BACKEND_DIR / "data" / "nessie_ids.json")
+NESSIE_SEED_TAG = os.getenv("PAIDWAY_NESSIE_TAG", "PNC").strip() or "PNC"
 
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "").strip()
 NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")

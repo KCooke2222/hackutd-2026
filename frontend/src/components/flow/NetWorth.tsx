@@ -30,7 +30,9 @@ export default function NetWorth({ sim, baseline, height = 240 }: { sim: SimV2; 
           <Line dataKey="plan" stroke={ACCENT} strokeWidth={3} dot={false} isAnimationActive={false} />
           {freeAt && (
             <ReferenceDot x={freeAt.m} y={freeAt.plan} r={5} fill={GOOD} stroke="var(--panel)"
-              label={{ value: `High-cost debt $0 · ${ym(freeAt.m)}`, fill: GOOD, fontSize: 12, fontWeight: 700, position: 'top' }} />
+              label={freeAt === data[0]
+                ? { value: 'High-cost debt $0 on approve', fill: GOOD, fontSize: 12, fontWeight: 700, position: 'top', dx: 88, dy: -2 }
+                : { value: `High-cost debt $0 · ${ym(freeAt.m)}`, fill: GOOD, fontSize: 12, fontWeight: 700, position: 'top' }} />
           )}
           {last && <ReferenceDot x={last.m} y={last.plan} r={0} label={{ value: usd(last.plan), fill: ACCENT, fontSize: 12, fontWeight: 700, position: 'insideTopRight' }} />}
         </LineChart>

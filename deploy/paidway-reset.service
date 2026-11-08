@@ -1,0 +1,9 @@
+[Unit]
+Description=Paidway idle reset
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/paidway/backend
+EnvironmentFile=/opt/paidway/deploy/paidway.env
+ExecStart=/opt/paidway/backend/.venv/bin/python /opt/paidway/deploy/idle_reset.py

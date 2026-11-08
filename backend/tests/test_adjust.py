@@ -48,7 +48,7 @@ def test_plan_changes_lists_each_lever():
     b["keep_emergency_months"] = 6
     lines = plan_changes(a, b, {"X": "Store card"})
     assert lines == [
-        "Paid to debts: $2,881 → $3,800/mo",
+        "Paid to debts: $2,874 → $3,800/mo",
         "Brokerage auto-invest to debt: $225 → $2,000/mo",
         "CD → Store card: added $500",
         "Dining: $349 → $300/mo",

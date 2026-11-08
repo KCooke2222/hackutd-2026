@@ -24,7 +24,7 @@ from .assumptions import ASSUMPTIONS as A
 
 SCENARIOS = {
     "on_plan": "On plan",
-    "overspend": "Overspend: dining + shopping",
+    "overspend": "Overspend on spending targets",
     "income_drop": "Income drop (~15%)",
     "missed_min": "Missed minimum",
     "windfall": "Windfall",
@@ -200,10 +200,14 @@ def generate_month(cid: str, pid: str, plan: dict, ctx: dict, contract_months: l
 
     # Spending in the plan's target categories: near target, or well over it when overspending.
     spend, card_over, cash_over = {}, 0.0, 0.0
-    for t in plan.get("spending_targets") or []:
+    targets = plan.get("spending_targets") or []
+    # Overspend hits dining + shopping when the plan targets them, else its two biggest targets.
+    hot = {t["category"] for t in targets if t["category"] in ("dining", "shopping")} or \
+        {t["category"] for t in sorted(targets, key=lambda t: -float(t["target"]))[:2]}
+    for t in targets:
         cat, target = t["category"], float(t["target"])
         c = ctx["spend"].get(cat) or {"avg": target, "card_avg": target, "cash_avg": 0.0}
-        if scenario == "overspend" and cat in ("dining", "shopping"):
+        if scenario == "overspend" and cat in hot:
             delta = target * rng.uniform(0.22, 0.40)
         else:
             delta = max(min(rng.gauss(0, 0.02 * target), 0.04 * target), -0.04 * target)
@@ -212,6 +216,8 @@ def generate_month(cid: str, pid: str, plan: dict, ctx: dict, contract_months: l
         card_share = c["card_avg"] / c["avg"] if c["avg"] else 1.0
         card_over += delta * card_share
         cash_over += delta * (1 - card_share)
+    if scenario == "overspend" and not targets:
+        card_over += round(rng.uniform(250, 400), 2)
     events["card_over"], events["cash_over"] = round(card_over, 2), round(cash_over, 2)
 
     mods = _persistent(hist)
@@ -352,6 +358,12 @@ def status(plan: dict, ctx: dict, contract: dict, hist: list[dict], proj: dict) 
         level = "drifting"
     else:
         level = "on_track"
+    if goal_reached and level == "on_track" and k > 0:
+        gap = exp["cash"] - cur["cash"]
+        spend_over = any("over target" in n for n in nudges)
+        if spend_over or gap > max(250.0, 0.05 * exp["cash"]):
+            level = "drifting"
+            reasons.append(f"Cash {_usd(cur['cash'])}, {_usd(gap)} below plan" if gap >= 1 else "Spending above target")
     if level == "drifting" and late == 1 and not any("High-cost" in n for n in nudges):
         nudges.append(reasons[0])
     return {"level": level, "late_months": late, "goal_month": contract["high_cost_debt_free"],
@@ -567,6 +579,7 @@ def build(cid: str, prop: dict, plan: dict, ctx: dict, contract: dict, hist: lis
             row["actual_total"] = actual[i]["total_debt"]
         if i >= k and i - k < len(proj["months"]):
             row["projected"] = proj["months"][i - k]["high_cost_debt"]
+            row["projected_total"] = proj["months"][i - k]["total_debt"]
         path.append(row)
 
     cur, exp = actual[k], months[k]
@@ -582,6 +595,17 @@ def build(cid: str, prop: dict, plan: dict, ctx: dict, contract: dict, hist: lis
                       "done": cur["balances"]["debts"].get(aid, 0.0) <= 0.005,
                       "late_months": (None if goal_i is None else (99 if p_i is None else p_i - goal_i))})
 
+    # Where the customer was before approve (month-0 lump sums already applied in the contract).
+    pre = (prop.get("simulation") or {}).get("debts") or []
+    live_ids = {d["account_id"] for d in contract["debts"]}
+    start = {"month": months[0]["month"], "date": (prop.get("decided_at") or prop["created_at"])[:10],
+             "high_cost_debt": round(sum(d["balance"] for d in pre if d.get("high_cost")), 2) if pre else months[0]["high_cost_debt"],
+             "total_debt": round(sum(d["balance"] for d in pre), 2) if pre else months[0]["total_debt"],
+             "net_worth": months[0]["net_worth"],
+             "paid_at_approve": [{"account_id": d["account_id"], "name": d["name"], "apr_pct": d["apr_pct"],
+                                  "high_cost": d.get("high_cost", False), "balance": d["balance"]}
+                                 for d in pre if d["account_id"] not in live_ids and d["balance"] > 0.005]}
+
     alerts = []
     for i, h in enumerate(hist):
         sub = build_alert(plan, ctx, contract, hist[: i + 1])
@@ -595,6 +619,7 @@ def build(cid: str, prop: dict, plan: dict, ctx: dict, contract: dict, hist: lis
         "goal": {"label": "High-cost debt $0", "month": contract["high_cost_debt_free"],
                  "net_worth_24m": contract["net_worth_24m"], "projected_net_worth_24m": proj["net_worth_24m"]},
         "status": st,
+        "start": start,
         "path": path,
         "debts": debts,
         "tiles": {"net_worth": cur["net_worth"], "net_worth_expected": exp["net_worth"],
@@ -629,9 +654,17 @@ def build_alert(plan: dict, ctx: dict, contract: dict, hist: list[dict]) -> dict
         w = ev["windfall"]
         to = ", ".join(p["name"] for p in w["paid"]) or "cash"
         title = "Windfall"
-        text = f"{_usd(w['amount'])} went to {to}; high-cost debt-free {_ym(st['projected_month'])}"
+        text = (f"{_usd(w['amount'])} went to {to}; high-cost debt stays $0" if st["goal_reached"] and not w["paid"]
+                else f"{_usd(w['amount'])} went to {to}; high-cost debt-free {_ym(st['projected_month'])}")
     elif st["goal_reached"]:
-        title, text = "Goal reached", f"High-cost debt is $0 ({_ym(h['month'])})"
+        prev = hist[-2]["high_cost_debt"] if len(hist) >= 2 else contract["months"][0]["high_cost_debt"]
+        exp = contract["months"][len(hist)]
+        if prev > 0.01:
+            title, text = "Goal reached", f"High-cost debt is $0 ({_ym(h['month'])})"
+        else:
+            title = "On plan"
+            text = (f"High-cost debt still $0; all debt {_usd(h['total_debt'])}, "
+                    f"cash {_usd(h['cash'])} vs plan {_usd(exp['cash'])}")
     else:
         exp = contract["months"][len(hist)]
         title, text = "On plan", f"Debt {_usd(h['total_debt'])} vs plan {_usd(exp['total_debt'])}"

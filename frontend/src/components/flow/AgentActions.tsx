@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Check, Clock, X } from 'lucide-react'
 import { usd } from '../../lib/api'
 import type { ApprovePreview, NessieCall } from '../../lib/api'
 import type { Schedule } from '../../lib/flow'
@@ -49,16 +50,33 @@ export function callsFor(pv: ApprovePreview | null, schedule: Schedule | null | 
   }
 }
 
-function status(c: NessieCall) {
-  if (c.status === 'error') return <span className="tag red">failed</span>
-  if (c.status === 'not_sent') return <span className="tag">not sent</span>
-  if (c.status === 'skipped') return <span className="tag">held back</span>
-  return <span className="tag good">{typeof c.status === 'number' ? `${c.status} created` : 'done'}</span>
+const failedCall = (c: NessieCall) => c.status === 'error'
+const heldCall = (c: NessieCall) => c.status === 'not_sent' || c.status === 'skipped'
+
+/** Receipt mark: a check when Nessie took the call, a cross when it failed, a clock when it wasn't sent. */
+function mark(c: NessieCall) {
+  if (failedCall(c)) return <span className="rmark bad" title="Didn't go through"><X size={14} strokeWidth={2.75} /></span>
+  if (heldCall(c)) return <span className="rmark held" title={c.status === 'skipped' ? 'Held back' : 'Not sent'}><Clock size={13} strokeWidth={2.25} /></span>
+  return <span className="rmark ok" title="Done in Nessie"><Check size={14} strokeWidth={2.75} /></span>
 }
 
-/** "What the agent will do on approve" (planned), or the "Done in Nessie" receipt (sent: status and id per row). */
-export default function AgentActions({ title, calls, recorded = [], manual = [], receipt = false, note, children }: {
-  title: string; calls: NessieCall[]; recorded?: Quiet[]; manual?: Quiet[]; receipt?: boolean; note?: ReactNode; children?: ReactNode
+/** "Tracked each month" and "You do it": the plan steps that aren't Nessie calls. */
+export function PlanSteps({ recorded = [], manual = [] }: { recorded?: Quiet[]; manual?: Quiet[] }) {
+  if (!recorded.length && !manual.length) return null
+  return (
+    <div className="quiet">
+      {recorded.length > 0 && (<><h3>Tracked each month</h3><ul>{recorded.map((s, i) => <li key={i}>{pretty(s.step)}</li>)}</ul></>)}
+      {manual.length > 0 && (<><h3>You do it</h3><ul>{manual.map((s, i) => (
+        <li key={i}>{pretty(s.step)}{s.how && <> · {Array.isArray(s.how) ? s.how.join(' · ') : s.how}</>}{s.link && <> · <a href={s.link} target="_blank" rel="noreferrer">link</a></>}</li>
+      ))}</ul></>)}
+    </div>
+  )
+}
+
+/** "What the agent will do on approve" (planned), or the "Done in Nessie" receipt (sent: a check or a cross per call). */
+export default function AgentActions({ title, calls, recorded = [], manual = [], receipt = false, note, onRetry, retrying = false, children }: {
+  title: string; calls: NessieCall[]; recorded?: Quiet[]; manual?: Quiet[]; receipt?: boolean; note?: ReactNode
+  onRetry?: () => void; retrying?: boolean; children?: ReactNode
 }) {
   return (
     <div className="card agent-do">
@@ -71,25 +89,27 @@ export default function AgentActions({ title, calls, recorded = [], manual = [],
       {calls.map((c, i) => {
         const w = what(c)
         return (
-          <div key={i} className="act">
-            <NessieChip label={w.verb} title={`Nessie API: ${c.method} ${tool(c.tool)}`} />
+          <div key={i} className={`act${receipt ? ' receipt' : ''}`}>
+            {receipt
+              ? <span className="rlabel">{mark(c)}<span>{w.verb}</span></span>
+              : <NessieChip label={w.verb} title={`Nessie API: ${c.method} ${tool(c.tool)}`} />}
             <div style={{ minWidth: 0 }}>
               <div className="what">{w.text}</div>
               {c.note && <div className="small muted">{c.note}</div>}
             </div>
             <div className="amt">{usd(c.amount)}<small>{w.when}</small></div>
-            {receipt && <div className="rcpt">{status(c)}{c.id && <code>id {c.id}</code>}{c.error && <span className="bad">{c.error}</span>}{c.repairs?.map((r) => <span key={r} className="small muted">{r}</span>)}{c.retried && <span className="small muted">retried</span>}</div>}
+            {receipt && (failedCall(c) || heldCall(c) || c.retried) && (
+              <div className="rcpt">
+                {failedCall(c) && <span className="bad" title={c.error ?? undefined}>Didn't go through</span>}
+                {heldCall(c) && <span>{c.status === 'skipped' ? 'Held back' : 'Not sent yet'}</span>}
+                {failedCall(c) && onRetry && <button className="small" onClick={onRetry} disabled={retrying}>{retrying ? 'Retrying…' : 'Retry'}</button>}
+                {c.retried && !failedCall(c) && <span>went through on retry</span>}
+              </div>
+            )}
           </div>
         )
       })}
-      {(recorded.length > 0 || manual.length > 0) && (
-        <div className="quiet">
-          {recorded.length > 0 && (<><h3>Tracked each month</h3><ul>{recorded.map((s, i) => <li key={i}>{pretty(s.step)}</li>)}</ul></>)}
-          {manual.length > 0 && (<><h3>You do it</h3><ul>{manual.map((s, i) => (
-            <li key={i}>{pretty(s.step)}{s.how && <> · {Array.isArray(s.how) ? s.how.join(' · ') : s.how}</>}{s.link && <> · <a href={s.link} target="_blank" rel="noreferrer">link</a></>}</li>
-          ))}</ul></>)}
-        </div>
-      )}
+      <PlanSteps recorded={recorded} manual={manual} />
       {children}
     </div>
   )

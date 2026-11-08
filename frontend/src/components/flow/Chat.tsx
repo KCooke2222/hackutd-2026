@@ -75,13 +75,14 @@ const QUESTIONS = ["What's driving my debt?", 'How much do I owe in total?', 'Wh
 
 /** Talk to the plan: type or speak a change; the agent re-plans from the current plan under your rules.
  *  With `onQuestion`, questions (and everything when there is no pending plan) go there instead. */
-export default function Chat({ ai, onAdjusted, onRules, onQuestion, bare = false, asking = false }: {
+export default function Chat({ ai, onAdjusted, onRules, onQuestion, bare = false, asking = false, queued = null }: {
   ai: Proposal | null
   onAdjusted: (p: Proposal) => void // the new pending plan (adjusted, or the parent after Undo)
   onRules: (p: Proposal) => void // same plan, rules changed
   onQuestion?: (m: string) => void
   bare?: boolean // inside the drawer: no card title
   asking?: boolean // a question is being answered
+  queued?: { n: number; text: string } | null // a change sent from outside (a follow-up button); runs when n changes
 }) {
   const [text, setText] = useState('')
   const [run, setRun] = useState<Run | null>(null)
@@ -95,6 +96,7 @@ export default function Chat({ ai, onAdjusted, onRules, onQuestion, bare = false
   const running = run != null && !run.done
 
   useEffect(() => () => { es.current?.close(); rec.current?.stop() }, [])
+  useEffect(() => { if (queued) send(queued.text) }, [queued?.n]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function send(msg: string) {
     const m = msg.trim()

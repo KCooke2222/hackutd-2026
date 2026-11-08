@@ -16,6 +16,10 @@ class ScenariosIn(BaseModel):
     scenarios: list[dict] | None = None
 
 
+class PlanIn(BaseModel):
+    plan: dict
+
+
 class RangeIn(BaseModel):
     plan: dict
     runs: int = 500
@@ -46,5 +50,15 @@ def range_(cid: str, body: RangeIn) -> dict:
     _need(cid)
     try:
         return scenarios.monte_carlo(cid, body.plan, runs=body.runs, seed=body.seed)
+    except (ValueError, KeyError, TypeError) as e:
+        raise HTTPException(422, str(e))
+
+
+@router.post("/api/customers/{cid}/scenarios/cushion")
+def cushion(cid: str, body: PlanIn) -> dict:
+    """The What-if cushion picker: 2 / 3 / 4 months of expenses kept in savings, side by side."""
+    _need(cid)
+    try:
+        return scenarios.cushion_options(cid, body.plan)
     except (ValueError, KeyError, TypeError) as e:
         raise HTTPException(422, str(e))

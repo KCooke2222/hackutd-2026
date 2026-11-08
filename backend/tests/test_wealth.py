@@ -15,21 +15,22 @@ from paidway.planning import wealth
 CID = "C001"
 STORE, PNC_CARD, LOAN, STUDENT = "L-C001-CREDIT_CARD-2", "A-C001-CREDIT_CARD", "A-C001-PERSONAL_LOAN", "L-C001-STUDENT_LOAN-1"
 
-# The honest reference: C001's PNC cash ($19k) is below the 3-month buffer ($26.5k) and the monthly residual is
-# about -$40, so there is no idle cash and no surplus. The only real money is named trims (top merchant, within each
-# limit), cancelling Audible and pausing the $225/mo brokerage auto-invest. Autopay the cards.
+# The trims-only reference: C001's PNC cash ($29.6k) is $3.2k above the 3-month buffer ($26.4k), but this plan
+# leaves it alone (missing_lumps adds it; see test_missing_lumps_adds_idle_cash_only). The monthly residual is about
+# -$13, so there is no surplus; the money is named trims (top merchant, within each limit), cancelling Audible and
+# pausing the $225/mo brokerage auto-invest. Autopay the cards.
 CUTS = [
     {"category": "subscriptions", "current": 17.94, "target": 3.0, "proof_month": "2025-11", "how": ["Cancel Audible"]},
     {"category": "dining", "current": 416.04, "target": 348.59, "proof_month": "2026-10", "how": ["Fewer Uber Eats orders"]},
-    {"category": "other_spending", "current": 1280.85, "target": 1024.68, "proof_month": "2026-01", "how": ["Fewer Amazon household orders"]},
+    {"category": "other_spending", "current": 1281.10, "target": 1024.88, "proof_month": "2026-01", "how": ["Fewer Amazon household orders"]},
     {"category": "shopping", "current": 422.13, "target": 337.48, "proof_month": "2026-01", "how": ["Fewer Amazon purchases"]},
-    {"category": "home_household", "current": 548.54, "target": 383.98, "proof_month": "2026-03", "how": ["Fewer Lowe's projects"]},
-    {"category": "gifts_holidays", "current": 316.47, "target": 189.89, "proof_month": "2026-01", "how": ["Smaller holiday gift budget"]},
-    {"category": "travel", "current": 718.65, "target": 431.19, "proof_month": "2025-11", "how": ["One fewer Southwest trip"]},
+    {"category": "home_household", "current": 542.63, "target": 379.84, "proof_month": "2026-03", "how": ["Fewer Lowe's projects"]},
+    {"category": "gifts_holidays", "current": 313.06, "target": 187.84, "proof_month": "2026-01", "how": ["Smaller holiday gift budget"]},
+    {"category": "travel", "current": 710.90, "target": 426.54, "proof_month": "2025-11", "how": ["One fewer Southwest trip"]},
 ]
 REFERENCE = {
     "version": 2,
-    "monthly_debt_budget": 2880.64,
+    "monthly_debt_budget": 2874.46,
     "extra_order": [STORE, PNC_CARD, LOAN],
     "lump_sums": [],
     "redirects": [{"flow": "brokerage_auto_invest", "amount_per_month": 225.0}],
@@ -69,10 +70,10 @@ def test_ira_loses_net_worth(sources):
     assert ira["upfront_cost"] > 0
 
 
-def test_no_idle_cash_or_surplus_so_brokerage_is_usable(sources):
-    """C001 has nothing above the buffer and no monthly surplus. Cuts are optional, and the $225/mo pause alone
-    takes over a year, so selling brokerage at 7% to clear 20%+ debt is on the table (the solver sells ~$6.9k)."""
-    assert sources["cash"][1]["use"] is False and sources["cash"][1]["available"] == 0
+def test_idle_cash_no_surplus_and_brokerage_is_usable(sources):
+    """C001 has $3.2k above the buffer (usable cash) and no monthly surplus; beyond the cash, selling brokerage
+    at 7% to clear 20%+ debt is still on the table."""
+    assert sources["cash"][1]["use"] is True and sources["cash"][1]["available"] == pytest.approx(3176.49, abs=1)
     assert sources["surplus"][1]["use"] is False and "no monthly surplus" in sources["surplus"][1]["why"]
     assert sources["brokerage"][1]["use"] is True and sources["brokerage"][1]["nw_delta_24m"] > 0
 
@@ -211,8 +212,11 @@ def test_v1_still_works():
 
 
 def test_missing_lumps_adds_idle_cash_only():
-    # C001: no cash above the buffer, so nothing is invented.
-    assert missing_lumps(CID, REFERENCE, validate_plan_v2(CID, REFERENCE, live=False), live=False) is None
+    # C001: the $3.2k above the buffer clears the store card and part of the PNC card today.
+    c001 = missing_lumps(CID, REFERENCE, validate_plan_v2(CID, REFERENCE, live=False), live=False)
+    assert c001 and c001["net_worth_gain"] > 0
+    assert {x["source"] for x in c001["lump_sums"]} == {"cash"}
+    assert sum(x["amount"] for x in c001["lump_sums"]) == pytest.approx(3176.49, abs=1)
     # C002: $6.2k above the buffer pays off the 22.5% card and the 11% loan today.
     sim = validate_plan_v2("C002", C002, live=False)
     added = missing_lumps("C002", C002, sim, live=False)
