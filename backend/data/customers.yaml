@@ -1,0 +1,1355 @@
+# Customer specs: one entry per household. `make data` (scripts/gen_data.py) turns this file into every CSV in
+# data/pnc/ plus history_manifest.json, and loads the linked accounts into SQLite. Money is USD; "monthly"
+# amounts are per month. Leave a knob out and the generator draws its seeded default.
+#
+# history: end (a month-end), months, seed.
+# customers.<id>:
+#   income          monthly take-home pay (grows 4% over the history, +-2% noise per month)
+#   spending        PNC's monthly non-debt spending base (+12% in Nov/Dec, +-6% noise); bills below come out of it
+#   credit_limit    total card credit limit (profiles.csv)
+#   accounts        PNC accounts by type, with the balance on the as-of date (every account ends there),
+#                   plus monthly_payment and apr_pct for debts
+#   linked          accounts outside PNC (student loans, store cards, brokerage, home/car value) as if linked
+#                   through an aggregator; debt minimums are paid from checking every month
+#   bills           fixed monthly lines from checking: housing (rent, or HOA + escrow + repairs), insurance,
+#                   phone_internet, subscriptions [{name, amount, day}]; utilities: share of monthly spending
+#                   (seasonal: x1.15 Jun-Aug, Dec, Jan) and the three utility names
+#   merchants       where the household shops (groceries, dining, shopping, fuel)
+#   card_mix        relative weights of card spending (22% of spending when there is a card)
+#   transfers       brokerage_auto_invest (monthly), childcare {provider, monthly}, family_support {to, monthly}
+#   lumpy           irregular, merchant-named spending (trips, gifts, home, car, annual bills, medical, family)
+#     total         `auto` = whatever is left after the lines above, so checking lands on its balance; or a dollar
+#                   total over the history; or per_month: <dollars>. The opening checking balance absorbs the rest.
+#     mix           relative weights by category
+#     annual_bills  [{name, month}] one-off yearly charges
+#     calendar      per 12-month block from the history start: month of the summer trip, second trip (trip2),
+#                   weekend trips, birthdays, big home buys, a big car repair, oil-change phase (months
+#                   where month % 4 == oil % 4), medical bills and family help
+history: {end: 2026-10-31, months: 24, seed: 20261108}
+customers:
+  C001:
+    income: 9710.63
+    spending: 6359.87
+    credit_limit: 25193.32
+    accounts:
+      checking: {balance: 1604.0}
+      savings: {balance: 17416.6}
+      ira: {balance: 6994.56}
+      credit_card: {balance: 6571.46, monthly_payment: 197.14, apr_pct: 22.5}
+      personal_loan: {balance: 1050.28, monthly_payment: 29.17, apr_pct: 11.0}
+    linked:
+    - {id: L-C001-STUDENT_LOAN-1, type: student_loan, kind: federal, name: Federal Direct Loan, institution: Dept. of Education (servicer), balance: 18400, apr_pct: 4.99, min_payment: 195.07}
+    - {id: L-C001-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 9800, cost_basis: 7056.0}
+    - {id: L-C001-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 1240.55, apr_pct: 27.24, min_payment: 40.57}
+    - {id: L-C001-PROPERTY-1, type: property, kind: vehicle, name: 2019 Honda Civic, institution: Estimated value, balance: 11500}
+    bills:
+      housing:
+      - {name: Lincoln Property - Parkside Lofts, amount: 2065.0, day: 1}
+      insurance:
+      - {name: State Farm auto insurance, amount: 121.66, day: 7}
+      - {name: State Farm renters insurance, amount: 21.87, day: 7}
+      phone_internet:
+      - {name: AT&T Wireless, amount: 110.82, day: 9}
+      - {name: AT&T Fiber, amount: 55.42, day: 12}
+      subscriptions:
+      - {name: Audible, amount: 14.95, day: 23}
+      - {name: Apple iCloud+, amount: 2.99, day: 6}
+      utilities: {share: 0.06944099538322379, electric: TXU Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Trader Joe's, H-E-B, Walmart Grocery], dining: [Olive Garden, Starbucks, DoorDash, Torchy's Tacos, Whataburger, Uber Eats], shopping: [Etsy, Amazon, Best Buy, Sephora], fuel: [7-Eleven Fuel, QuikTrip]}
+    card_mix: {groceries: 0.21069422237506885, transport: 0.16086133047234896, dining: 0.27449057305609004, shopping: 0.269260761525567}
+    transfers: {brokerage_auto_invest: 225.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.2620922301830396, gifts_holidays: 0.11541793504463317, home_household: 0.20005583441093056, car_maintenance: 0.134961898312932, annual_bills: 0.0989008796964846, healthcare: 0.09157113636551305}
+      annual_bills:
+      - {name: AAA membership, month: 2}
+      - {name: H&R Block tax preparation, month: 10}
+      - {name: Texas vehicle registration, month: 9}
+      calendar:
+      - {summer: 6, trip2: 3, weekend: [5, 9], birthdays: [3, 10, 2], home_big: [7, 11], car_big: 11, oil: 3, medical: [10, 12], family: [3, 1]}
+      - {summer: 8, trip2: 3, weekend: [7, 1], birthdays: [4, 9, 8], home_big: [10, 5], car_big: 1, oil: 3, medical: [8, 3, 6], family: [11, 4]}
+  C002:
+    income: 6094.69
+    spending: 3733.89
+    credit_limit: 24556.92
+    accounts:
+      checking: {balance: 4007.36}
+      savings: {balance: 17991.23}
+      cd: {balance: 13294.13}
+      ira: {balance: 65502.11}
+      credit_card: {balance: 1755.27, monthly_payment: 52.66, apr_pct: 22.5}
+      auto_loan: {balance: 19590.45, monthly_payment: 408.13, apr_pct: 7.5}
+      personal_loan: {balance: 3249.67, monthly_payment: 90.27, apr_pct: 11.0}
+      mortgage: {balance: 20520.45, monthly_payment: 133.38, apr_pct: 6.5}
+    linked:
+    - {id: L-C002-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 28000.0, secures: A-C002-MORTGAGE}
+    - {id: L-C002-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 24100.0, secures: A-C002-AUTO_LOAN}
+    bills:
+      housing:
+      - {name: Lakeview HOA, amount: 190.5, day: 6}
+      - {name: Property tax & insurance escrow, amount: 762.0, day: 1}
+      - {name: Lowe's, amount: 317.5, day: 17}
+      insurance:
+      - {name: GEICO auto insurance, amount: 178.4, day: 7}
+      phone_internet:
+      - {name: Verizon Wireless, amount: 123.78, day: 9}
+      - {name: Xfinity Internet, amount: 70.42, day: 12}
+      subscriptions:
+      - {name: Spotify, amount: 11.99, day: 19}
+      - {name: Disney+, amount: 13.99, day: 14}
+      utilities: {share: 0.06287730130080016, electric: TXU Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [H-E-B, Costco, Tom Thumb], dining: [Whataburger, Starbucks, Torchy's Tacos, Thai Basil, Chipotle, Olive Garden], shopping: [Amazon, Target, Etsy, Best Buy], fuel: [Exxon, Chevron]}
+    card_mix: {groceries: 0.2904263520277373, transport: 0.22081068850804075, dining: 0.2429286431098498, shopping: 0.21820205039269247}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.2613053818799935, gifts_holidays: 0.1159068075312838, home_household: 0.25873429422054145, car_maintenance: 0.12156436271727787, annual_bills: 0.11922573895538538, healthcare: 0.08981065514519733}
+      annual_bills:
+      - {name: Costco annual membership, month: 8}
+      - {name: Term life insurance annual premium, month: 6}
+      - {name: Texas vehicle registration, month: 1}
+      calendar:
+      - {summer: 7, trip2: 3, weekend: [1, 9], birthdays: [10, 2, 6], home_big: [8, 7], car_big: 7, oil: 4, medical: [7, 3], family: [6, 3]}
+      - {summer: 7, trip2: 12, weekend: [8, 4], birthdays: [9, 7, 11], home_big: [7, 10], car_big: 5, oil: 2, medical: [9, 1], family: [3, 4]}
+  C003:
+    income: 9209.62
+    spending: 6314.28
+    credit_limit: 8819.69
+    accounts:
+      checking: {balance: 8994.16}
+      savings: {balance: 4666.12}
+      cd: {balance: 7227.13}
+      ira: {balance: 55799.65}
+      credit_card: {balance: 8283.99, monthly_payment: 248.52, apr_pct: 22.5}
+      auto_loan: {balance: 28695.62, monthly_payment: 597.83, apr_pct: 7.5}
+      personal_loan: {balance: 13921.68, monthly_payment: 386.71, apr_pct: 11.0}
+    linked:
+    - {id: L-C003-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 34000.0, secures: A-C003-AUTO_LOAN}
+    - {id: L-C003-STUDENT_LOAN-1, type: student_loan, kind: private, name: Private student loan, institution: Linked lender, balance: 21880.0, apr_pct: 7.38, min_payment: 258.35}
+    - {id: L-C003-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 3171.93, apr_pct: 19.44, min_payment: 83.1}
+    bills:
+      housing:
+      - {name: Greystar - The Monarch Apartments, amount: 1930.0, day: 1}
+      insurance:
+      - {name: Progressive auto insurance, amount: 110.8, day: 7}
+      - {name: Lemonade renters insurance, amount: 18.71, day: 7}
+      phone_internet:
+      - {name: Mint Mobile, amount: 36.93, day: 9}
+      - {name: Spectrum Internet, amount: 88.51, day: 12}
+      subscriptions:
+      - {name: Apple iCloud+, amount: 2.99, day: 3}
+      - {name: Disney+, amount: 13.99, day: 22}
+      utilities: {share: 0.05925201515553039, electric: Oncor delivery, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [H-E-B, Aldi, Kroger], dining: [Whataburger, Chipotle, Thai Basil, Torchy's Tacos, DoorDash, Starbucks], shopping: [Etsy, Target, Sephora, Best Buy], fuel: [Exxon, QuikTrip]}
+    card_mix: {groceries: 0.29816308770801103, transport: 0.22119766660109758, dining: 0.26870512119513, shopping: 0.2892358852308308}
+    transfers:
+      brokerage_auto_invest: 0.0
+      childcare: null
+      family_support: {to: Zelle to Mom, monthly: 225.0}
+    lumpy:
+      total: auto
+      mix: {travel: 0.21279890793312337, gifts_holidays: 0.17018329870090293, home_household: 0.21110458609763194, car_maintenance: 0.12038328925276723, annual_bills: 0.07906864969625976, healthcare: 0.08241364252973268, family_support: 0.07170081757893958}
+      annual_bills:
+      - {name: AAA membership, month: 7}
+      - {name: Costco annual membership, month: 5}
+      - {name: Texas vehicle registration, month: 10}
+      calendar:
+      - {summer: 8, trip2: 11, weekend: [3, 5], birthdays: [9, 11, 10], home_big: [12, 5], car_big: 9, oil: 3, medical: [5, 8, 6], family: [10, 8]}
+      - {summer: 8, trip2: 3, weekend: [6, 4], birthdays: [1, 11, 7], home_big: [3, 7], car_big: 5, oil: 1, medical: [1, 12], family: [10, 2]}
+  C004:
+    income: 4221.35
+    spending: 2966.02
+    credit_limit: 7659.89
+    accounts:
+      checking: {balance: 2569.88}
+      savings: {balance: 9561.81}
+      cd: {balance: 5032.69}
+      ira: {balance: 79679.65}
+      credit_card: {balance: 1225.82, monthly_payment: 36.77, apr_pct: 22.5}
+      mortgage: {balance: 267125.43, monthly_payment: 1736.32, apr_pct: 6.5}
+    linked:
+    - {id: L-C004-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 589000.0, secures: A-C004-MORTGAGE}
+    - {id: L-C004-PROPERTY-2, type: property, kind: vehicle, name: Car (owned), institution: Estimated value, balance: 14600.0}
+    - {id: L-C004-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 995.71, apr_pct: 22.81, min_payment: 35.0}
+    bills:
+      housing:
+      - {name: Lakeview HOA, amount: 152.25, day: 6}
+      - {name: Property tax & insurance escrow, amount: 609.0, day: 1}
+      - {name: Home Depot, amount: 253.75, day: 17}
+      insurance:
+      - {name: State Farm auto insurance, amount: 165.29, day: 7}
+      phone_internet:
+      - {name: T-Mobile, amount: 84.09, day: 9}
+      - {name: AT&T Fiber, amount: 59.64, day: 12}
+      subscriptions:
+      - {name: Spotify, amount: 11.99, day: 20}
+      - {name: Xbox Game Pass, amount: 16.99, day: 4}
+      - {name: Hulu, amount: 9.99, day: 14}
+      - {name: Apple iCloud+, amount: 2.99, day: 10}
+      - {name: Max, amount: 16.99, day: 18}
+      utilities: {share: 0.062479166213322015, electric: Green Mountain Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [H-E-B, Costco, Kroger], dining: [Chipotle, DoorDash, Whataburger, Chick-fil-A, Olive Garden, Raising Cane's], shopping: [Best Buy, Old Navy, IKEA, Sephora], fuel: [Exxon, Shell]}
+    card_mix: {groceries: 0.24382747617582692, transport: 0.1984770780164516, dining: 0.24879970208960267, shopping: 0.2055553286621791}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.22967473186572546, gifts_holidays: 0.16431702530478295, home_household: 0.22139797953037318, car_maintenance: 0.12470180260249893, annual_bills: 0.10030174613412977, healthcare: 0.08668824542210951}
+      annual_bills:
+      - {name: H&R Block tax preparation, month: 4}
+      - {name: Costco annual membership, month: 3}
+      - {name: Texas vehicle registration, month: 5}
+      calendar:
+      - {summer: 7, trip2: 12, weekend: [7, 4], birthdays: [1, 10, 7], home_big: [9, 5], car_big: 3, oil: 2, medical: [8, 3, 12], family: [7, 6]}
+      - {summer: 6, trip2: 11, weekend: [9, 2], birthdays: [10, 1, 3], home_big: [6, 10], car_big: 4, oil: 3, medical: [11, 12], family: [9, 7]}
+  C005:
+    income: 5273.01
+    spending: 4492.24
+    credit_limit: 22436.81
+    accounts:
+      checking: {balance: 1424.89}
+      savings: {balance: 27623.28}
+      cd: {balance: 3198.86}
+      ira: {balance: 1218.76}
+      credit_card: {balance: 7492.24, monthly_payment: 224.77, apr_pct: 22.5}
+      auto_loan: {balance: 17710.32, monthly_payment: 368.96, apr_pct: 7.5}
+      personal_loan: {balance: 4699.6, monthly_payment: 130.54, apr_pct: 11.0}
+      mortgage: {balance: 266087.27, monthly_payment: 1729.57, apr_pct: 6.5}
+    linked:
+    - {id: L-C005-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 417000.0, secures: A-C005-MORTGAGE}
+    - {id: L-C005-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 28600.0, secures: A-C005-AUTO_LOAN}
+    - {id: L-C005-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 19000.0, cost_basis: 15928.52}
+    - {id: L-C005-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 1667.43, apr_pct: 18.37, min_payment: 42.2}
+    bills:
+      housing:
+      - {name: Willow Creek HOA, amount: 214.5, day: 6}
+      - {name: Property tax & insurance escrow, amount: 858.0, day: 1}
+      - {name: Lowe's, amount: 357.5, day: 17}
+      insurance:
+      - {name: Progressive auto insurance, amount: 116.99, day: 7}
+      phone_internet:
+      - {name: Verizon Wireless, amount: 93.3, day: 9}
+      - {name: Xfinity Internet, amount: 75.02, day: 12}
+      subscriptions:
+      - {name: Spotify, amount: 11.99, day: 9}
+      - {name: Planet Fitness, amount: 24.99, day: 3}
+      - {name: Xbox Game Pass, amount: 16.99, day: 22}
+      - {name: Max, amount: 16.99, day: 15}
+      utilities: {share: 0.05313465892757679, electric: TXU Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Walmart Grocery, Trader Joe's, H-E-B], dining: [Chick-fil-A, Whataburger, Olive Garden, Torchy's Tacos, Raising Cane's, Chipotle], shopping: [Old Navy, Nike, Sephora, IKEA], fuel: [Chevron, Exxon]}
+    card_mix: {groceries: 0.23327508857970838, transport: 0.18543174391203923, dining: 0.3008005232118153, shopping: 0.29309868246125875}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.23606566034496831, gifts_holidays: 0.1712033310080569, home_household: 0.17257300961780386, car_maintenance: 0.13318304909936304, annual_bills: 0.10640166229852147, healthcare: 0.09473004304157674}
+      annual_bills:
+      - {name: Costco annual membership, month: 9}
+      - {name: AAA membership, month: 2}
+      - {name: Texas vehicle registration, month: 5}
+      calendar:
+      - {summer: 7, trip2: 11, weekend: [6, 7], birthdays: [8, 10, 11], home_big: [7, 9], car_big: 10, oil: 2, medical: [12, 4], family: [2, 8]}
+      - {summer: 7, trip2: 3, weekend: [6, 5], birthdays: [11, 2, 6], home_big: [7, 4], car_big: 7, oil: 3, medical: [10, 3], family: [2, 4]}
+  C006:
+    income: 4199.05
+    spending: 2864.81
+    credit_limit: 10095.97
+    accounts:
+      checking: {balance: 8533.35}
+      savings: {balance: 21131.81}
+      cd: {balance: 10066.06}
+      ira: {balance: 75069.05}
+      credit_card: {balance: 6667.18, monthly_payment: 200.02, apr_pct: 22.5}
+      auto_loan: {balance: 9441.15, monthly_payment: 196.69, apr_pct: 7.5}
+      personal_loan: {balance: 9441.16, monthly_payment: 262.25, apr_pct: 11.0}
+      mortgage: {balance: 232803.29, monthly_payment: 1513.22, apr_pct: 6.5}
+    linked:
+    - {id: L-C006-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 324000.0, secures: A-C006-MORTGAGE}
+    - {id: L-C006-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 9300.0, secures: A-C006-AUTO_LOAN}
+    - {id: L-C006-STUDENT_LOAN-1, type: student_loan, kind: private, name: Private student loan, institution: Linked lender, balance: 10170.0, apr_pct: 7.81, min_payment: 122.37}
+    - {id: L-C006-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 33900.0, cost_basis: 27886.13}
+    bills:
+      housing:
+      - {name: Stonebridge HOA, amount: 147.75, day: 6}
+      - {name: Property tax & insurance escrow, amount: 591.0, day: 1}
+      - {name: Lowe's, amount: 246.25, day: 17}
+      insurance:
+      - {name: GEICO auto insurance, amount: 159.35, day: 7}
+      phone_internet:
+      - {name: Verizon Wireless, amount: 84.74, day: 9}
+      - {name: Xfinity Internet, amount: 84.76, day: 12}
+      subscriptions:
+      - {name: Amazon Prime, amount: 14.99, day: 18}
+      - {name: Xbox Game Pass, amount: 16.99, day: 9}
+      - {name: Peloton App, amount: 12.99, day: 24}
+      - {name: Spotify, amount: 11.99, day: 2}
+      utilities: {share: 0.06955084053478175, electric: TXU Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [H-E-B, Walmart Grocery, Kroger], dining: [Local pizzeria, Whataburger, Chick-fil-A, DoorDash, Thai Basil, Chipotle], shopping: [Best Buy, Old Navy, Amazon, Etsy], fuel: [QuikTrip, 7-Eleven Fuel]}
+    card_mix: {groceries: 0.2111263091985381, transport: 0.18193453423040584, dining: 0.2980727260243494, shopping: 0.21534339252767837}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.2734018072511351, gifts_holidays: 0.13639728497329442, home_household: 0.18997605294631742, car_maintenance: 0.10960130461436554, annual_bills: 0.11903408016013446, healthcare: 0.061510228416876166}
+      annual_bills:
+      - {name: Term life insurance annual premium, month: 9}
+      - {name: AAA membership, month: 11}
+      - {name: Texas vehicle registration, month: 12}
+      calendar:
+      - {summer: 6, trip2: 3, weekend: [12, 6], birthdays: [12, 1, 3], home_big: [11, 2], car_big: 4, oil: 2, medical: [4, 1], family: [4, 2]}
+      - {summer: 6, trip2: 12, weekend: [6, 4], birthdays: [8, 1, 2], home_big: [12, 3], car_big: 6, oil: 1, medical: [6, 12, 2], family: [5, 7]}
+  C007:
+    income: 6881.81
+    spending: 6250.49
+    credit_limit: 19341.77
+    accounts:
+      checking: {balance: 2977.81}
+      savings: {balance: 23602.05}
+      cd: {balance: 9471.72}
+      ira: {balance: 3926.0}
+      credit_card: {balance: 7782.39, monthly_payment: 233.47, apr_pct: 22.5}
+      auto_loan: {balance: 7770.55, monthly_payment: 161.89, apr_pct: 7.5}
+      personal_loan: {balance: 11873.01, monthly_payment: 329.81, apr_pct: 11.0}
+    linked:
+    - {id: L-C007-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 9300.0, secures: A-C007-AUTO_LOAN}
+    - {id: L-C007-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 11290.0, cost_basis: 7673.94}
+    bills:
+      housing:
+      - {name: Lincoln Property - Parkside Lofts, amount: 1940.0, day: 1}
+      insurance:
+      - {name: GEICO auto insurance, amount: 156.84, day: 7}
+      - {name: State Farm renters insurance, amount: 19.83, day: 7}
+      phone_internet:
+      - {name: T-Mobile, amount: 117.23, day: 9}
+      - {name: AT&T Fiber, amount: 61.68, day: 12}
+      subscriptions:
+      - {name: Amazon Prime, amount: 14.99, day: 8}
+      - {name: Peloton App, amount: 12.99, day: 18}
+      - {name: Spotify, amount: 11.99, day: 19}
+      - {name: Xbox Game Pass, amount: 16.99, day: 24}
+      utilities: {share: 0.05727410965376242, electric: Oncor delivery, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [H-E-B, Tom Thumb, Trader Joe's], dining: [Chick-fil-A, Torchy's Tacos, Thai Basil, Panera Bread, Raising Cane's, Local pizzeria], shopping: [Nike, Etsy, IKEA, Target], fuel: [Chevron, Exxon]}
+    card_mix: {groceries: 0.2213093398076348, transport: 0.21445940600414534, dining: 0.3204362842627963, shopping: 0.2227771746316981}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.2758412040146829, gifts_holidays: 0.13541515691814532, home_household: 0.20103370552866692, car_maintenance: 0.09739307185010523, annual_bills: 0.08280087545316994, healthcare: 0.0652040435977707}
+      annual_bills:
+      - {name: AAA membership, month: 10}
+      - {name: Term life insurance annual premium, month: 8}
+      - {name: Texas vehicle registration, month: 2}
+      calendar:
+      - {summer: 8, trip2: 12, weekend: [12, 2], birthdays: [12, 2, 4], home_big: [6, 1], car_big: 5, oil: 3, medical: [11, 4], family: [12, 8]}
+      - {summer: 6, trip2: 11, weekend: [5, 8], birthdays: [9, 8, 4], home_big: [2, 3], car_big: 1, oil: 4, medical: [1, 6], family: [2, 11]}
+  C008:
+    income: 9196.07
+    spending: 7000.63
+    credit_limit: 24508.73
+    accounts:
+      checking: {balance: 8446.54}
+      savings: {balance: 11235.98}
+      cd: {balance: 12388.76}
+      ira: {balance: 55378.24}
+      credit_card: {balance: 10176.87, monthly_payment: 305.31, apr_pct: 22.5}
+      auto_loan: {balance: 1878.98, monthly_payment: 39.15, apr_pct: 7.5}
+      personal_loan: {balance: 1172.51, monthly_payment: 32.57, apr_pct: 11.0}
+      mortgage: {balance: 255427.19, monthly_payment: 1660.28, apr_pct: 6.5}
+    linked:
+    - {id: L-C008-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 379000.0, secures: A-C008-MORTGAGE}
+    - {id: L-C008-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 2200.0, secures: A-C008-AUTO_LOAN}
+    - {id: L-C008-STUDENT_LOAN-1, type: student_loan, kind: private, name: Private student loan, institution: Linked lender, balance: 31430.0, apr_pct: 6.54, min_payment: 357.52}
+    bills:
+      housing:
+      - {name: Stonebridge HOA, amount: 367.5, day: 6}
+      - {name: Property tax & insurance escrow, amount: 1470.0, day: 1}
+      - {name: Home Depot, amount: 612.5, day: 17}
+      insurance:
+      - {name: GEICO auto insurance, amount: 199.27, day: 7}
+      phone_internet:
+      - {name: AT&T Wireless, amount: 128.74, day: 9}
+      - {name: AT&T Fiber, amount: 59.84, day: 12}
+      subscriptions:
+      - {name: Disney+, amount: 13.99, day: 27}
+      - {name: YouTube Premium, amount: 13.99, day: 8}
+      utilities: {share: 0.06402244413474792, electric: Reliant Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Sprouts Farmers Market, Walmart Grocery, Trader Joe's], dining: [Thai Basil, Chick-fil-A, Starbucks, Olive Garden, Torchy's Tacos, Uber Eats], shopping: [Best Buy, Amazon, IKEA, Nike], fuel: [QuikTrip, RaceTrac]}
+    card_mix: {groceries: 0.24062372019866113, transport: 0.1950151300891948, dining: 0.28543998698061757, shopping: 0.2739726425561165}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.31060405990197726, gifts_holidays: 0.16761148516909444, home_household: 0.2728134903041426, car_maintenance: 0.12892974518933956, annual_bills: 0.08891418189746214, healthcare: 0.0889805082601999}
+      annual_bills:
+      - {name: Term life insurance annual premium, month: 8}
+      - {name: AAA membership, month: 6}
+      - {name: Texas vehicle registration, month: 10}
+      calendar:
+      - {summer: 7, trip2: 11, weekend: [11, 12], birthdays: [6, 2, 1], home_big: [3, 7], car_big: 11, oil: 1, medical: [5, 4, 9], family: [10, 5]}
+      - {summer: 7, trip2: 12, weekend: [10, 4], birthdays: [7, 6, 12], home_big: [2, 5], car_big: 3, oil: 1, medical: [6, 2, 5], family: [5, 1]}
+  C009:
+    income: 13888.01
+    spending: 7967.53
+    credit_limit: 13831.06
+    accounts:
+      checking: {balance: 3258.73}
+      savings: {balance: 27802.83}
+      ira: {balance: 66460.12}
+      credit_card: {balance: 6675.24, monthly_payment: 200.26, apr_pct: 22.5}
+      auto_loan: {balance: 702.22, monthly_payment: 14.63, apr_pct: 7.5}
+      mortgage: {balance: 80195.37, monthly_payment: 521.27, apr_pct: 6.5}
+    linked:
+    - {id: L-C009-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 123000.0, secures: A-C009-MORTGAGE}
+    - {id: L-C009-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 1000.0, secures: A-C009-AUTO_LOAN}
+    - {id: L-C009-STUDENT_LOAN-1, type: student_loan, kind: federal, name: Federal Direct Loan, institution: Dept. of Education (servicer), balance: 31650.0, apr_pct: 6.53, min_payment: 359.86}
+    - {id: L-C009-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 13230.0, cost_basis: 10212.97}
+    - {id: L-C009-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 1946.0, apr_pct: 26.91, min_payment: 63.1}
+    bills:
+      housing:
+      - {name: Stonebridge HOA, amount: 368.25, day: 6}
+      - {name: Property tax & insurance escrow, amount: 1473.0, day: 1}
+      - {name: Home Depot, amount: 613.75, day: 17}
+      insurance:
+      - {name: Progressive auto insurance, amount: 130.52, day: 7}
+      phone_internet:
+      - {name: AT&T Wireless, amount: 115.88, day: 9}
+      - {name: Xfinity Internet, amount: 93.6, day: 12}
+      subscriptions:
+      - {name: Peloton App, amount: 12.99, day: 12}
+      - {name: Netflix, amount: 15.49, day: 9}
+      - {name: Amazon Prime, amount: 14.99, day: 23}
+      - {name: Disney+, amount: 13.99, day: 26}
+      - {name: Planet Fitness, amount: 24.99, day: 22}
+      utilities: {share: 0.059788713159014274, electric: Reliant Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Tom Thumb, H-E-B, Kroger], dining: [Chick-fil-A, Olive Garden, DoorDash, Thai Basil, Panera Bread, Uber Eats], shopping: [IKEA, Sephora, Amazon, TJ Maxx], fuel: [Chevron, Shell]}
+    card_mix: {groceries: 0.26960082014649533, transport: 0.23868528924235716, dining: 0.2655860836006669, shopping: 0.29563453633920556}
+    transfers: {brokerage_auto_invest: 600.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.22754377566595158, gifts_holidays: 0.10988468357995478, home_household: 0.19874199813703475, car_maintenance: 0.12665789422370652, annual_bills: 0.08416347823473413, healthcare: 0.08279084597585594}
+      annual_bills:
+      - {name: Costco annual membership, month: 12}
+      - {name: Term life insurance annual premium, month: 9}
+      - {name: Texas vehicle registration, month: 2}
+      calendar:
+      - {summer: 7, trip2: 11, weekend: [11, 9], birthdays: [9, 4, 11], home_big: [7, 2], car_big: 10, oil: 2, medical: [7, 10], family: [6, 9]}
+      - {summer: 8, trip2: 3, weekend: [10, 8], birthdays: [7, 11, 4], home_big: [5, 7], car_big: 9, oil: 1, medical: [9, 8, 6], family: [10, 9]}
+  C010:
+    income: 4711.01
+    spending: 3106.45
+    credit_limit: 17819.5
+    accounts:
+      checking: {balance: 2206.24}
+      savings: {balance: 8879.08}
+      ira: {balance: 73368.85}
+      credit_card: {balance: 1662.92, monthly_payment: 49.89, apr_pct: 22.5}
+      auto_loan: {balance: 10113.42, monthly_payment: 210.7, apr_pct: 7.5}
+      personal_loan: {balance: 4703.73, monthly_payment: 130.66, apr_pct: 11.0}
+    linked:
+    - {id: L-C010-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 15900.0, secures: A-C010-AUTO_LOAN}
+    - {id: L-C010-STUDENT_LOAN-1, type: student_loan, kind: private, name: Private student loan, institution: Linked lender, balance: 41610.0, apr_pct: 9.08, min_payment: 528.9}
+    bills:
+      housing:
+      - {name: Greystar - The Monarch Apartments, amount: 1060.0, day: 1}
+      insurance:
+      - {name: GEICO auto insurance, amount: 170.6, day: 7}
+      - {name: Lemonade renters insurance, amount: 19.27, day: 7}
+      phone_internet:
+      - {name: AT&T Wireless, amount: 109.41, day: 9}
+      - {name: AT&T Fiber, amount: 61.17, day: 12}
+      subscriptions:
+      - {name: YouTube Premium, amount: 13.99, day: 4}
+      - {name: Amazon Prime, amount: 14.99, day: 8}
+      utilities: {share: 0.05859214416283159, electric: Oncor delivery, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Sprouts Farmers Market, Kroger, Aldi], dining: [Torchy's Tacos, Local pizzeria, DoorDash, Whataburger, Panera Bread, Chick-fil-A], shopping: [Best Buy, Target, Sephora, Nike], fuel: [Chevron, 7-Eleven Fuel]}
+    card_mix: {groceries: 0.20835256573518754, transport: 0.1611943018892617, dining: 0.2628539891552737, shopping: 0.26032650420749004}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.2222181952247827, gifts_holidays: 0.11242423871234497, home_household: 0.1689488177977891, car_maintenance: 0.1333499091232351, annual_bills: 0.10755478968752392, healthcare: 0.07183854971021361}
+      annual_bills:
+      - {name: Costco annual membership, month: 1}
+      - {name: AAA membership, month: 8}
+      - {name: Texas vehicle registration, month: 9}
+      calendar:
+      - {summer: 8, trip2: 12, weekend: [5, 9], birthdays: [5, 2, 8], home_big: [5, 1], car_big: 3, oil: 4, medical: [11, 6], family: [2, 10]}
+      - {summer: 6, trip2: 3, weekend: [12, 8], birthdays: [8, 12, 2], home_big: [5, 2], car_big: 6, oil: 2, medical: [3, 11, 1], family: [1, 10]}
+  C011:
+    income: 6476.88
+    spending: 4293.59
+    credit_limit: 5854.02
+    accounts:
+      checking: {balance: 5827.95}
+      savings: {balance: 2189.62}
+      ira: {balance: 16556.8}
+      credit_card: {balance: 3079.72, monthly_payment: 92.39, apr_pct: 22.5}
+      personal_loan: {balance: 10161.14, monthly_payment: 282.25, apr_pct: 11.0}
+      mortgage: {balance: 108204.24, monthly_payment: 703.33, apr_pct: 6.5}
+    linked:
+    - {id: L-C011-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 236000.0, secures: A-C011-MORTGAGE}
+    - {id: L-C011-PROPERTY-2, type: property, kind: vehicle, name: Car (owned), institution: Estimated value, balance: 12700.0}
+    - {id: L-C011-STUDENT_LOAN-1, type: student_loan, kind: private, name: Private student loan, institution: Linked lender, balance: 17260.0, apr_pct: 8.14, min_payment: 210.69}
+    - {id: L-C011-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 13370.0, cost_basis: 8598.86}
+    bills:
+      housing:
+      - {name: Willow Creek HOA, amount: 203.25, day: 6}
+      - {name: Property tax & insurance escrow, amount: 813.0, day: 1}
+      - {name: Home Depot, amount: 338.75, day: 17}
+      insurance:
+      - {name: Progressive auto insurance, amount: 198.07, day: 7}
+      phone_internet:
+      - {name: T-Mobile, amount: 105.57, day: 9}
+      - {name: Xfinity Internet, amount: 69.12, day: 12}
+      subscriptions:
+      - {name: Planet Fitness, amount: 24.99, day: 17}
+      - {name: YouTube Premium, amount: 13.99, day: 13}
+      - {name: Amazon Prime, amount: 14.99, day: 23}
+      utilities: {share: 0.06651592814883983, electric: TXU Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Tom Thumb, H-E-B, Kroger], dining: [Olive Garden, Panera Bread, Chipotle, DoorDash, Chick-fil-A, Raising Cane's], shopping: [Best Buy, TJ Maxx, IKEA, Old Navy], fuel: [Chevron, QuikTrip]}
+    card_mix: {groceries: 0.25687063824247064, transport: 0.16505338718828483, dining: 0.31946409750145655, shopping: 0.2846068985387165}
+    transfers: {brokerage_auto_invest: 100.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.30914213531659485, gifts_holidays: 0.16978163098577137, home_household: 0.2235326413977317, car_maintenance: 0.09886652968766774, annual_bills: 0.11335116856952783, healthcare: 0.08887018735564663}
+      annual_bills:
+      - {name: H&R Block tax preparation, month: 2}
+      - {name: Term life insurance annual premium, month: 1}
+      - {name: Texas vehicle registration, month: 10}
+      calendar:
+      - {summer: 6, trip2: 12, weekend: [6, 5], birthdays: [9, 3, 10], home_big: [6, 8], car_big: 8, oil: 1, medical: [4, 10], family: [1, 11]}
+      - {summer: 8, trip2: 11, weekend: [3, 5], birthdays: [9, 6, 8], home_big: [5, 1], car_big: 2, oil: 1, medical: [12, 4], family: [7, 10]}
+  C012:
+    income: 10793.98
+    spending: 5556.86
+    credit_limit: 16585.9
+    accounts:
+      checking: {balance: 5241.98}
+      savings: {balance: 19694.85}
+      ira: {balance: 37474.53}
+      credit_card: {balance: 1501.85, monthly_payment: 45.06, apr_pct: 22.5}
+      mortgage: {balance: 32215.27, monthly_payment: 209.4, apr_pct: 6.5}
+    linked:
+    - {id: L-C012-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 45000.0, secures: A-C012-MORTGAGE}
+    - {id: L-C012-PROPERTY-2, type: property, kind: vehicle, name: Car (owned), institution: Estimated value, balance: 5700.0}
+    - {id: L-C012-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 335.85, apr_pct: 25.92, min_payment: 35.0}
+    bills:
+      housing:
+      - {name: Willow Creek HOA, amount: 288.75, day: 6}
+      - {name: Property tax & insurance escrow, amount: 1155.0, day: 1}
+      - {name: Home Depot, amount: 481.25, day: 17}
+      insurance:
+      - {name: State Farm auto insurance, amount: 180.01, day: 7}
+      phone_internet:
+      - {name: AT&T Wireless, amount: 103.64, day: 9}
+      - {name: AT&T Fiber, amount: 78.11, day: 12}
+      subscriptions:
+      - {name: Audible, amount: 14.95, day: 7}
+      - {name: Netflix, amount: 15.49, day: 18}
+      utilities: {share: 0.0633150703953728, electric: TXU Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Walmart Grocery, Kroger, Sprouts Farmers Market], dining: [Uber Eats, Chipotle, Panera Bread, Olive Garden, Local pizzeria, Thai Basil], shopping: [TJ Maxx, Amazon, Etsy, Old Navy], fuel: [QuikTrip, Chevron]}
+    card_mix: {groceries: 0.21173236922413197, transport: 0.23557310304926396, dining: 0.22939748132276255, shopping: 0.19325395038759036}
+    transfers:
+      brokerage_auto_invest: 0.0
+      childcare: null
+      family_support: {to: Zelle to grandparents, monthly: 175.0}
+    lumpy:
+      total: auto
+      mix: {travel: 0.19822831710742733, gifts_holidays: 0.17312362162869235, home_household: 0.19556492315135116, car_maintenance: 0.11309095802320503, annual_bills: 0.08298550447849747, healthcare: 0.09986360976834048, family_support: 0.06519341738340627}
+      annual_bills:
+      - {name: H&R Block tax preparation, month: 7}
+      - {name: AAA membership, month: 9}
+      - {name: Texas vehicle registration, month: 5}
+      calendar:
+      - {summer: 7, trip2: 3, weekend: [12, 5], birthdays: [5, 10, 11], home_big: [12, 2], car_big: 10, oil: 4, medical: [11, 2, 1], family: [7, 10]}
+      - {summer: 6, trip2: 12, weekend: [4, 11], birthdays: [11, 2, 3], home_big: [5, 1], car_big: 4, oil: 2, medical: [11, 1], family: [8, 11]}
+  C013:
+    income: 9495.65
+    spending: 5827.88
+    credit_limit: 7174.05
+    accounts:
+      checking: {balance: 6108.95}
+      savings: {balance: 5409.81}
+      ira: {balance: 74036.33}
+      credit_card: {balance: 1323.61, monthly_payment: 39.71, apr_pct: 22.5}
+      personal_loan: {balance: 7692.95, monthly_payment: 213.69, apr_pct: 11.0}
+    linked:
+    - {id: L-C013-PROPERTY-2, type: property, kind: vehicle, name: Car (owned), institution: Estimated value, balance: 7100.0}
+    - {id: L-C013-STUDENT_LOAN-1, type: student_loan, kind: federal, name: Federal Direct Loan, institution: Dept. of Education (servicer), balance: 18750.0, apr_pct: 5.5, min_payment: 203.49}
+    - {id: L-C013-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 16760.0, cost_basis: 12742.32}
+    bills:
+      housing:
+      - {name: Lincoln Property - Parkside Lofts, amount: 1940.0, day: 1}
+      insurance:
+      - {name: State Farm auto insurance, amount: 169.55, day: 7}
+      - {name: State Farm renters insurance, amount: 15.05, day: 7}
+      phone_internet:
+      - {name: AT&T Wireless, amount: 109.21, day: 9}
+      - {name: Spectrum Internet, amount: 65.39, day: 12}
+      subscriptions:
+      - {name: Hulu, amount: 9.99, day: 25}
+      - {name: Disney+, amount: 13.99, day: 5}
+      - {name: Amazon Prime, amount: 14.99, day: 24}
+      - {name: Audible, amount: 14.95, day: 23}
+      - {name: Apple iCloud+, amount: 2.99, day: 25}
+      utilities: {share: 0.05394058829076839, electric: Oncor delivery, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Kroger, Costco, Trader Joe's], dining: [Chipotle, Thai Basil, Raising Cane's, Olive Garden, Panera Bread, Starbucks], shopping: [Nike, Sephora, Best Buy, Old Navy], fuel: [Chevron, Shell]}
+    card_mix: {groceries: 0.20619016997697043, transport: 0.16885590754301016, dining: 0.31774434918818634, shopping: 0.2557202951784867}
+    transfers: {brokerage_auto_invest: 375.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.2949117844747242, gifts_holidays: 0.11841468653189907, home_household: 0.20849706895951625, car_maintenance: 0.11930301897727928, annual_bills: 0.1153376709946417, healthcare: 0.09112945125292994}
+      annual_bills:
+      - {name: H&R Block tax preparation, month: 6}
+      - {name: AAA membership, month: 4}
+      - {name: Texas vehicle registration, month: 7}
+      calendar:
+      - {summer: 8, trip2: 12, weekend: [7, 12], birthdays: [12, 10, 5], home_big: [11, 12], car_big: 10, oil: 4, medical: [5, 2, 4], family: [4, 7]}
+      - {summer: 8, trip2: 12, weekend: [8, 2], birthdays: [10, 7, 11], home_big: [6, 4], car_big: 5, oil: 1, medical: [2, 5], family: [7, 5]}
+  C014:
+    income: 13475.32
+    spending: 9300.9
+    credit_limit: 22523.5
+    accounts:
+      checking: {balance: 6788.14}
+      savings: {balance: 14107.41}
+      cd: {balance: 8931.18}
+      ira: {balance: 55165.17}
+      credit_card: {balance: 6878.98, monthly_payment: 206.37, apr_pct: 22.5}
+      mortgage: {balance: 154260.68, monthly_payment: 1002.69, apr_pct: 6.5}
+    linked:
+    - {id: L-C014-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 293000.0, secures: A-C014-MORTGAGE}
+    - {id: L-C014-PROPERTY-2, type: property, kind: vehicle, name: Car (owned), institution: Estimated value, balance: 11600.0}
+    - {id: L-C014-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 19740.0, cost_basis: 15655.16}
+    - {id: L-C014-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 2406.85, apr_pct: 25.9, min_payment: 76.02}
+    bills:
+      housing:
+      - {name: Lakeview HOA, amount: 445.5, day: 6}
+      - {name: Property tax & insurance escrow, amount: 1782.0, day: 1}
+      - {name: Home Depot, amount: 742.5, day: 17}
+      insurance:
+      - {name: Allstate auto insurance, amount: 202.8, day: 7}
+      phone_internet:
+      - {name: AT&T Wireless, amount: 70.94, day: 9}
+      - {name: AT&T Fiber, amount: 78.46, day: 12}
+      subscriptions:
+      - {name: Apple iCloud+, amount: 2.99, day: 11}
+      - {name: Amazon Prime, amount: 14.99, day: 27}
+      - {name: Peloton App, amount: 12.99, day: 5}
+      - {name: Netflix, amount: 15.49, day: 23}
+      utilities: {share: 0.05518186343502319, electric: TXU Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Kroger, H-E-B, Walmart Grocery], dining: [DoorDash, Chipotle, Panera Bread, Torchy's Tacos, Starbucks, Whataburger], shopping: [IKEA, TJ Maxx, Old Navy, Amazon], fuel: [Shell, QuikTrip]}
+    card_mix: {groceries: 0.27812890841672105, transport: 0.16459408859959623, dining: 0.3479165153517241, shopping: 0.2595037150155366}
+    transfers: {brokerage_auto_invest: 300.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.3033627424262078, gifts_holidays: 0.10529994679693605, home_household: 0.19868793090201062, car_maintenance: 0.13096929860048565, annual_bills: 0.07538968961162727, healthcare: 0.06859421225440865}
+      annual_bills:
+      - {name: H&R Block tax preparation, month: 12}
+      - {name: AAA membership, month: 2}
+      - {name: Texas vehicle registration, month: 6}
+      calendar:
+      - {summer: 7, trip2: 11, weekend: [3, 11], birthdays: [1, 5, 9], home_big: [6, 12], car_big: 4, oil: 3, medical: [8, 10], family: [7, 6]}
+      - {summer: 6, trip2: 11, weekend: [5, 7], birthdays: [10, 9, 3], home_big: [11, 2], car_big: 4, oil: 3, medical: [4, 5, 7], family: [5, 8]}
+  C015:
+    income: 11041.95
+    spending: 9034.32
+    credit_limit: 10171.75
+    accounts:
+      checking: {balance: 6935.57}
+      savings: {balance: 3327.71}
+      cd: {balance: 693.35}
+      ira: {balance: 42780.76}
+      credit_card: {balance: 6985.17, monthly_payment: 209.56, apr_pct: 22.5}
+      auto_loan: {balance: 19602.23, monthly_payment: 408.38, apr_pct: 7.5}
+      personal_loan: {balance: 5776.69, monthly_payment: 160.46, apr_pct: 11.0}
+    linked:
+    - {id: L-C015-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 26500.0, secures: A-C015-AUTO_LOAN}
+    - {id: L-C015-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 3204.13, apr_pct: 23.37, min_payment: 94.44}
+    bills:
+      housing:
+      - {name: Camden Apartments, amount: 2910.0, day: 1}
+      insurance:
+      - {name: Progressive auto insurance, amount: 163.55, day: 7}
+      - {name: Lemonade renters insurance, amount: 14.5, day: 7}
+      phone_internet:
+      - {name: Verizon Wireless, amount: 142.41, day: 9}
+      - {name: Spectrum Internet, amount: 66.25, day: 12}
+      subscriptions:
+      - {name: Planet Fitness, amount: 24.99, day: 26}
+      - {name: Xbox Game Pass, amount: 16.99, day: 9}
+      - {name: Amazon Prime, amount: 14.99, day: 11}
+      utilities: {share: 0.05409736693141585, electric: Oncor delivery, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Trader Joe's, Costco, Sprouts Farmers Market], dining: [Whataburger, Starbucks, Chipotle, Chick-fil-A, Uber Eats, Olive Garden], shopping: [TJ Maxx, Target, Amazon, Nike], fuel: [Exxon, Chevron]}
+    card_mix: {groceries: 0.27491131365758903, transport: 0.2379746212405075, dining: 0.2955361948808862, shopping: 0.23036034790460969}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.30708006508766145, gifts_holidays: 0.12233656878233581, home_household: 0.2281969091760304, car_maintenance: 0.10996457261318533, annual_bills: 0.12031272658534592, healthcare: 0.0939635193438247}
+      annual_bills:
+      - {name: Term life insurance annual premium, month: 4}
+      - {name: H&R Block tax preparation, month: 10}
+      - {name: Texas vehicle registration, month: 1}
+      calendar:
+      - {summer: 6, trip2: 11, weekend: [3, 6], birthdays: [9, 1, 5], home_big: [3, 5], car_big: 11, oil: 4, medical: [12, 1], family: [10, 12]}
+      - {summer: 8, trip2: 11, weekend: [8, 1], birthdays: [6, 3, 11], home_big: [4, 1], car_big: 3, oil: 1, medical: [4, 3], family: [10, 5]}
+  C016:
+    income: 9310.21
+    spending: 8338.51
+    credit_limit: 9411.44
+    accounts:
+      checking: {balance: 2551.35}
+      savings: {balance: 27237.97}
+      cd: {balance: 8950.76}
+      ira: {balance: 53408.33}
+      credit_card: {balance: 1696.12, monthly_payment: 50.88, apr_pct: 22.5}
+      mortgage: {balance: 296604.29, monthly_payment: 1927.93, apr_pct: 6.5}
+    linked:
+    - {id: L-C016-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 414000.0, secures: A-C016-MORTGAGE}
+    bills:
+      housing:
+      - {name: Lakeview HOA, amount: 417.75, day: 6}
+      - {name: Property tax & insurance escrow, amount: 1671.0, day: 1}
+      - {name: Lowe's, amount: 696.25, day: 17}
+      insurance: []
+      phone_internet:
+      - {name: T-Mobile, amount: 64.4, day: 9}
+      - {name: Xfinity Internet, amount: 80.78, day: 12}
+      subscriptions:
+      - {name: Xbox Game Pass, amount: 16.99, day: 7}
+      - {name: Disney+, amount: 13.99, day: 9}
+      utilities: {share: 0.05846331472825357, electric: TXU Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Tom Thumb, Walmart Grocery, Aldi], dining: [Torchy's Tacos, DoorDash, Thai Basil, Chick-fil-A, Olive Garden, Uber Eats], shopping: [Best Buy, Sephora, Target, Nike], fuel: [QuikTrip, Chevron]}
+    card_mix: {groceries: 0.22634126422299763, transport: 0.19482142963266194, dining: 0.31489734027511923, shopping: 0.2236395433046743}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.27705394215940043, gifts_holidays: 0.12180636376297971, home_household: 0.20664001371583207, annual_bills: 0.1176212487590078, healthcare: 0.06146419279581155}
+      annual_bills:
+      - {name: H&R Block tax preparation, month: 8}
+      - {name: AAA membership, month: 2}
+      calendar:
+      - {summer: 8, trip2: 3, weekend: [12, 9], birthdays: [5, 11, 7], home_big: [2, 12], car_big: 2, oil: 4, medical: [5, 7, 2], family: [8, 12]}
+      - {summer: 6, trip2: 3, weekend: [10, 5], birthdays: [12, 10, 7], home_big: [10, 3], car_big: 11, oil: 4, medical: [9, 5, 6], family: [4, 9]}
+  C017:
+    income: 9741.28
+    spending: 4878.39
+    credit_limit: 22789.38
+    accounts:
+      checking: {balance: 4294.82}
+      savings: {balance: 7324.16}
+      ira: {balance: 18115.04}
+      credit_card: {balance: 8170.06, monthly_payment: 245.1, apr_pct: 22.5}
+      auto_loan: {balance: 4800.19, monthly_payment: 100.0, apr_pct: 7.5}
+      mortgage: {balance: 76602.23, monthly_payment: 497.91, apr_pct: 6.5}
+    linked:
+    - {id: L-C017-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 110000.0, secures: A-C017-MORTGAGE}
+    - {id: L-C017-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 5800.0, secures: A-C017-AUTO_LOAN}
+    - {id: L-C017-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 24930.0, cost_basis: 20031.56}
+    bills:
+      housing:
+      - {name: Willow Creek HOA, amount: 255.75, day: 6}
+      - {name: Property tax & insurance escrow, amount: 1023.0, day: 1}
+      - {name: Lowe's, amount: 426.25, day: 17}
+      insurance:
+      - {name: State Farm auto insurance, amount: 164.4, day: 7}
+      phone_internet:
+      - {name: Verizon Wireless, amount: 104.67, day: 9}
+      - {name: Spectrum Internet, amount: 66.57, day: 12}
+      subscriptions:
+      - {name: Audible, amount: 14.95, day: 11}
+      - {name: Xbox Game Pass, amount: 16.99, day: 10}
+      - {name: Max, amount: 16.99, day: 22}
+      - {name: Peloton App, amount: 12.99, day: 7}
+      - {name: Disney+, amount: 13.99, day: 25}
+      utilities: {share: 0.05240026043072956, electric: Oncor delivery, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Costco, Trader Joe's, Tom Thumb], dining: [Uber Eats, Starbucks, Whataburger, Chipotle, DoorDash, Chick-fil-A], shopping: [Amazon, Target, IKEA, TJ Maxx], fuel: [7-Eleven Fuel, Chevron]}
+    card_mix: {groceries: 0.272676125780107, transport: 0.1678526956386693, dining: 0.2434837193561996, shopping: 0.21771536231694183}
+    transfers:
+      brokerage_auto_invest: 550.0
+      childcare: null
+      family_support: {to: Zelle to brother, monthly: 375.0}
+    lumpy:
+      total: auto
+      mix: {travel: 0.3169948626424642, gifts_holidays: 0.15078703533979493, home_household: 0.19643358444352538, car_maintenance: 0.1125049308296892, annual_bills: 0.07658764186621479, healthcare: 0.07224284874918305, family_support: 0.08757612496688168}
+      annual_bills:
+      - {name: Term life insurance annual premium, month: 2}
+      - {name: AAA membership, month: 1}
+      - {name: Texas vehicle registration, month: 9}
+      calendar:
+      - {summer: 8, trip2: 11, weekend: [8, 12], birthdays: [1, 7, 3], home_big: [9, 7], car_big: 1, oil: 4, medical: [11, 6], family: [1, 4]}
+      - {summer: 6, trip2: 3, weekend: [2, 12], birthdays: [1, 7, 5], home_big: [9, 10], car_big: 2, oil: 4, medical: [2, 1, 5], family: [12, 7]}
+  C018:
+    income: 13175.6
+    spending: 11987.95
+    credit_limit: 5674.68
+    accounts:
+      checking: {balance: 7447.28}
+      savings: {balance: 13576.63}
+      cd: {balance: 6442.52}
+      ira: {balance: 48094.33}
+      credit_card: {balance: 5344.03, monthly_payment: 160.32, apr_pct: 22.5}
+      personal_loan: {balance: 8992.5, monthly_payment: 249.79, apr_pct: 11.0}
+      mortgage: {balance: 265060.15, monthly_payment: 1722.89, apr_pct: 6.5}
+    linked:
+    - {id: L-C018-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 491000.0, secures: A-C018-MORTGAGE}
+    - {id: L-C018-STUDENT_LOAN-1, type: student_loan, kind: private, name: Private student loan, institution: Linked lender, balance: 7890.0, apr_pct: 7.58, min_payment: 93.99}
+    - {id: L-C018-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 31040.0, cost_basis: 26409.42}
+    bills:
+      housing:
+      - {name: Stonebridge HOA, amount: 604.5, day: 6}
+      - {name: Property tax & insurance escrow, amount: 2418.0, day: 1}
+      - {name: Lowe's, amount: 1007.5, day: 17}
+      insurance: []
+      phone_internet:
+      - {name: Verizon Wireless, amount: 130.7, day: 9}
+      - {name: Spectrum Internet, amount: 65.04, day: 12}
+      subscriptions:
+      - {name: Netflix, amount: 15.49, day: 19}
+      - {name: YouTube Premium, amount: 13.99, day: 15}
+      - {name: Xbox Game Pass, amount: 16.99, day: 27}
+      - {name: Apple iCloud+, amount: 2.99, day: 18}
+      - {name: Spotify, amount: 11.99, day: 9}
+      utilities: {share: 0.05093154457225189, electric: Oncor delivery, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [H-E-B, Tom Thumb, Costco], dining: [Panera Bread, Thai Basil, Torchy's Tacos, Chipotle, Chick-fil-A, Whataburger], shopping: [TJ Maxx, Target, Sephora, Old Navy], fuel: [Exxon, 7-Eleven Fuel]}
+    card_mix: {groceries: 0.2183480258344869, transport: 0.22793551965114967, dining: 0.3088112963199004, shopping: 0.28011764554428187}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.31558244982044864, gifts_holidays: 0.1523574195019482, home_household: 0.18617327167224143, annual_bills: 0.07620771952616277, healthcare: 0.0657965688045285}
+      annual_bills:
+      - {name: AAA membership, month: 10}
+      - {name: Term life insurance annual premium, month: 11}
+      calendar:
+      - {summer: 6, trip2: 12, weekend: [11, 5], birthdays: [8, 7, 11], home_big: [11, 5], car_big: 8, oil: 2, medical: [8, 6], family: [2, 4]}
+      - {summer: 6, trip2: 11, weekend: [8, 3], birthdays: [3, 4, 6], home_big: [12, 5], car_big: 12, oil: 3, medical: [7, 8], family: [7, 3]}
+  C019:
+    income: 12329.86
+    spending: 6675.48
+    credit_limit: 29870.59
+    accounts:
+      checking: {balance: 8508.1}
+      savings: {balance: 11548.46}
+      cd: {balance: 12189.62}
+      ira: {balance: 4633.76}
+      credit_card: {balance: 9218.25, monthly_payment: 276.55, apr_pct: 22.5}
+      auto_loan: {balance: 21798.61, monthly_payment: 454.14, apr_pct: 7.5}
+      personal_loan: {balance: 2688.08, monthly_payment: 74.67, apr_pct: 11.0}
+      mortgage: {balance: 158962.21, monthly_payment: 1033.25, apr_pct: 6.5}
+    linked:
+    - {id: L-C019-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 232000.0, secures: A-C019-MORTGAGE}
+    - {id: L-C019-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 25200.0, secures: A-C019-AUTO_LOAN}
+    - {id: L-C019-STUDENT_LOAN-1, type: student_loan, kind: federal, name: Federal Direct Loan, institution: Dept. of Education (servicer), balance: 13620.0, apr_pct: 4.53, min_payment: 141.35}
+    - {id: L-C019-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 22340.0, cost_basis: 19802.11}
+    bills:
+      housing:
+      - {name: Willow Creek HOA, amount: 333.0, day: 6}
+      - {name: Property tax & insurance escrow, amount: 1332.0, day: 1}
+      - {name: Lowe's, amount: 555.0, day: 17}
+      insurance:
+      - {name: State Farm auto insurance, amount: 169.84, day: 7}
+      phone_internet:
+      - {name: AT&T Wireless, amount: 112.83, day: 9}
+      - {name: Spectrum Internet, amount: 85.95, day: 12}
+      subscriptions:
+      - {name: Hulu, amount: 9.99, day: 20}
+      - {name: Spotify, amount: 11.99, day: 7}
+      - {name: Planet Fitness, amount: 24.99, day: 27}
+      - {name: YouTube Premium, amount: 13.99, day: 14}
+      - {name: Xbox Game Pass, amount: 16.99, day: 6}
+      utilities: {share: 0.051359671572781054, electric: Oncor delivery, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Aldi, Sprouts Farmers Market, Costco], dining: [Chipotle, Uber Eats, Starbucks, Thai Basil, Raising Cane's, Chick-fil-A], shopping: [Nike, Amazon, TJ Maxx, Etsy], fuel: [RaceTrac, Exxon]}
+    card_mix: {groceries: 0.25860962246616365, transport: 0.17286547181690126, dining: 0.2537240125791526, shopping: 0.28144320877555573}
+    transfers:
+      brokerage_auto_invest: 450.0
+      childcare: {provider: Bright Horizons, monthly: 740.0}
+      family_support: {to: Zelle to Dad, monthly: 225.0}
+    lumpy:
+      total: auto
+      mix: {travel: 0.2024703074935981, gifts_holidays: 0.11572462505044055, home_household: 0.1716485875960384, car_maintenance: 0.12160634390260372, annual_bills: 0.08958665438146453, healthcare: 0.0956384705541128, family_support: 0.08682053218268214}
+      annual_bills:
+      - {name: H&R Block tax preparation, month: 3}
+      - {name: Costco annual membership, month: 11}
+      - {name: Texas vehicle registration, month: 5}
+      calendar:
+      - {summer: 6, trip2: 11, weekend: [4, 12], birthdays: [11, 4, 1], home_big: [6, 7], car_big: 12, oil: 3, medical: [3, 4, 10], family: [4, 1]}
+      - {summer: 8, trip2: 11, weekend: [3, 10], birthdays: [7, 9, 8], home_big: [10, 2], car_big: 11, oil: 2, medical: [11, 1, 9], family: [1, 8]}
+  C020:
+    income: 6674.2
+    spending: 3264.19
+    credit_limit: 20214.78
+    accounts:
+      checking: {balance: 6510.85}
+      savings: {balance: 5356.09}
+      cd: {balance: 349.96}
+      ira: {balance: 24971.04}
+      credit_card: {balance: 3075.83, monthly_payment: 92.27, apr_pct: 22.5}
+      auto_loan: {balance: 16888.02, monthly_payment: 351.83, apr_pct: 7.5}
+      personal_loan: {balance: 5865.85, monthly_payment: 162.94, apr_pct: 11.0}
+    linked:
+    - {id: L-C020-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 19300.0, secures: A-C020-AUTO_LOAN}
+    bills:
+      housing:
+      - {name: MAA - Riverside Apartments, amount: 1115.0, day: 1}
+      insurance:
+      - {name: GEICO auto insurance, amount: 112.31, day: 7}
+      - {name: Lemonade renters insurance, amount: 15.0, day: 7}
+      phone_internet:
+      - {name: Verizon Wireless, amount: 111.03, day: 9}
+      - {name: AT&T Fiber, amount: 69.24, day: 12}
+      subscriptions:
+      - {name: Audible, amount: 14.95, day: 5}
+      - {name: YouTube Premium, amount: 13.99, day: 19}
+      - {name: Peloton App, amount: 12.99, day: 22}
+      - {name: Xbox Game Pass, amount: 16.99, day: 2}
+      - {name: Spotify, amount: 11.99, day: 8}
+      utilities: {share: 0.052443929923928094, electric: Reliant Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Walmart Grocery, Tom Thumb, Costco], dining: [Starbucks, Raising Cane's, Torchy's Tacos, Panera Bread, Whataburger, Olive Garden], shopping: [Nike, Target, IKEA, Best Buy], fuel: [7-Eleven Fuel, RaceTrac]}
+    card_mix: {groceries: 0.2588020142807499, transport: 0.21618014607651087, dining: 0.2889484399576553, shopping: 0.2402658709788179}
+    transfers:
+      brokerage_auto_invest: 0.0
+      childcare: null
+      family_support: {to: Zelle to grandparents, monthly: 100.0}
+    lumpy:
+      total: auto
+      mix: {travel: 0.21777146020462304, gifts_holidays: 0.17308479494335022, home_household: 0.25074942327518557, car_maintenance: 0.13995385990146147, annual_bills: 0.10292828145464515, healthcare: 0.09007160600417134, family_support: 0.08385070178833838}
+      annual_bills:
+      - {name: Costco annual membership, month: 2}
+      - {name: H&R Block tax preparation, month: 8}
+      - {name: Texas vehicle registration, month: 6}
+      calendar:
+      - {summer: 6, trip2: 11, weekend: [6, 10], birthdays: [9, 7, 6], home_big: [7, 4], car_big: 2, oil: 3, medical: [11, 1], family: [11, 6]}
+      - {summer: 7, trip2: 3, weekend: [7, 6], birthdays: [9, 11, 6], home_big: [1, 6], car_big: 5, oil: 4, medical: [10, 12], family: [6, 9]}
+  C021:
+    income: 7814.72
+    spending: 3972.77
+    credit_limit: 17118.19
+    accounts:
+      checking: {balance: 1267.11}
+      savings: {balance: 11470.84}
+      cd: {balance: 6244.24}
+      ira: {balance: 6655.98}
+      credit_card: {balance: 3537.81, monthly_payment: 106.13, apr_pct: 22.5}
+      personal_loan: {balance: 7727.75, monthly_payment: 214.66, apr_pct: 11.0}
+      mortgage: {balance: 139848.42, monthly_payment: 909.01, apr_pct: 6.5}
+    linked:
+    - {id: L-C021-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 191000.0, secures: A-C021-MORTGAGE}
+    - {id: L-C021-PROPERTY-2, type: property, kind: vehicle, name: Car (owned), institution: Estimated value, balance: 10000.0}
+    - {id: L-C021-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 1944.35, apr_pct: 26.74, min_payment: 62.77}
+    bills:
+      housing:
+      - {name: Stonebridge HOA, amount: 200.25, day: 6}
+      - {name: Property tax & insurance escrow, amount: 801.0, day: 1}
+      - {name: Lowe's, amount: 333.75, day: 17}
+      insurance:
+      - {name: Allstate auto insurance, amount: 157.62, day: 7}
+      phone_internet:
+      - {name: AT&T Wireless, amount: 138.12, day: 9}
+      - {name: AT&T Fiber, amount: 60.93, day: 12}
+      subscriptions:
+      - {name: Xbox Game Pass, amount: 16.99, day: 6}
+      - {name: Netflix, amount: 15.49, day: 26}
+      - {name: Planet Fitness, amount: 24.99, day: 6}
+      - {name: Peloton App, amount: 12.99, day: 6}
+      utilities: {share: 0.06833137400125353, electric: Oncor delivery, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Walmart Grocery, Trader Joe's, Tom Thumb], dining: [Olive Garden, Panera Bread, Whataburger, Torchy's Tacos, Thai Basil, Starbucks], shopping: [Best Buy, Nike, Amazon, Old Navy], fuel: [Chevron, Shell]}
+    card_mix: {groceries: 0.24853145572343988, transport: 0.1727221694172541, dining: 0.23373742475935166, shopping: 0.20965847586692915}
+    transfers:
+      brokerage_auto_invest: 0.0
+      childcare: null
+      family_support: {to: Zelle to Dad, monthly: 150.0}
+    lumpy:
+      total: auto
+      mix: {travel: 0.3055812282671955, gifts_holidays: 0.17275329899108918, home_household: 0.18047163467254715, car_maintenance: 0.11392767997489092, annual_bills: 0.11758145454175711, healthcare: 0.060147661015679095, family_support: 0.08331462238565188}
+      annual_bills:
+      - {name: Costco annual membership, month: 5}
+      - {name: Term life insurance annual premium, month: 6}
+      - {name: Texas vehicle registration, month: 10}
+      calendar:
+      - {summer: 8, trip2: 3, weekend: [1, 8], birthdays: [3, 9, 10], home_big: [7, 5], car_big: 7, oil: 3, medical: [7, 8, 11], family: [9, 5]}
+      - {summer: 6, trip2: 3, weekend: [3, 11], birthdays: [3, 6, 7], home_big: [1, 10], car_big: 9, oil: 1, medical: [3, 8], family: [3, 1]}
+  C022:
+    income: 4489.17
+    spending: 3031.37
+    credit_limit: 26984.84
+    accounts:
+      checking: {balance: 5453.82}
+      savings: {balance: 17291.82}
+      ira: {balance: 11689.55}
+      credit_card: {balance: 9908.14, monthly_payment: 297.24, apr_pct: 22.5}
+      auto_loan: {balance: 12972.81, monthly_payment: 270.27, apr_pct: 7.5}
+      mortgage: {balance: 294563.02, monthly_payment: 1914.66, apr_pct: 6.5}
+    linked:
+    - {id: L-C022-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 444000.0, secures: A-C022-MORTGAGE}
+    - {id: L-C022-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 14500.0, secures: A-C022-AUTO_LOAN}
+    - {id: L-C022-STUDENT_LOAN-1, type: student_loan, kind: federal, name: Federal Direct Loan, institution: Dept. of Education (servicer), balance: 39770.0, apr_pct: 4.53, min_payment: 412.75}
+    - {id: L-C022-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 22910.0, cost_basis: 18488.51}
+    bills:
+      housing:
+      - {name: Lakeview HOA, amount: 144.0, day: 6}
+      - {name: Property tax & insurance escrow, amount: 576.0, day: 1}
+      - {name: Home Depot, amount: 240.0, day: 17}
+      insurance:
+      - {name: State Farm auto insurance, amount: 186.11, day: 7}
+      phone_internet:
+      - {name: T-Mobile, amount: 98.22, day: 9}
+      - {name: Xfinity Internet, amount: 55.33, day: 12}
+      subscriptions:
+      - {name: Audible, amount: 14.95, day: 25}
+      - {name: Netflix, amount: 15.49, day: 7}
+      - {name: Spotify, amount: 11.99, day: 11}
+      - {name: YouTube Premium, amount: 13.99, day: 26}
+      - {name: Amazon Prime, amount: 14.99, day: 23}
+      utilities: {share: 0.06928282762284434, electric: Oncor delivery, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Costco, Walmart Grocery, Trader Joe's], dining: [Olive Garden, Uber Eats, Raising Cane's, Panera Bread, Torchy's Tacos, Local pizzeria], shopping: [Nike, Sephora, Etsy, Amazon], fuel: [Exxon, 7-Eleven Fuel]}
+    card_mix: {groceries: 0.2995053424097666, transport: 0.23772720733410888, dining: 0.30694629393917194, shopping: 0.21066140868341413}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.20052621158672165, gifts_holidays: 0.1208715612475766, home_household: 0.17107077037916477, car_maintenance: 0.1288878985377621, annual_bills: 0.07586489639819818, healthcare: 0.09968090348806519}
+      annual_bills:
+      - {name: H&R Block tax preparation, month: 7}
+      - {name: Costco annual membership, month: 3}
+      - {name: Texas vehicle registration, month: 10}
+      calendar:
+      - {summer: 7, trip2: 11, weekend: [10, 2], birthdays: [10, 1, 2], home_big: [9, 8], car_big: 2, oil: 1, medical: [11, 7, 9], family: [1, 4]}
+      - {summer: 6, trip2: 12, weekend: [4, 6], birthdays: [6, 9, 4], home_big: [3, 9], car_big: 11, oil: 4, medical: [12, 2, 3], family: [9, 3]}
+  C023:
+    income: 13071.99
+    spending: 7921.08
+    credit_limit: 28668.23
+    accounts:
+      checking: {balance: 6599.96}
+      savings: {balance: 20110.53}
+      cd: {balance: 2046.28}
+      ira: {balance: 2132.1}
+      credit_card: {balance: 6863.75, monthly_payment: 205.91, apr_pct: 22.5}
+      personal_loan: {balance: 4460.15, monthly_payment: 123.89, apr_pct: 11.0}
+      mortgage: {balance: 281647.64, monthly_payment: 1830.71, apr_pct: 6.5}
+    linked:
+    - {id: L-C023-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 591000.0, secures: A-C023-MORTGAGE}
+    - {id: L-C023-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 35620.0, cost_basis: 25829.55}
+    - {id: L-C023-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 1438.61, apr_pct: 22.82, min_payment: 41.74}
+    bills:
+      housing:
+      - {name: Lakeview HOA, amount: 366.75, day: 6}
+      - {name: Property tax & insurance escrow, amount: 1467.0, day: 1}
+      - {name: Lowe's, amount: 611.25, day: 17}
+      insurance: []
+      phone_internet:
+      - {name: T-Mobile, amount: 74.64, day: 9}
+      - {name: Spectrum Internet, amount: 73.82, day: 12}
+      subscriptions:
+      - {name: Netflix, amount: 15.49, day: 15}
+      - {name: Disney+, amount: 13.99, day: 27}
+      utilities: {share: 0.06483469817521743, electric: Reliant Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Costco, Trader Joe's, Tom Thumb], dining: [Thai Basil, Raising Cane's, DoorDash, Whataburger, Chick-fil-A, Chipotle], shopping: [Nike, IKEA, Target, Amazon], fuel: [7-Eleven Fuel, RaceTrac]}
+    card_mix: {groceries: 0.28487566373294854, transport: 0.21316485594164622, dining: 0.25046060948680876, shopping: 0.23974978886589324}
+    transfers:
+      brokerage_auto_invest: 225.0
+      childcare: {provider: Bright Horizons, monthly: 1225.0}
+      family_support: null
+    lumpy:
+      total: auto
+      mix: {travel: 0.22373077718820272, gifts_holidays: 0.15539810398620715, home_household: 0.20602263304767368, annual_bills: 0.0750546260418522, healthcare: 0.09379892123754732}
+      annual_bills:
+      - {name: Term life insurance annual premium, month: 11}
+      - {name: Costco annual membership, month: 7}
+      calendar:
+      - {summer: 6, trip2: 11, weekend: [6, 10], birthdays: [11, 8, 4], home_big: [12, 9], car_big: 2, oil: 3, medical: [8, 9, 11], family: [2, 4]}
+      - {summer: 7, trip2: 3, weekend: [8, 4], birthdays: [4, 2, 10], home_big: [11, 9], car_big: 5, oil: 1, medical: [4, 3, 11], family: [12, 11]}
+  C024:
+    income: 8476.42
+    spending: 5557.68
+    credit_limit: 5332.24
+    accounts:
+      checking: {balance: 6122.85}
+      savings: {balance: 12577.24}
+      ira: {balance: 50025.78}
+      credit_card: {balance: 9971.34, monthly_payment: 299.14, apr_pct: 22.5}
+      auto_loan: {balance: 28908.09, monthly_payment: 602.25, apr_pct: 7.5}
+      personal_loan: {balance: 13901.14, monthly_payment: 386.14, apr_pct: 11.0}
+      mortgage: {balance: 281770.84, monthly_payment: 1831.51, apr_pct: 6.5}
+    linked:
+    - {id: L-C024-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 364000.0, secures: A-C024-MORTGAGE}
+    - {id: L-C024-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 48000.0, secures: A-C024-AUTO_LOAN}
+    - {id: L-C024-STUDENT_LOAN-1, type: student_loan, kind: federal, name: Federal Direct Loan, institution: Dept. of Education (servicer), balance: 32100.0, apr_pct: 4.99, min_payment: 340.31}
+    bills:
+      housing:
+      - {name: Stonebridge HOA, amount: 285.75, day: 6}
+      - {name: Property tax & insurance escrow, amount: 1143.0, day: 1}
+      - {name: Lowe's, amount: 476.25, day: 17}
+      insurance:
+      - {name: Allstate auto insurance, amount: 157.67, day: 7}
+      phone_internet:
+      - {name: Mint Mobile, amount: 40.18, day: 9}
+      - {name: Spectrum Internet, amount: 61.8, day: 12}
+      subscriptions:
+      - {name: Hulu, amount: 9.99, day: 4}
+      - {name: Peloton App, amount: 12.99, day: 27}
+      - {name: Netflix, amount: 15.49, day: 22}
+      utilities: {share: 0.057954836292927636, electric: Green Mountain Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [H-E-B, Costco, Trader Joe's], dining: [Olive Garden, Torchy's Tacos, Starbucks, Thai Basil, Chipotle, Uber Eats], shopping: [Amazon, Old Navy, Etsy, IKEA], fuel: [RaceTrac, Shell]}
+    card_mix: {groceries: 0.23680972155031002, transport: 0.16022107396301258, dining: 0.26248837409938547, shopping: 0.1814899029725337}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.23700656388207314, gifts_holidays: 0.15638696467235821, home_household: 0.24300772946822585, car_maintenance: 0.11448770211717266, annual_bills: 0.11041842609105729, healthcare: 0.0863769483085709}
+      annual_bills:
+      - {name: Term life insurance annual premium, month: 2}
+      - {name: H&R Block tax preparation, month: 3}
+      - {name: Texas vehicle registration, month: 7}
+      calendar:
+      - {summer: 8, trip2: 11, weekend: [1, 10], birthdays: [1, 3, 8], home_big: [6, 8], car_big: 8, oil: 3, medical: [7, 4], family: [11, 2]}
+      - {summer: 6, trip2: 3, weekend: [4, 7], birthdays: [11, 6, 12], home_big: [11, 9], car_big: 3, oil: 3, medical: [1, 6], family: [4, 5]}
+  C025:
+    income: 5609.53
+    spending: 2922.44
+    credit_limit: 19071.86
+    accounts:
+      checking: {balance: 5313.1}
+      savings: {balance: 10027.3}
+      ira: {balance: 26420.93}
+      credit_card: {balance: 2633.01, monthly_payment: 78.99, apr_pct: 22.5}
+      personal_loan: {balance: 6129.05, monthly_payment: 170.25, apr_pct: 11.0}
+      mortgage: {balance: 199162.14, monthly_payment: 1294.55, apr_pct: 6.5}
+    linked:
+    - {id: L-C025-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 263000.0, secures: A-C025-MORTGAGE}
+    - {id: L-C025-PROPERTY-2, type: property, kind: vehicle, name: Car (owned), institution: Estimated value, balance: 12100.0}
+    - {id: L-C025-STUDENT_LOAN-1, type: student_loan, kind: private, name: Private student loan, institution: Linked lender, balance: 40260.0, apr_pct: 7.53, min_payment: 478.52}
+    bills:
+      housing:
+      - {name: Stonebridge HOA, amount: 149.25, day: 6}
+      - {name: Property tax & insurance escrow, amount: 597.0, day: 1}
+      - {name: Home Depot, amount: 248.75, day: 17}
+      insurance:
+      - {name: State Farm auto insurance, amount: 139.0, day: 7}
+      phone_internet:
+      - {name: Mint Mobile, amount: 37.44, day: 9}
+      - {name: Xfinity Internet, amount: 62.89, day: 12}
+      subscriptions:
+      - {name: YouTube Premium, amount: 13.99, day: 12}
+      - {name: Planet Fitness, amount: 24.99, day: 11}
+      - {name: Amazon Prime, amount: 14.99, day: 21}
+      - {name: Xbox Game Pass, amount: 16.99, day: 21}
+      - {name: Disney+, amount: 13.99, day: 10}
+      utilities: {share: 0.05549687007631725, electric: TXU Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Kroger, Sprouts Farmers Market, Tom Thumb], dining: [Torchy's Tacos, Chipotle, Chick-fil-A, Whataburger, Raising Cane's, Starbucks], shopping: [TJ Maxx, Sephora, Amazon, Old Navy], fuel: [RaceTrac, Chevron]}
+    card_mix: {groceries: 0.2288406967064035, transport: 0.20843340382463982, dining: 0.24412373785233485, shopping: 0.19240486630297168}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.20247224780513712, gifts_holidays: 0.1475890436029942, home_household: 0.24495411053276717, car_maintenance: 0.11114453484522516, annual_bills: 0.08256188067152365, healthcare: 0.08215398537433626}
+      annual_bills:
+      - {name: AAA membership, month: 5}
+      - {name: Costco annual membership, month: 6}
+      - {name: Texas vehicle registration, month: 1}
+      calendar:
+      - {summer: 8, trip2: 11, weekend: [1, 2], birthdays: [11, 2, 7], home_big: [8, 2], car_big: 10, oil: 4, medical: [8, 6], family: [11, 12]}
+      - {summer: 7, trip2: 12, weekend: [12, 4], birthdays: [7, 3, 10], home_big: [12, 8], car_big: 11, oil: 2, medical: [6, 5], family: [8, 11]}
+  C026:
+    income: 12175.14
+    spending: 7213.79
+    credit_limit: 12689.8
+    accounts:
+      checking: {balance: 1973.26}
+      savings: {balance: 9215.65}
+      cd: {balance: 11310.94}
+      ira: {balance: 75874.32}
+      credit_card: {balance: 3400.65, monthly_payment: 102.02, apr_pct: 22.5}
+      auto_loan: {balance: 5494.67, monthly_payment: 114.47, apr_pct: 7.5}
+      personal_loan: {balance: 7538.92, monthly_payment: 209.41, apr_pct: 11.0}
+      mortgage: {balance: 277350.54, monthly_payment: 1802.78, apr_pct: 6.5}
+    linked:
+    - {id: L-C026-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 403000.0, secures: A-C026-MORTGAGE}
+    - {id: L-C026-PROPERTY-2, type: property, kind: vehicle, name: Car, institution: Estimated value, balance: 7900.0, secures: A-C026-AUTO_LOAN}
+    - {id: L-C026-STUDENT_LOAN-1, type: student_loan, kind: federal, name: Federal Direct Loan, institution: Dept. of Education (servicer), balance: 33280.0, apr_pct: 5.5, min_payment: 361.18}
+    - {id: L-C026-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 17600.0, cost_basis: 13761.72}
+    bills:
+      housing:
+      - {name: Lakeview HOA, amount: 341.25, day: 6}
+      - {name: Property tax & insurance escrow, amount: 1365.0, day: 1}
+      - {name: Lowe's, amount: 568.75, day: 17}
+      insurance:
+      - {name: Allstate auto insurance, amount: 175.85, day: 7}
+      phone_internet:
+      - {name: T-Mobile, amount: 128.41, day: 9}
+      - {name: Xfinity Internet, amount: 62.87, day: 12}
+      subscriptions:
+      - {name: Netflix, amount: 15.49, day: 23}
+      - {name: Peloton App, amount: 12.99, day: 23}
+      - {name: Disney+, amount: 13.99, day: 9}
+      - {name: Spotify, amount: 11.99, day: 19}
+      - {name: YouTube Premium, amount: 13.99, day: 15}
+      utilities: {share: 0.0691435925309145, electric: TXU Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Walmart Grocery, Aldi, Tom Thumb], dining: [Torchy's Tacos, Olive Garden, Uber Eats, Starbucks, Whataburger, Chipotle], shopping: [IKEA, Sephora, Nike, Amazon], fuel: [Exxon, 7-Eleven Fuel]}
+    card_mix: {groceries: 0.22731712046268662, transport: 0.21456259052256546, dining: 0.32075103633792457, shopping: 0.1884227975925743}
+    transfers: {brokerage_auto_invest: 250.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.2889490393724906, gifts_holidays: 0.1560531242294302, home_household: 0.1695497846661629, car_maintenance: 0.13982143276520526, annual_bills: 0.09701894573374764, healthcare: 0.061983572444744936}
+      annual_bills:
+      - {name: Costco annual membership, month: 6}
+      - {name: AAA membership, month: 10}
+      - {name: Texas vehicle registration, month: 1}
+      calendar:
+      - {summer: 6, trip2: 3, weekend: [9, 8], birthdays: [2, 11, 5], home_big: [10, 6], car_big: 12, oil: 2, medical: [6, 9, 2], family: [12, 3]}
+      - {summer: 7, trip2: 3, weekend: [3, 7], birthdays: [3, 6, 1], home_big: [5, 3], car_big: 2, oil: 1, medical: [9, 12, 8], family: [6, 12]}
+  C027:
+    income: 3578.18
+    spending: 3324.91
+    credit_limit: 8189.38
+    accounts:
+      checking: {balance: 8567.16}
+      savings: {balance: 9766.18}
+      ira: {balance: 78140.62}
+      credit_card: {balance: 6362.53, monthly_payment: 190.88, apr_pct: 22.5}
+      mortgage: {balance: 307829.42, monthly_payment: 2000.89, apr_pct: 6.5}
+    linked:
+    - {id: L-C027-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 389000.0, secures: A-C027-MORTGAGE}
+    - {id: L-C027-PROPERTY-2, type: property, kind: vehicle, name: Car (owned), institution: Estimated value, balance: 9300.0}
+    - {id: L-C027-STUDENT_LOAN-1, type: student_loan, kind: federal, name: Federal Direct Loan, institution: Dept. of Education (servicer), balance: 34460.0, apr_pct: 4.53, min_payment: 357.64}
+    - {id: L-C027-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 1030.89, apr_pct: 27.59, min_payment: 35.0}
+    bills:
+      housing:
+      - {name: Willow Creek HOA, amount: 173.25, day: 6}
+      - {name: Property tax & insurance escrow, amount: 693.0, day: 1}
+      - {name: Home Depot, amount: 288.75, day: 17}
+      insurance:
+      - {name: Allstate auto insurance, amount: 157.66, day: 7}
+      phone_internet:
+      - {name: Mint Mobile, amount: 40.05, day: 9}
+      - {name: Spectrum Internet, amount: 75.02, day: 12}
+      subscriptions:
+      - {name: Apple iCloud+, amount: 2.99, day: 18}
+      - {name: Planet Fitness, amount: 24.99, day: 26}
+      - {name: Spotify, amount: 11.99, day: 13}
+      - {name: Audible, amount: 14.95, day: 6}
+      utilities: {share: 0.06243572019015592, electric: Reliant Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Tom Thumb, Aldi, Costco], dining: [DoorDash, Panera Bread, Local pizzeria, Whataburger, Starbucks, Chick-fil-A], shopping: [Old Navy, Amazon, Sephora, TJ Maxx], fuel: [Exxon, Chevron]}
+    card_mix: {groceries: 0.2538288590125947, transport: 0.19506903672729448, dining: 0.33947869457642815, shopping: 0.22111693682171388}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.3193559444524339, gifts_holidays: 0.134461706856673, home_household: 0.26408316544318394, car_maintenance: 0.14584288375212548, annual_bills: 0.11584176928367251, healthcare: 0.06746756441038201}
+      annual_bills:
+      - {name: Term life insurance annual premium, month: 1}
+      - {name: AAA membership, month: 12}
+      - {name: Texas vehicle registration, month: 4}
+      calendar:
+      - {summer: 8, trip2: 11, weekend: [4, 10], birthdays: [2, 9, 7], home_big: [10, 12], car_big: 6, oil: 2, medical: [5, 3], family: [9, 3]}
+      - {summer: 6, trip2: 11, weekend: [8, 3], birthdays: [12, 4, 7], home_big: [1, 3], car_big: 6, oil: 4, medical: [5, 10, 8], family: [2, 8]}
+  C028:
+    income: 6700.15
+    spending: 3460.02
+    credit_limit: 28111.66
+    accounts:
+      checking: {balance: 6268.84}
+      savings: {balance: 11252.87}
+      cd: {balance: 5944.04}
+      ira: {balance: 74546.62}
+      credit_card: {balance: 4239.14, monthly_payment: 127.17, apr_pct: 22.5}
+      mortgage: {balance: 49417.25, monthly_payment: 321.21, apr_pct: 6.5}
+    linked:
+    - {id: L-C028-PROPERTY-1, type: property, kind: home, name: Home, institution: Estimated value, balance: 107000.0, secures: A-C028-MORTGAGE}
+    - {id: L-C028-PROPERTY-2, type: property, kind: vehicle, name: Car (owned), institution: Estimated value, balance: 7500.0}
+    - {id: L-C028-STUDENT_LOAN-1, type: student_loan, kind: private, name: Private student loan, institution: Linked lender, balance: 13850.0, apr_pct: 7.28, min_payment: 162.82}
+    bills:
+      housing:
+      - {name: Stonebridge HOA, amount: 172.5, day: 6}
+      - {name: Property tax & insurance escrow, amount: 690.0, day: 1}
+      - {name: Lowe's, amount: 287.5, day: 17}
+      insurance:
+      - {name: State Farm auto insurance, amount: 161.64, day: 7}
+      phone_internet:
+      - {name: Verizon Wireless, amount: 123.25, day: 9}
+      - {name: Spectrum Internet, amount: 75.19, day: 12}
+      subscriptions:
+      - {name: Disney+, amount: 13.99, day: 27}
+      - {name: YouTube Premium, amount: 13.99, day: 22}
+      - {name: Audible, amount: 14.95, day: 16}
+      utilities: {share: 0.06732486941120568, electric: Reliant Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Trader Joe's, Aldi, Walmart Grocery], dining: [DoorDash, Chick-fil-A, Thai Basil, Olive Garden, Torchy's Tacos, Uber Eats], shopping: [Nike, TJ Maxx, Old Navy, Target], fuel: [QuikTrip, RaceTrac]}
+    card_mix: {groceries: 0.21116862253817342, transport: 0.22763544603711788, dining: 0.30359015142233314, shopping: 0.2540290704928397}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.29917751091572925, gifts_holidays: 0.10514535944545975, home_household: 0.16837932498764727, car_maintenance: 0.14195403455189354, annual_bills: 0.09680261536810164, healthcare: 0.07070053922468592}
+      annual_bills:
+      - {name: H&R Block tax preparation, month: 11}
+      - {name: Term life insurance annual premium, month: 3}
+      - {name: Texas vehicle registration, month: 2}
+      calendar:
+      - {summer: 8, trip2: 12, weekend: [4, 6], birthdays: [9, 10, 5], home_big: [8, 12], car_big: 9, oil: 2, medical: [2, 4], family: [5, 7]}
+      - {summer: 6, trip2: 11, weekend: [2, 4], birthdays: [2, 10, 1], home_big: [1, 8], car_big: 7, oil: 4, medical: [10, 5, 11], family: [12, 7]}
+  C029:
+    income: 13115.94
+    spending: 11513.38
+    credit_limit: 20731.65
+    accounts:
+      checking: {balance: 4230.58}
+      savings: {balance: 20564.69}
+      cd: {balance: 5710.58}
+      ira: {balance: 79951.99}
+      credit_card: {balance: 5962.19, monthly_payment: 178.87, apr_pct: 22.5}
+      personal_loan: {balance: 3857.39, monthly_payment: 107.15, apr_pct: 11.0}
+    linked:
+    - {id: L-C029-STUDENT_LOAN-1, type: student_loan, kind: federal, name: Federal Direct Loan, institution: Dept. of Education (servicer), balance: 10520.0, apr_pct: 6.53, min_payment: 119.61}
+    bills:
+      housing:
+      - {name: Greystar - The Monarch Apartments, amount: 3780.0, day: 1}
+      insurance:
+      - {name: Lemonade renters insurance, amount: 20.59, day: 7}
+      phone_internet:
+      - {name: AT&T Wireless, amount: 119.31, day: 9}
+      - {name: Spectrum Internet, amount: 68.71, day: 12}
+      subscriptions:
+      - {name: Audible, amount: 14.95, day: 17}
+      - {name: Amazon Prime, amount: 14.99, day: 19}
+      - {name: Apple iCloud+, amount: 2.99, day: 23}
+      - {name: Netflix, amount: 15.49, day: 4}
+      utilities: {share: 0.05768400127187428, electric: TXU Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Walmart Grocery, Aldi, Tom Thumb], dining: [Local pizzeria, Whataburger, DoorDash, Uber Eats, Thai Basil, Raising Cane's], shopping: [IKEA, Nike, Best Buy, Sephora], fuel: [7-Eleven Fuel, Chevron]}
+    card_mix: {groceries: 0.2661895791971939, transport: 0.19656818716566235, dining: 0.2806727025626647, shopping: 0.20148696239906985}
+    transfers: {brokerage_auto_invest: 0.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.2869821323009884, gifts_holidays: 0.11168969441455326, home_household: 0.24014579789137833, annual_bills: 0.08185584134624216, healthcare: 0.07905325598858683}
+      annual_bills:
+      - {name: AAA membership, month: 4}
+      - {name: Term life insurance annual premium, month: 3}
+      calendar:
+      - {summer: 6, trip2: 12, weekend: [11, 9], birthdays: [12, 4, 8], home_big: [1, 3], car_big: 6, oil: 2, medical: [5, 3], family: [5, 3]}
+      - {summer: 7, trip2: 3, weekend: [10, 9], birthdays: [10, 12, 9], home_big: [7, 5], car_big: 3, oil: 2, medical: [4, 5, 3], family: [4, 5]}
+  C030:
+    income: 6240.85
+    spending: 4936.46
+    credit_limit: 21459.41
+    accounts:
+      checking: {balance: 3279.1}
+      savings: {balance: 24286.93}
+      cd: {balance: 9808.35}
+      ira: {balance: 48575.38}
+      credit_card: {balance: 6829.29, monthly_payment: 204.88, apr_pct: 22.5}
+      personal_loan: {balance: 6301.72, monthly_payment: 175.05, apr_pct: 11.0}
+    linked:
+    - {id: L-C030-BROKERAGE-1, type: brokerage, kind: taxable, name: Brokerage (index funds), institution: Linked brokerage, balance: 38870.0, cost_basis: 34825.61}
+    - {id: L-C030-CREDIT_CARD-2, type: credit_card, kind: store, name: Store card, institution: Other bank, balance: 2183.67, apr_pct: 18.52, min_payment: 55.54}
+    bills:
+      housing:
+      - {name: MAA - Riverside Apartments, amount: 1700.0, day: 1}
+      insurance:
+      - {name: State Farm renters insurance, amount: 17.14, day: 7}
+      phone_internet:
+      - {name: AT&T Wireless, amount: 120.3, day: 9}
+      - {name: AT&T Fiber, amount: 73.8, day: 12}
+      subscriptions:
+      - {name: Apple iCloud+, amount: 2.99, day: 6}
+      - {name: Planet Fitness, amount: 24.99, day: 20}
+      utilities: {share: 0.059673790737513215, electric: Green Mountain Energy, water: City water utilities, gas: Atmos Energy}
+    merchants: {groceries: [Aldi, Tom Thumb, H-E-B], dining: [Chick-fil-A, Panera Bread, Raising Cane's, Torchy's Tacos, Starbucks, Uber Eats], shopping: [Sephora, Nike, Amazon, Old Navy], fuel: [Exxon, Shell]}
+    card_mix: {groceries: 0.26650805847610237, transport: 0.19938789763885878, dining: 0.2362915499852695, shopping: 0.2935827645193566}
+    transfers: {brokerage_auto_invest: 100.0, childcare: null, family_support: null}
+    lumpy:
+      total: auto
+      mix: {travel: 0.23525426687977513, gifts_holidays: 0.15237532532962272, home_household: 0.25895562151424034, annual_bills: 0.11519640736997278, healthcare: 0.07401038094374665}
+      annual_bills:
+      - {name: H&R Block tax preparation, month: 12}
+      - {name: Costco annual membership, month: 10}
+      calendar:
+      - {summer: 7, trip2: 3, weekend: [1, 4], birthdays: [2, 11, 6], home_big: [12, 2], car_big: 4, oil: 1, medical: [5, 10, 7], family: [2, 1]}
+      - {summer: 7, trip2: 12, weekend: [4, 7], birthdays: [9, 5, 1], home_big: [9, 2], car_big: 9, oil: 3, medical: [5, 10], family: [6, 9]}

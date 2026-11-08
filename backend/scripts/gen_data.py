@@ -1,37 +1,51 @@
-"""Deterministic, cent-exact synthetic ledger anchored to PNC's closing balances, with named cash flows.
+"""One data generator: customer specs (data/customers.yaml) -> every CSV in data/pnc + history_manifest.json.
+
+    cd backend && uv run python scripts/gen_data.py        # or: make data. Writes data/pnc, loads linked accounts
+    uv run python scripts/gen_data.py --check              # regenerate to a temp dir and compare with data/pnc
+    uv run python scripts/gen_data.py --init-spec          # rebuild customers.yaml from pnc_original + seeded draws
+
+Each customer in data/customers.yaml says what the household earns, owns and owes (PNC accounts and the
+linked ones), its regular bills, where it shops, how card spending splits, its transfers out, and its lumpy
+spending (mix, annual bills, which months the trips and repairs land in). The ledger is cent-exact: every
+account reconciles month by month and ends at its spec balance.
+
+How it fills in the months:
+- PNC's random stream (seed 20261108, same calls in the same order as PNC's generator) gives monthly income
+  and total-spending noise, savings/CD/IRA deposits and loan principal. Incomes grow 4% over the history,
+  spending is +12% in Nov/Dec.
+- A per-customer stream gives Zeroday's choices: merchant picks, per-transaction splits and days, and the
+  default for any knob the spec leaves out. A knob's default is drawn even when the spec gives the value,
+  so editing one knob doesn't reshuffle the rest of that customer's history.
+- Lumpy spending `total: auto` takes whatever the regular lines leave, so checking lands on its balance
+  (PNC's opening = 90% of the final balance). Give a dollar `total` (over the history) or `per_month`
+  instead and the opening checking balance absorbs the difference.
 
 Derived from `Lab_Package/generate_history.py` in PNC's pnc-utd-hackathon-2026 repository
 (https://github.com/devfulcrum/pnc-utd-hackathon-2026), licensed under the Apache License, Version 2.0
 (http://www.apache.org/licenses/LICENSE-2.0). Modified for Zeroday; the changes are listed in
-backend/data/pnc/README.md ("Changes vs PNC"). Summary:
-
-- PNC's residual `external_cash_management` plug (money to "an unlisted external account") is gone.
-  The same money is now named lines: linked-loan minimums, brokerage auto-invest, childcare, family
-  support (Zelle), and lumpy irregular spending that takes the leftover: travel, gifts and holidays,
-  home and household, car maintenance, annual bills, medical bills, extra family help. Every dollar is
-  spent at a named merchant; nothing is saved to an account the data doesn't show.
-- Direct spending is split realistically (utilities ~5-7%, car insurance, phone + internet,
-  subscriptions, healthcare), card spending gets per-month noise instead of four equal pieces, and
-  every category has several merchant-named transactions per month.
-- Same seed, same PNC random stream: income, total spending, asset and loan flows and checking
-  targets are PNC's. Every final balance, scheduled payment and APR is preserved.
-
-    cd backend && uv run python scripts/gen_history.py     # reads data/pnc_original, writes data/pnc
+backend/data/pnc/README.md ("Changes vs PNC").
 """
 import argparse
 import calendar
 import csv
 import json
 import random
+import sys
+import tempfile
 from collections import defaultdict
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
+import yaml
+
+BACKEND = Path(__file__).resolve().parents[1]
+SPEC = BACKEND / 'data' / 'customers.yaml'
+OUT = BACKEND / 'data' / 'pnc'
+ORIGINAL = BACKEND / 'data' / 'pnc_original'
 SEED = 20261108
 ASSETS = {'checking', 'savings', 'cd', 'ira'}
 YIELDS = {'checking': 0, 'savings': 2.5, 'cd': 4.25, 'ira': 3.5}
-BACKEND = Path(__file__).resolve().parents[1]
 
 # ---- merchant lists (deterministic picks per customer) ----
 GROCERS = ['Kroger', 'H-E-B', 'Tom Thumb', 'Aldi', 'Trader Joe\'s', 'Sprouts Farmers Market', 'Costco', 'Walmart Grocery']
@@ -57,7 +71,7 @@ APARTMENTS = ['Greystar - The Monarch Apartments', 'Camden Apartments', 'Lincoln
 HOAS = ['Willow Creek HOA', 'Stonebridge HOA', 'Lakeview HOA']
 CHILDCARE = ['Bright Horizons', 'KinderCare', 'The Goddard School', 'Primrose School']
 FAMILY = ['Zelle to Mom', 'Zelle to Dad', 'Zelle to sister', 'Zelle to brother', 'Zelle to grandparents']
-# Irregular spending: (share of the leftover, merchants). Lumpy by design: trips, holidays, repairs, annual bills.
+# Lumpy spending: (default share of the leftover, merchants). Trips, holidays, repairs, annual bills.
 IRREGULAR = {
     'travel': (.26, ['Southwest Airlines', 'American Airlines', 'Delta Air Lines', 'Marriott', 'Hilton', 'Airbnb',
                      'Expedia', 'Enterprise Rent-A-Car']),
@@ -72,7 +86,8 @@ IRREGULAR = {
     'family_support': (.08, []),
 }
 IRREGULAR_DAYS = (16, 28)  # after the second paycheck
-IRREGULAR_FLOOR = .03      # every household has at least 3% of income in irregular spending
+IRREGULAR_FLOOR = .03      # every household has at least 3% of income in lumpy spending
+CARD_CATS = ('groceries', 'transport', 'dining', 'shopping')
 
 
 def cents(value):
@@ -83,6 +98,11 @@ def cents(value):
 def dollars(value):
     """Convert integer cents to a fixed 2-decimal USD string."""
     return f'{value / 100:.2f}'
+
+
+def usd(value):
+    """Integer cents -> a float of dollars for the spec (round-trips through cents())."""
+    return value / 100
 
 
 def interest(balance, annual_pct):
@@ -109,35 +129,45 @@ def round_to(value, step):
     return int(round(value / step) * step)
 
 
-def linked_profile(cid):
-    """Linked debts' minimums and whether there is a linked brokerage / owned car (from zeroday.linked)."""
-    from zeroday import linked
+class Knobs:
+    """A customer's knobs: the spec's value when it has one, else the seeded default (drawn either way).
+    `used` collects what was used, which is what --init-spec writes out."""
 
-    rows = linked.base_rows(cid)
-    mins = [(r['name'], r['institution'], cents(r['min_payment']), r['account_type'])
-            for r in rows if r['account_type'] in linked.DEBT_TYPES and r['balance'] > 0 and r['min_payment']]
-    car = any(r['account_type'] == 'property' and r['kind'] == 'vehicle' for r in rows)
-    brokerage = any(r['account_type'] == 'brokerage' for r in rows)
-    return mins, brokerage, car
+    def __init__(self, spec):
+        self.spec, self.used = spec or {}, {}
+
+    def __call__(self, key, default):
+        value = self.spec[key] if key in self.spec else default
+        self.used[key] = value
+        return value
+
+    def sub(self, key):
+        knobs = Knobs(self.spec.get(key))
+        self.used[key] = knobs.used
+        return knobs
 
 
-def irregular_plan(crng, periods, total, has_car, family):
+def lumpy_plan(crng, periods, total, has_car, family, knobs):
     """Per month {category: cents} summing exactly to `total`, and the merchant names to use per month."""
     shares = {c: share * crng.uniform(.75, 1.25) for c, (share, _) in IRREGULAR.items()}
     if not has_car:
         shares.pop('car_maintenance')
     if not family:
         shares.pop('family_support')
-    norm = sum(shares.values())
     bills = crng.sample(IRREGULAR['annual_bills'][1], 2) + (['Texas vehicle registration'] if has_car else [])
     bill_months = crng.sample(range(1, 13), len(bills))
-    picks = {}  # per year block: calendar months for the lumpy events
-    for y in range((len(periods) + 11) // 12):
-        picks[y] = dict(summer=crng.choice([6, 7, 8]), trip2=crng.choice([3, 11, 12]),
-                        weekend=crng.sample(range(1, 13), 2), birthdays=crng.sample(range(1, 13), 3),
-                        home_big=crng.sample(range(1, 13), 2), car_big=crng.choice(range(1, 13)),
-                        oil=crng.randint(1, 4), medical=crng.sample(range(1, 13), crng.randint(2, 3)),
-                        family=crng.sample(range(1, 13), 2))
+    calendar_default = []  # per 12-month block from the history start: calendar months of the lumpy events
+    for _ in range((len(periods) + 11) // 12):
+        calendar_default.append(dict(
+            summer=crng.choice([6, 7, 8]), trip2=crng.choice([3, 11, 12]), weekend=crng.sample(range(1, 13), 2),
+            birthdays=crng.sample(range(1, 13), 3), home_big=crng.sample(range(1, 13), 2),
+            car_big=crng.choice(range(1, 13)), oil=crng.randint(1, 4),
+            medical=crng.sample(range(1, 13), crng.randint(2, 3)), family=crng.sample(range(1, 13), 2)))
+    shares = knobs('mix', shares)
+    annual = knobs('annual_bills', [dict(name=b, month=m) for b, m in zip(bills, bill_months)])
+    bills, bill_months = [b['name'] for b in annual], [b['month'] for b in annual]
+    picks = knobs('calendar', calendar_default)
+    norm = sum(shares.values())
 
     def weight(cat, m):
         cal, p = periods[m].month, picks[m // 12]
@@ -177,34 +207,67 @@ def irregular_plan(crng, periods, total, has_car, family):
     return plan, names
 
 
-def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=24):
-    """Generate deterministic ledger history anchored to snapshot closing balances."""
-    src_dir = Path(src_dir or BACKEND / 'data' / 'pnc_original')
-    out_dir = Path(out_dir or BACKEND / 'data' / 'pnc')
+def num(text):
+    """A PNC CSV number as the spec writes it: int if it had no decimal point, else float."""
+    return float(text) if '.' in text else int(text)
+
+
+def spec_from_original(src=ORIGINAL):
+    """The PNC part of the spec (income, spending base, credit limit, accounts) from pnc_original."""
+    with (src / 'profiles.csv').open(newline='', encoding='utf-8') as stream:
+        profiles = list(csv.DictReader(stream))
+    with (src / 'accounts.csv').open(newline='', encoding='utf-8') as stream:
+        accounts = list(csv.DictReader(stream))
+    customers = {}
+    for p in profiles:
+        cid = p['customer_id']
+        owned = {}
+        for a in accounts:
+            if a['customer_id'] == cid:
+                row = {'balance': num(a['balance'])}
+                for key in ('monthly_payment', 'apr_pct'):
+                    if a[key] != '0':
+                        row[key] = num(a[key])
+                owned[a['account_type']] = row
+        customers[cid] = dict(income=num(p['monthly_income']), spending=num(p['monthly_non_debt_expenses']),
+                              credit_limit=num(p['credit_limit']), accounts=owned)
+    return customers
+
+
+def generate(spec, out_dir=OUT, *, seeded_linked=False):
+    """Write every CSV in `out_dir` plus the manifest from `spec`. Returns (manifest, knobs used per customer).
+
+    seeded_linked: draw linked accounts with zeroday.linked's seeded generator instead of the spec's (--init-spec).
+    """
+    from zeroday import linked
+
+    out_dir = Path(out_dir)
+    history = spec.get('history') or {}
+    end = history.get('end', date(2026, 10, 31))
+    months = history.get('months', 24)
+    seed = history.get('seed', SEED)
     if not 1 <= months <= 120 or end.day != calendar.monthrange(end.year, end.month)[1]:
         raise ValueError('Use 1–120 months and a month-end date')
-    with (src_dir / 'profiles.csv').open(newline='', encoding='utf-8') as stream:
-        profiles = list(csv.DictReader(stream))
-    with (src_dir / 'accounts.csv').open(newline='', encoding='utf-8') as stream:
-        accounts = [{k: a[k] for k in ('customer_id', 'account_type', 'balance', 'monthly_payment', 'apr_pct')}
-                    for a in csv.DictReader(stream)]
     end_index = end.year * 12 + end.month - 1
     periods = [date(index // 12, index % 12 + 1, 1)
                for index in range(end_index - months + 1, end_index + 1)]
     start = periods[0]
-    rng = random.Random(SEED)  # PNC's stream: same calls in the same order as PNC's generator
+    rng = random.Random(seed)  # PNC's stream: same calls in the same order as PNC's generator
     transactions, statements, enriched_accounts, new_profiles = [], [], [], []
+    used = {}
     event_serial = 0
 
-    for profile in profiles:
-        cid = profile['customer_id']
-        crng = random.Random(f'{SEED}:{cid}')  # Zeroday's per-customer choices; never touches PNC's stream
-        owned = [dict(a) for a in accounts if a['customer_id'] == cid]
-        by_type = {a['account_type']: a for a in owned}
-        if len(by_type) != len(owned) or 'checking' not in by_type:
-            raise ValueError('History generator expects one row per customer/type and a checking account')
-        for kind, account in by_type.items():
-            account['account_id'] = f'A-{cid}-{kind.upper()}'
+    for cid, c in spec['customers'].items():
+        crng = random.Random(f'{seed}:{cid}')  # Zeroday's per-customer choices; never touches PNC's stream
+        knobs = Knobs(c)
+        by_type = {}
+        for kind, a in c['accounts'].items():
+            by_type[kind] = dict(customer_id=cid, account_type=kind, balance=str(a['balance']),
+                                 monthly_payment=str(a.get('monthly_payment', 0)), apr_pct=str(a.get('apr_pct', 0)),
+                                 account_id=f'A-{cid}-{kind.upper()}')
+        if 'checking' not in by_type:
+            raise ValueError(f'{cid}: every customer needs a checking account')
+        linked_rows = linked.seeded_rows(cid) if seeded_linked else linked.from_spec(cid, c.get('linked') or [])
         account_events = {kind: [] for kind in by_type}
         opening = {}
         savings_payroll = [0] * months
@@ -246,7 +309,7 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
                 add(kind, m, crng.randint(*days), ttype, amount, 1 if kind == 'credit_card' else -1, category,
                     'expense', description=name)
 
-        # ---------- PNC: savings / CD / IRA (unchanged) ----------
+        # ---------- savings / CD / IRA (PNC) ----------
         for kind in ['savings', 'cd', 'ira']:
             if kind not in by_type:
                 continue
@@ -292,7 +355,7 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
                     paired(kind, m, 31, 'deposit_rounding', final - value, 1, 'investment_contribution')
                     value = final
 
-        # ---------- PNC: loans (unchanged) ----------
+        # ---------- loans (PNC) ----------
         for kind in ['auto_loan', 'personal_loan', 'mortgage']:
             if kind not in by_type:
                 continue
@@ -308,12 +371,14 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
                 paired(kind, m, 21, 'payment', principal[m] + accrued + fee, -1, 'debt_payment')
                 value -= principal[m]
 
-        # ---------- spending: PNC's totals, realistic split (Zeroday) ----------
-        income_base, expense_base = cents(profile['monthly_income']), cents(profile['monthly_non_debt_expenses'])
+        # ---------- regular bills and spending (PNC's totals, Zeroday's split) ----------
+        income_base, expense_base = cents(c['income']), cents(c['spending'])
         has_card = 'credit_card' in by_type
         owner = 'mortgage' in by_type
-        linked_mins, has_brokerage, has_car = linked_profile(cid)
-        has_car = has_car or 'auto_loan' in by_type
+        linked_mins = [(r['name'], r['institution'], cents(r['min_payment']), r['account_type'])
+                       for r in linked_rows if r['account_type'] in linked.DEBT_TYPES and r['balance'] > 0 and r['min_payment']]
+        has_brokerage = any(r['account_type'] == 'brokerage' for r in linked_rows)
+        has_car = any(r['account_type'] == 'property' and r['kind'] == 'vehicle' for r in linked_rows) or 'auto_loan' in by_type
         direct_base = int(expense_base * .98 * (.78 if has_card else 1.0))
         housing = round_to(direct_base * crng.uniform(.40, .46), 500)
         if owner:
@@ -337,6 +402,24 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
         gas = crng.sample(GAS, 2)
         card_weights = {'groceries': crng.uniform(.2, .3), 'transport': crng.uniform(.15, .25),
                         'dining': crng.uniform(.22, .35), 'shopping': crng.uniform(.18, .3)}
+        insurance = ([(f'{car_insurer} auto insurance', car_ins, 7)] if car_ins else []) + \
+                    ([(renters_insurer, renters, 7)] if renters else [])
+
+        bills = knobs.sub('bills')
+
+        def lines(key, default):  # (name, cents, day) <-> spec [{name, amount, day}]
+            got = bills(key, [dict(name=n, amount=usd(a), day=d) for n, a, d in default])
+            return [(x['name'], cents(x['amount']), x['day']) for x in got]
+        housing_lines = lines('housing', housing_lines)
+        insurance = lines('insurance', insurance)
+        phone = lines('phone_internet', phone)
+        subs = lines('subscriptions', subs)
+        util = bills('utilities', dict(share=utilities_pct, electric=electric, water=WATER[0], gas=GAS_UTILITY[0]))
+        utilities_pct = util['share']
+        shop_at = knobs('merchants', dict(groceries=grocers, dining=diners, shopping=shops, fuel=gas))
+        grocers, diners, shops, gas = shop_at['groceries'], shop_at['dining'], shop_at['shopping'], shop_at['fuel']
+        if has_card:
+            card_weights = knobs('card_mix', card_weights)
 
         if has_card:
             opening['credit_card'] = int(cents(by_type['credit_card']['balance']) * .98)
@@ -354,10 +437,7 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
 
             # Fixed bills first, then variable categories; other_spending takes the remainder.
             fixed = [('housing', n, a, d) for n, a, d in housing_lines]
-            if car_ins:
-                fixed.append(('insurance', f'{car_insurer} auto insurance', car_ins, 7))
-            if renters:
-                fixed.append(('insurance', renters_insurer, renters, 7))
+            fixed += [('insurance', n, a, d) for n, a, d in insurance]
             fixed += [('phone_internet', n, a, d) for n, a, d in phone]
             fixed += [('subscriptions', n, a, d) for n, a, d in subs]
             hot = periods[m].month in {6, 7, 8, 12, 1}
@@ -369,7 +449,8 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
                 raise ValueError(f'{cid} {periods[m]}: direct spending too small for the fixed bills')
             for cat, name, amount, day in fixed:
                 add('checking', m, day, 'payment', amount, -1, cat, 'expense', description=name)
-            for (name, day), amount in zip([(electric, 12), (crng.choice(WATER), 16), (crng.choice(GAS_UTILITY), 20)],
+            crng.choice(WATER), crng.choice(GAS_UTILITY)  # PNC-era draws, kept so the stream doesn't shift
+            for (name, day), amount in zip([(util['electric'], 12), (util['water'], 16), (util['gas'], 20)],
                                            split(utilities, [.62, .16, .22])):
                 add('checking', m, day, 'payment', amount, -1, 'utilities', 'expense', description=name)
             spend('checking', m, 'healthcare', health, PHARMACY, crng.randint(1, 2))
@@ -377,7 +458,7 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
             spend('checking', m, 'other_spending', rest, HOUSEHOLD, crng.randint(2, 4))
 
             if card_spend:
-                cats = list(card_weights)
+                cats = list(CARD_CATS)
                 pieces = split(card_spend, [card_weights[c] * crng.uniform(.75, 1.25) for c in cats])
                 for cat, amount in zip(cats, pieces):
                     names, count = {'groceries': (grocers, crng.randint(3, 5)), 'transport': (gas + RIDES[:2], crng.randint(2, 4)),
@@ -395,8 +476,7 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
                 paired('credit_card', m, 28, 'payment', payment, -1, 'debt_payment')
                 card_value = target
 
-        # ---------- named monthly lines out of the residual (Zeroday) ----------
-        # What's left in checking each month before the irregular spending, averaged.
+        # ---------- transfers out: linked-loan minimums, auto-invest, childcare, family ----------
         left = [sum(e['change_cents'] for e in account_events['checking'] if e['posted_date'][:7] == p.strftime('%Y-%m'))
                 for p in periods]
         avg_left = sum(left) / months
@@ -408,6 +488,12 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
         fam_roll, fam_amt = crng.random(), round_to(crng.uniform(100, 400) * 100, 2500)
         fam_amt = fam_amt if fam_roll < .45 and room - broker_amt - child_amt > fam_amt + 60000 else 0
         provider, family = crng.choice(CHILDCARE), crng.choice(FAMILY)
+        transfers = knobs.sub('transfers')
+        broker_amt = cents(transfers('brokerage_auto_invest', usd(broker_amt)))
+        childcare = transfers('childcare', dict(provider=provider, monthly=usd(child_amt)) if child_amt else None)
+        provider, child_amt = (childcare['provider'], cents(childcare['monthly'])) if childcare else (provider, 0)
+        support = transfers('family_support', dict(to=family, monthly=usd(fam_amt)) if fam_amt else None)
+        family, fam_amt = (support['to'], cents(support['monthly'])) if support else (family, 0)
         for m in range(months):
             for name, inst, amount, atype in linked_mins:
                 what = 'student loan' if atype == 'student_loan' else name.lower()
@@ -422,19 +508,25 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
             if fam_amt:
                 add('checking', m, 20, 'payment', fam_amt, -1, 'family_support', 'expense', description=family)
 
-        # ---------- irregular named spending takes the leftover (Zeroday) ----------
-        # PNC's monthly checking targets are still drawn (same random stream) but only the final one binds:
-        # everything the household doesn't spend on the lines above goes to lumpy, merchant-named spending
-        # (travel, gifts, home, car, annual bills, medical, family). Nothing is saved to an unseen account.
+        # ---------- lumpy named spending ----------
+        # PNC's monthly checking targets are still drawn (same random stream) but only the final one binds.
         final = cents(by_type['checking']['balance'])
         for m in range(months - 1):
             rng.uniform(.8, 1.2)
         flows = [sum(e['change_cents'] for e in account_events['checking'] if e['posted_date'][:7] == p.strftime('%Y-%m'))
                  for p in periods]
-        floor_total = months * int(income_base * IRREGULAR_FLOOR)
-        irregular_total = max(int(final * .9) + sum(flows) - final, floor_total)
+        lumpy = knobs.sub('lumpy')
+        how_much = lumpy('total', 'auto')
+        if 'per_month' in lumpy.spec:
+            irregular_total = months * cents(lumpy('per_month', None))
+        elif how_much == 'auto':
+            irregular_total = max(int(final * .9) + sum(flows) - final, months * int(income_base * IRREGULAR_FLOOR))
+        else:
+            irregular_total = cents(how_much)
         opening['checking'] = final - sum(flows) + irregular_total
-        plan, names_for = irregular_plan(crng, periods, irregular_total, has_car, family if fam_amt else None)
+        if opening['checking'] < 0:
+            raise ValueError(f'{cid}: lumpy total too small; checking would have to start below zero')
+        plan, names_for = lumpy_plan(crng, periods, irregular_total, has_car, family if fam_amt else None, lumpy)
         value = opening['checking']
         carry = defaultdict(int)
         for m, period in enumerate(periods):
@@ -459,11 +551,12 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
                 spend('checking', m, cat, amount, names, count, days=IRREGULAR_DAYS)
             value = running - spent
         if value != final:
-            raise ValueError(f'{cid}: irregular spending does not land on the final checking balance')
-        new_profiles.append(dict(profile, monthly_non_debt_expenses=dollars(
-            expense_base + child_amt + fam_amt + irregular_total // months)))
+            raise ValueError(f'{cid}: lumpy spending does not land on the final checking balance')
+        new_profiles.append(dict(customer_id=cid, monthly_income=str(c['income']), monthly_non_debt_expenses=dollars(
+            expense_base + child_amt + fam_amt + irregular_total // months), credit_limit=str(c['credit_limit'])))
+        used[cid] = dict(linked=linked.to_spec(linked_rows), **knobs.used)
 
-        # ---------- ledger + statements (PNC, unchanged) ----------
+        # ---------- ledger + statements (PNC) ----------
         for kind, account in by_type.items():
             events = sorted(account_events[kind], key=lambda e: (e['posted_date'], e['serial']))
             balance = opening[kind]
@@ -497,8 +590,8 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
     write_csv(out_dir / 'accounts.csv', enriched_accounts)
     write_csv(out_dir / 'transactions.csv', transactions)
     write_csv(out_dir / 'monthly_statements.csv', statements)
-    manifest = dict(schema_version=3, seed=SEED, history_start=start.isoformat(), as_of_date=end.isoformat(),
-        months=months, customers=len(profiles), accounts=len(enriched_accounts), transactions=len(transactions),
+    manifest = dict(schema_version=3, seed=seed, history_start=start.isoformat(), as_of_date=end.isoformat(),
+        months=months, customers=len(new_profiles), accounts=len(enriched_accounts), transactions=len(transactions),
         monthly_statements=len(statements), currency='USD',
         derived_from='PNC pnc-utd-hackathon-2026 Lab_Package/generate_history.py (Apache-2.0), modified by Zeroday',
         balance_convention='Assets and liabilities are positive; balance_change increases or decreases that account balance.',
@@ -506,14 +599,163 @@ def generate_history(src_dir=None, out_dir=None, end=date(2026, 10, 31), months=
                     'on regular lines goes to lumpy, merchant-named irregular spending; nothing leaves to an unknown destination.',
         limitations='Synthetic monthly accrual, no daily compounding, IRA market returns, taxes, contribution eligibility, or actual banking fees modeled.')
     (out_dir / 'history_manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
-    return manifest
+    return manifest, used
+
+
+# ---------- the spec file ----------
+
+SPEC_HEADER = '''\
+# Customer specs: one entry per household. `make data` (scripts/gen_data.py) turns this file into every CSV in
+# data/pnc/ plus history_manifest.json, and loads the linked accounts into SQLite. Money is USD; "monthly"
+# amounts are per month. Leave a knob out and the generator draws its seeded default.
+#
+# history: end (a month-end), months, seed.
+# customers.<id>:
+#   income          monthly take-home pay (grows 4% over the history, +-2% noise per month)
+#   spending        PNC's monthly non-debt spending base (+12% in Nov/Dec, +-6% noise); bills below come out of it
+#   credit_limit    total card credit limit (profiles.csv)
+#   accounts        PNC accounts by type, with the balance on the as-of date (every account ends there),
+#                   plus monthly_payment and apr_pct for debts
+#   linked          accounts outside PNC (student loans, store cards, brokerage, home/car value) as if linked
+#                   through an aggregator; debt minimums are paid from checking every month
+#   bills           fixed monthly lines from checking: housing (rent, or HOA + escrow + repairs), insurance,
+#                   phone_internet, subscriptions [{name, amount, day}]; utilities: share of monthly spending
+#                   (seasonal: x1.15 Jun-Aug, Dec, Jan) and the three utility names
+#   merchants       where the household shops (groceries, dining, shopping, fuel)
+#   card_mix        relative weights of card spending (22% of spending when there is a card)
+#   transfers       brokerage_auto_invest (monthly), childcare {provider, monthly}, family_support {to, monthly}
+#   lumpy           irregular, merchant-named spending (trips, gifts, home, car, annual bills, medical, family)
+#     total         `auto` = whatever is left after the lines above, so checking lands on its balance; or a dollar
+#                   total over the history; or per_month: <dollars>. The opening checking balance absorbs the rest.
+#     mix           relative weights by category
+#     annual_bills  [{name, month}] one-off yearly charges
+#     calendar      per 12-month block from the history start: month of the summer trip, second trip (trip2),
+#                   weekend trips, birthdays, big home buys, a big car repair, oil-change phase (months
+#                   where month % 4 == oil % 4), medical bills and family help
+'''
+
+
+class _Dumper(yaml.SafeDumper):
+    pass
+
+
+def _leaf(value):
+    return not isinstance(value, (dict, list)) or (isinstance(value, list) and all(not isinstance(v, (dict, list)) for v in value))
+
+
+def _represent_dict(dumper, data):
+    flow = all(_leaf(v) for v in data.values()) and len(data) <= 12
+    return dumper.represent_mapping('tag:yaml.org,2002:map', data.items(), flow_style=flow)
+
+
+def _represent_list(dumper, data):
+    return dumper.represent_sequence('tag:yaml.org,2002:seq', data, flow_style=all(_leaf(v) and not isinstance(v, list) for v in data))
+
+
+_Dumper.add_representer(dict, _represent_dict)
+_Dumper.add_representer(list, _represent_list)
+
+
+def write_spec(spec, path=SPEC):
+    body = yaml.dump(spec, Dumper=_Dumper, sort_keys=False, allow_unicode=True, width=1000)
+    Path(path).write_text(SPEC_HEADER + body, encoding='utf-8')
+
+
+def load_spec(path=SPEC):
+    return yaml.safe_load(Path(path).read_text(encoding='utf-8'))
+
+
+def init_spec(path=SPEC, src=ORIGINAL, end=date(2026, 10, 31), months=24):
+    """Rebuild the spec from pnc_original plus the seeded draws (what the data was first generated from)."""
+    base = dict(history=dict(end=end, months=months, seed=SEED), customers=spec_from_original(Path(src)))
+    with tempfile.TemporaryDirectory() as tmp:
+        _, used = generate(base, tmp, seeded_linked=True)
+    for cid, c in base['customers'].items():
+        c.update(used[cid])
+    write_spec(base, path)
+    return base
+
+
+# ---------- fidelity: per-customer monthly aggregates ----------
+
+def aggregates(data_dir):
+    """{(customer, month, metric): dollars} from a data/pnc-style directory. Metrics: income, essentials,
+    discretionary, debt_payments (all payments to debts from cash), savings_invest, and the closing balance of
+    each account type (balance:<type>)."""
+    from zeroday.finance import ESSENTIAL_CATEGORIES
+
+    data_dir = Path(data_dir)
+    out = defaultdict(float)
+    with (data_dir / 'transactions.csv').open(newline='', encoding='utf-8') as f:
+        for t in csv.DictReader(f):
+            k, ch, cash = (t['customer_id'], t['posted_date'][:7]), float(t['balance_change']), t['account_type'] in {'checking', 'savings'}
+            if t['flow_class'] == 'expense' and (cash or t['account_type'] == 'credit_card'):
+                out[(*k, 'essentials' if t['category'] in ESSENTIAL_CATEGORIES else 'discretionary')] += abs(ch)
+            elif cash and t['flow_class'] == 'income':
+                out[(*k, 'income')] += ch
+            elif cash and t['category'] == 'debt_payment':
+                out[(*k, 'debt_payments')] += -ch
+            elif cash and t['category'] == 'investment_contribution':
+                out[(*k, 'savings_invest')] += -ch
+    with (data_dir / 'monthly_statements.csv').open(newline='', encoding='utf-8') as f:
+        for s in csv.DictReader(f):
+            out[(s['customer_id'], s['month'], f'balance:{s["account_type"]}')] = float(s['closing_balance'])
+    return dict(out)
+
+
+def ids(data_dir):
+    """Customer, account and (customer, category) ids in a data directory."""
+    data_dir = Path(data_dir)
+    with (data_dir / 'accounts.csv').open(newline='', encoding='utf-8') as f:
+        accounts = {(a['customer_id'], a['account_id']) for a in csv.DictReader(f)}
+    with (data_dir / 'transactions.csv').open(newline='', encoding='utf-8') as f:
+        cats = {(t['customer_id'], t['category']) for t in csv.DictReader(f)}
+    return dict(customers={c for c, _ in accounts}, accounts=accounts, categories=cats)
+
+
+def compare(new_dir, ref_dir, tolerance=.01, floor=50.0):
+    """Relative differences of every per-customer monthly aggregate (|new - ref| / max(|ref|, floor dollars)).
+    Returns {max_rel, worst, over, n, ids_match}."""
+    new, ref = aggregates(new_dir), aggregates(ref_dir)
+    diffs = {k: abs(new.get(k, 0) - ref.get(k, 0)) / max(abs(ref.get(k, 0)), floor) for k in set(new) | set(ref)}
+    worst = max(diffs, key=diffs.get)
+    a, b = ids(new_dir), ids(ref_dir)
+    return dict(max_rel=diffs[worst], worst=dict(key=worst, new=new.get(worst), ref=ref.get(worst)),
+                over=sorted(k for k, d in diffs.items() if d > tolerance), n=len(diffs),
+                ids_match={k: a[k] == b[k] for k in a})
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--spec', type=Path, default=SPEC)
+    parser.add_argument('--out', type=Path, default=OUT)
+    parser.add_argument('--check', action='store_true', help='regenerate into a temp dir and compare with --out')
+    parser.add_argument('--init-spec', action='store_true', help='rebuild --spec from pnc_original + seeded draws')
+    parser.add_argument('--no-db', action='store_true', help="don't load linked accounts into SQLite")
+    args = parser.parse_args(argv)
+    sys.path.insert(0, str(BACKEND / 'src'))
+    if args.init_spec:
+        init_spec(args.spec)
+        print(f'wrote {args.spec}')
+        return 0
+    spec = load_spec(args.spec)
+    if args.check:
+        with tempfile.TemporaryDirectory() as tmp:
+            generate(spec, tmp)
+            result = compare(tmp, args.out)
+            same = all((Path(tmp) / n).read_bytes() == (args.out / n).read_bytes()
+                       for n in ('profiles.csv', 'accounts.csv', 'transactions.csv', 'monthly_statements.csv', 'history_manifest.json'))
+        print(json.dumps(dict(byte_identical=same, aggregates=result['n'], max_rel_diff=round(result['max_rel'], 6),
+                              over_1pct=len(result['over']), worst=result['worst'] if result['max_rel'] else None,
+                              ids_match=result['ids_match']), indent=2, default=str))
+        return 0 if not result['over'] and all(result['ids_match'].values()) else 1
+    manifest, _ = generate(spec, args.out)
+    print(json.dumps(manifest, indent=2))
+    if not args.no_db and args.spec == SPEC:
+        from zeroday import linked
+        print(f'loaded {linked.load()} linked accounts into SQLite')
+    return 0
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--end', type=date.fromisoformat, default=date(2026, 10, 31))
-    parser.add_argument('--months', type=int, default=24)
-    parser.add_argument('--src', type=Path, default=None)
-    parser.add_argument('--out', type=Path, default=None)
-    args = parser.parse_args()
-    print(json.dumps(generate_history(args.src, args.out, end=args.end, months=args.months), indent=2))
+    sys.exit(main())

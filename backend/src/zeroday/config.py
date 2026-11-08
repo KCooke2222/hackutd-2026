@@ -14,6 +14,7 @@ load_dotenv(REPO_DIR / ".env")
 load_dotenv(BACKEND_DIR / ".env")
 
 PNC_DATA_DIR = Path(os.getenv("PNC_DATA_DIR", BACKEND_DIR / "data" / "pnc"))
+CUSTOMERS_SPEC = Path(os.getenv("CUSTOMERS_SPEC", BACKEND_DIR / "data" / "customers.yaml"))
 DB_PATH = Path(os.getenv("ZERODAY_DB", BACKEND_DIR / "data" / "zeroday.sqlite3"))
 
 NESSIE_BASE_URL = os.getenv("NESSIE_BASE_URL", "https://api.nessieisreal.com").rstrip("/")

@@ -1,4 +1,4 @@
-"""The regenerated PNC ledger (scripts/gen_history.py) reconciles and keeps PNC's snapshot."""
+"""The PNC ledger generated from data/customers.yaml (scripts/gen_data.py) reconciles and keeps PNC's snapshot."""
 
 import csv
 import importlib.util
@@ -26,13 +26,54 @@ def txns():
     return _rows("transactions.csv")
 
 
-def test_regenerates_identically(tmp_path):
-    spec = importlib.util.spec_from_file_location("gen_history", DATA.parent / "scripts" / "gen_history.py")
+def _gen_data():
+    spec = importlib.util.spec_from_file_location("gen_data", DATA.parent / "scripts" / "gen_data.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    mod.generate_history(out_dir=tmp_path)
-    for name in ("transactions.csv", "monthly_statements.csv", "accounts.csv", "profiles.csv"):
-        assert (tmp_path / name).read_text() == (DATA / "pnc" / name).read_text(), name
+    return mod
+
+
+@pytest.fixture(scope="module")
+def regenerated(tmp_path_factory):
+    out = tmp_path_factory.mktemp("pnc")
+    _gen_data().generate(_gen_data().load_spec(), out)
+    return out
+
+
+def test_regenerates_identically(regenerated):
+    """data/pnc is exactly what the spec generates: rerun `make data` after editing customers.yaml."""
+    for name in ("transactions.csv", "monthly_statements.csv", "accounts.csv", "profiles.csv", "history_manifest.json"):
+        assert (regenerated / name).read_text() == (DATA / "pnc" / name).read_text(), name
+
+
+def test_monthly_aggregates_match_committed(regenerated):
+    """Per customer and month: income, essentials, discretionary, debt payments, investing and every closing
+    balance within 1% of the committed CSVs, with the same customer, account and category ids."""
+    result = _gen_data().compare(regenerated, DATA / "pnc")
+    assert all(result["ids_match"].values()), result["ids_match"]
+    assert not result["over"], result["worst"]
+
+
+def test_spec_covers_every_customer():
+    spec = _gen_data().load_spec()
+    assert list(spec["customers"]) == [r["customer_id"] for r in _rows("profiles.csv")]
+    for cid, c in spec["customers"].items():
+        assert {"income", "spending", "accounts", "linked", "bills", "transfers", "lumpy"} <= set(c), cid
+        assert linked.base_rows(cid) == linked.seeded_rows(cid), cid  # the spec froze the seeded linked accounts
+
+
+def test_spec_knob_changes_only_that_customer(tmp_path):
+    """Editing one customer's spec leaves every other customer's history byte-identical."""
+    mod = _gen_data()
+    spec = mod.load_spec()
+    spec["customers"]["C004"]["bills"]["subscriptions"].append({"name": "Netflix", "amount": 15.49, "day": 9})
+    mod.generate(spec, tmp_path)
+    new = [r for r in _rows("transactions.csv", tmp_path) if r["customer_id"] != "C004"]
+    old = [r for r in _rows("transactions.csv") if r["customer_id"] != "C004"]
+    strip = lambda rows: [{k: v for k, v in r.items() if k != "transaction_id"} for r in rows]  # noqa: E731
+    assert strip(new) == strip(old)
+    c004 = [r for r in _rows("transactions.csv", tmp_path) if r["customer_id"] == "C004" and r["category"] == "subscriptions"]
+    assert sum(r["description"] == "Netflix" and r["posted_date"].endswith("-09") for r in c004) == 24
 
 
 def test_snapshot_preserved():

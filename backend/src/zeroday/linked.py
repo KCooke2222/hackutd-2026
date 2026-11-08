@@ -5,16 +5,18 @@ Nessie only has Checking / Savings / Credit Card accounts (+ home/auto/small-bus
 Student loans, brokerage accounts, property and cards at other banks come from here, as if the
 customer had linked them through an aggregator. Deterministic synthetic data per customer.
 
-The rows live in SQLite (store.linked_accounts). `make reseed` (and `make linked`) load them:
+Each customer's linked accounts are written out in data/customers.yaml (`linked:`), next to the rest of
+their spec; seeded_rows() is how those were first drawn and is the fallback for a customer the spec
+doesn't list. The rows live in SQLite (store.linked_accounts). `make data` (and `make reseed`) load them:
 
-    uv run python -m zeroday.linked      # regenerate and load into SQLite
+    uv run python -m zeroday.linked      # load the spec's linked accounts into SQLite
 """
 
 from __future__ import annotations
 
 import random
 
-from . import pnc_data
+from . import customer_spec, pnc_data
 
 AS_OF = "2026-10-31"
 DEBT_TYPES = {"credit_card", "personal_loan", "auto_loan", "mortgage", "student_loan"}
@@ -95,8 +97,43 @@ def _card(cid: str, rng: random.Random, balance: float | None = None, apr: float
     return _row(cid, 2, "credit_card", "store", "Store card", "Other bank", balance, apr_pct=apr, min_payment=minimum)
 
 
+def from_spec(cid: str, spec_rows: list[dict]) -> list[dict]:
+    """Rows from a customer's `linked:` list in the spec."""
+    rows = []
+    for r in spec_rows:
+        row = _row(cid, 0, r["type"], r["kind"], r["name"], r["institution"], r["balance"],
+                   apr_pct=r.get("apr_pct", 0.0), min_payment=r.get("min_payment", 0.0),
+                   cost_basis=r.get("cost_basis"), secures_account_id=r.get("secures"))
+        row["account_id"] = r["id"]
+        rows.append(row)
+    return rows
+
+
+def to_spec(rows: list[dict]) -> list[dict]:
+    """The spec form of linked rows (inverse of from_spec)."""
+    out = []
+    for r in rows:
+        s = {"id": r["account_id"], "type": r["account_type"], "kind": r["kind"], "name": r["name"],
+             "institution": r["institution"], "balance": r["balance"]}
+        for key in ("apr_pct", "min_payment", "cost_basis"):
+            if r[key]:
+                s[key] = r[key]
+        if r["secures_account_id"]:
+            s["secures"] = r["secures_account_id"]
+        out.append(s)
+    return out
+
+
 def base_rows(cid: str) -> list[dict]:
-    """Linked rows that don't depend on the ledger (the history generator reads these for loan minimums)."""
+    """Linked rows that don't depend on the ledger: the spec's, else the seeded draw."""
+    spec = customer_spec.customer(cid)
+    if spec is not None and "linked" in spec:
+        return from_spec(cid, spec["linked"] or [])
+    return seeded_rows(cid)
+
+
+def seeded_rows(cid: str) -> list[dict]:
+    """How the linked accounts were first drawn (deterministic per customer); data/customers.yaml froze these."""
     rng = random.Random(f"zeroday-linked-{cid}")
     accs = {a["account_type"]: a for a in pnc_data.customer_accounts(cid)}
     rows: list[dict] = []
