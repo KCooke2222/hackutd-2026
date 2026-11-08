@@ -23,7 +23,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(execute, "NESSIE_KEY", "")
     monkeypatch.setattr(balances.read, "enabled", lambda: False)
 
-    def fake_validate(cid, plan):
+    def fake_validate(cid, plan, **kw):
         if plan["monthly_debt_budget"] > 1e6:
             e = validator.PlanRejected("budget over its sources")
             e.reasons = ["budget over its sources"]

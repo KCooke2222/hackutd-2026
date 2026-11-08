@@ -9,19 +9,22 @@ from typing import Literal
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from .. import balance_sheet, balances, store
+from .. import balance_sheet, balances, categories, store
 
 
 # ---------- plan v2 arguments (shared by simulate_plan and propose_plan) ----------
 
 class LumpSum(BaseModel):
-    source: Literal["cash", "cd", "brokerage"]
+    source: Literal["cash", "cd", "brokerage"] = Field(
+        description="cash = PNC checking+savings above the emergency buffer; cd / brokerage = break or sell")
     amount: float
     to_debt: str = Field(description="account_id of the debt it pays")
 
 
 class Redirect(BaseModel):
-    flow: str = Field("external_cash_management", description="the outflow to redirect, e.g. external_cash_management")
+    flow: Literal[categories.MOVABLE_FLOWS] = Field(  # type: ignore[valid-type]
+        description="a movable named flow: monthly_surplus (redirect the surplus left in checking to debt) or "
+                    "brokerage_auto_invest / cd_contribution (pause the contribution). Never fixed or ask items.")
     amount_per_month: float
 
 
@@ -41,6 +44,18 @@ class PlanArgs(BaseModel):
     spending_targets: list[SpendingTarget] = Field(default_factory=list)
     autopay_full_cards: list[str] = Field(default_factory=list, description="card account_ids: pay full statement once at $0")
     keep_emergency_months: float = 3.0
+
+
+class Cut(BaseModel):
+    category: str
+    target: float = Field(description="the monthly target the PERSON agreed to")
+    how: list[str] = Field(default_factory=list, description="optional; 'Cancel <name>' for subscriptions")
+
+
+class OptimizeArgs(BaseModel):
+    keep_emergency_months: float = Field(3.0, description="months of expenses kept as cash (min 2)")
+    spending_targets: list[Cut] = Field(default_factory=list, description="only cuts the person chose; the solver never adds any")
+    redirect_flows: list[str] | None = Field(None, description="limit which movable flows may go to debt; omit = all their flags allow")
 
 
 class ProposeArgs(PlanArgs):
@@ -88,13 +103,16 @@ def _try(fn):
         return {"error": f"{type(e).__name__}: {e}"[:300]}
 
 
-def make_tools(customer_id: str, state: dict | None = None) -> list:
+def make_tools(customer_id: str, state: dict | None = None, constraints: dict | None = None) -> list:
     """Tools bound to one customer, so the agent can't read other customers' data.
 
-    `state` (optional) collects what the graph needs: proposal_id, rejections, stop.
+    `state` (optional) collects what the graph needs: proposal_id, rejections, stop. For an adjustment it also
+    carries parent_id and request, saved on the new proposal. `constraints` are the customer's own rules
+    (agent/constraints.py): simulate_plan reports breaks, propose_plan rejects them.
     """
     st = state if state is not None else {}
     st.setdefault("rejections", 0)
+    cons = constraints or {}
 
     def _sheet(keep: float = 3.0) -> dict:
         return balance_sheet.balance_sheet(customer_id, keep_months=keep)
@@ -110,8 +128,11 @@ def make_tools(customer_id: str, state: dict | None = None) -> list:
 
     @tool
     def cash_flow(months: int = 12) -> dict:
-        """Monthly income, essentials, discretionary, debt payments, savings/investing, unknown transfers out and
-        surplus, per month and averaged. unknown_outflow_per_month is money leaving to an unknown destination."""
+        """Monthly income, essentials, discretionary, debt payments, savings/investing and surplus (the change in
+        PNC cash), per month and averaged. Also every spending
+        category and named flow with its flag (fixed/ask: never move; trim: max_cut_pct; cancel: only named
+        subscriptions; redirect/pause: may go to debt). saved_per_month is the real monthly slack; if it is
+        <= 0 there is no monthly money to redirect."""
         from .. import insights
 
         return _try(lambda: insights.cash_flow(customer_id, months))
@@ -126,16 +147,18 @@ def make_tools(customer_id: str, state: dict | None = None) -> list:
 
     @tool
     def find_recurring() -> list[dict]:
-        """Recurring charges (subscriptions, bills) with amount, cadence, account and category."""
+        """Recurring charges (subscriptions, bills) with merchant, amount, cadence, account, category and flag.
+        A subscriptions cut must name the merchants it cancels."""
         from .. import insights
 
         return _try(lambda: insights.find_recurring(customer_id))
 
     @tool
     def compare_sources(amount: float, target_debt: str) -> dict:
-        """Rank every money source (surplus, cash above buffer, CD, brokerage, IRA) for paying `amount` into
+        """Rank every money source (surplus, PNC cash, CD, brokerage, IRA) for paying `amount` into
         `target_debt` (account_id) by 24-month net-worth gain vs leaving the money where it is, with upfront tax
-        and penalty. Use a source only if use=true."""
+        and penalty. Use a source only if use=true. lump_plan (when present) is the ready split of cash above
+        the buffer across all high-cost debts: simulate it as lump_sums."""
         from .. import wealth
 
         return _try(lambda: wealth.compare_sources(customer_id, amount, target_debt))
@@ -166,7 +189,16 @@ def make_tools(customer_id: str, state: dict | None = None) -> list:
         interest, cash low point, net worth at 24 months vs the baseline (current behavior). Compare 2-3 options."""
         from .. import wealth
 
-        return _try(lambda: sim_brief(wealth.simulate_plan(customer_id, to_plan(kwargs))))
+        def go():
+            plan = to_plan(kwargs)
+            out = sim_brief(wealth.simulate_plan(customer_id, plan))
+            if cons:
+                from .constraints import check
+
+                out["breaks_customer_rules"] = check(plan, cons, wealth.context(customer_id)["spend"])
+            return out
+
+        return _try(go)
 
     @tool(args_schema=ProposeArgs)
     def propose_plan(**kwargs) -> dict:
@@ -176,15 +208,21 @@ def make_tools(customer_id: str, state: dict | None = None) -> list:
 
         if st.get("proposal_id"):
             return {"saved": True, "proposal_id": st["proposal_id"], "note": "already proposed; stop"}
-        plan = to_plan(kwargs)
+        # The numbers come from the solver: the model only relays the person's soft inputs (buffer months, the
+        # cuts they agreed to); lump sums, budget, order, redirects and autopay are computed, never guessed.
+        from .. import solver
+
+        given = to_plan(kwargs)
         try:
-            # The model picks sources; the server does the arithmetic: every freed dollar goes to debt
-            # while any debt above the hurdle remains (an under-filled budget only delays payoff).
-            from ..wealth import budget_limit, context
-            if plan.get("extra_order"):
-                cap = budget_limit(context(customer_id), plan)["max_monthly_debt_budget"]
-                plan["monthly_debt_budget"] = max(float(plan.get("monthly_debt_budget") or 0), round(cap, 2))
-            sim = validate_plan_v2(customer_id, plan)
+            # The customer's rules become solver inputs, so the solved plan obeys them by construction;
+            # validate_plan_v2(constraints=...) re-checks them as a safety net.
+            from .. import wealth
+            from .constraints import solver_inputs
+            inputs = solver_inputs(cons, given["keep_emergency_months"], given["spending_targets"],
+                                   wealth.context(customer_id)["spend"] if cons else None)
+            solved = solver.solve(customer_id, inputs, with_tradeoffs=False)
+            plan = solved["plan"]
+            sim = validate_plan_v2(customer_id, plan, constraints=cons) if cons else solved["sim"]
         except (PlanRejected, ValueError, KeyError, TypeError, AttributeError) as e:
             st["rejections"] += 1
             reasons = list(getattr(e, "reasons", None) or [str(e)])
@@ -195,10 +233,48 @@ def make_tools(customer_id: str, state: dict | None = None) -> list:
             return {"saved": False, "reasons": reasons, "hint": "fix every reason and call propose_plan again",
                     "attempts_left": MAX_REJECTIONS + 1 - st["rejections"]}
         sim = dict(sim)
+        try:  # optional cuts, priced on top of this plan: the customer's tradeoffs, never required
+            from ..wealth import cut_options
+            protect = set(cons.get("protect_categories") or [])
+            sim["cut_options"] = [o for o in cut_options(customer_id, plan, sim=sim) if o.get("category") not in protect]
+        except Exception:  # noqa: BLE001
+            sim["cut_options"] = []
         sim["balances_snapshot"] = balances.snapshot(customer_id)
-        p = store.create_proposal(customer_id, plan, sim, str(kwargs.get("rationale") or ""))
+        from ..wealth import reality_check
+        sim["reality_check"] = _try(lambda: reality_check(customer_id))
+        try:
+            p = store.create_proposal(customer_id, plan, sim, str(kwargs.get("rationale") or ""),
+                                      parent_id=st.get("parent_id"), constraints=cons or None, request=st.get("request"))
+        except store.Conflict as e:
+            st["stop"], st["last_reasons"] = True, [str(e)]
+            return {"saved": False, "stop": str(e)}
         st["proposal_id"] = p["id"]
-        return {"saved": True, "proposal_id": p["id"], **{k: v for k, v in sim_brief(sim).items() if k != "debts"}}
+        out = {"saved": True, "proposal_id": p["id"], **{k: v for k, v in sim_brief(sim).items() if k != "debts"}}
+        out["server_filled"] = {k: plan[k] for k in ("monthly_debt_budget", "extra_order", "lump_sums", "redirects")}
+        return out
+
+    @tool(args_schema=OptimizeArgs)
+    def optimize_plan(**kwargs) -> dict:
+        """The optimal plan for the person's soft inputs (buffer months, cuts they chose, flows they allow):
+        lump sums, monthly budget and order, payoff month per debt, net worth vs baseline, interest saved, and
+        `tradeoffs`: what cutting each flexible category to its floor would buy (months sooner, $ net worth).
+        Deterministic and read-only; it never adds cuts. propose_plan uses the same solver."""
+        from .. import solver
+
+        def go():
+            inp = {"keep_emergency_months": kwargs.get("keep_emergency_months"),
+                   "spending_targets": [c.model_dump() if hasattr(c, "model_dump") else dict(c)
+                                        for c in kwargs.get("spending_targets") or []],
+                   "redirect_flows": kwargs.get("redirect_flows")}
+            if cons:  # the same rules propose_plan applies
+                from .. import wealth
+                from .constraints import solver_inputs
+                inp.update(solver_inputs(cons, inp["keep_emergency_months"], inp["spending_targets"],
+                                         wealth.context(customer_id)["spend"]))
+            r = solver.solve(customer_id, inp)
+            return {"plan": r["plan"], "brief": r["brief"]}
+
+        return _try(go)
 
     return [sql, cash_flow, spending_detail, find_recurring, compare_sources, debt_priority, liquidity_ladder,
-            simulate_plan, propose_plan]
+            simulate_plan, optimize_plan, propose_plan]

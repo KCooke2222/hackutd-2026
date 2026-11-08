@@ -31,9 +31,13 @@ Views:
     amount > 0 always; balance_change is signed (+ raises that account's balance).
     flow_class: income | expense | internal_transfer | external_transfer | non_cash
     card purchases: account_type='credit_card' AND flow_class='expense'
+    category: spending (housing, utilities, insurance, groceries, transport, dining, shopping, phone_internet,
+    subscriptions, healthcare, childcare, family_support, other_spending, travel, gifts_holidays,
+    home_household, car_maintenance, annual_bills); flows (debt_payment, investment_contribution,
+    savings_contribution, payroll). description = merchant / payee.
 - v_monthly_cashflow(month, income, essentials, discretionary, debt_payments, savings_invest,
-  transfers_out_unknown, surplus, debt_payments_gross, card_purchases)
-    debt_payments = payments to debts minus new card purchases; surplus = change in cash.
+  surplus, debt_payments_gross, card_purchases)
+    debt_payments = payments to all debts (PNC + linked) minus new card purchases; surplus = change in PNC cash.
 Dates are 'YYYY-MM-DD' text; month is 'YYYY-MM'. Example:
   SELECT month, SUM(amount) FROM v_transactions WHERE flow_class='expense' GROUP BY month ORDER BY month"""
 
@@ -42,7 +46,7 @@ ACC_COLS = ["account_id", "account_type", "kind", "name", "institution", "side",
 TX_COLS = ["transaction_id", "account_id", "account_type", "posted_date", "month", "transaction_type", "category",
            "description", "amount", "balance_change", "flow_class"]
 CF_COLS = ["month", "income", "essentials", "discretionary", "debt_payments", "savings_invest",
-           "transfers_out_unknown", "surplus", "debt_payments_gross", "card_purchases"]
+           "surplus", "debt_payments_gross", "card_purchases"]
 
 ALLOWED_FUNCTIONS = {
     "abs", "avg", "count", "max", "min", "sum", "total", "round", "coalesce", "ifnull", "nullif", "iif",

@@ -5,6 +5,8 @@ Safety: the Nessie write client is imported lazily, only inside agent/execute.ap
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -12,12 +14,27 @@ from pydantic import BaseModel
 from . import balance_sheet, finance, linked, pnc_data, store
 from .config import NESSIE_KEY, NVIDIA_API_KEY, NEMOTRON_MODEL
 
-app = FastAPI(title="Paidway")
+@asynccontextmanager
+async def _lifespan(_app):
+    from . import replays
+
+    try:  # committed replay fixtures (data/replays/*.json) -> SQLite; a bad fixture must not stop the API
+        replays.import_dir()
+    except Exception as e:  # noqa: BLE001
+        print(f"replay fixtures not imported: {e}")
+    yield
+
+
+app = FastAPI(title="Paidway", lifespan=_lifespan)
 
 from .api_insights import router as _insights_router  # noqa: E402
 app.include_router(_insights_router)
 from .api_timeline import router as _timeline_router  # noqa: E402
 app.include_router(_timeline_router)
+from .api_tracking import router as _tracking_router  # noqa: E402
+app.include_router(_tracking_router)
+from .api_scenarios import router as _scenarios_router  # noqa: E402
+app.include_router(_scenarios_router)
 
 
 def _need_customer(cid: str) -> dict:
@@ -57,6 +74,15 @@ def customer_balance_sheet(cid: str, keep_months: float = Query(3, ge=3, le=24))
 def customer_debts(cid: str) -> dict:
     _need_customer(cid)
     return balance_sheet.balance_sheet(cid)["priority"]
+
+
+@app.get("/api/customers/{cid}/reality-check")
+def customer_reality_check(cid: str) -> dict:
+    """Can the debt shrink with this income and spending, even after every lever? If not, the monthly gap."""
+    _need_customer(cid)
+    from . import wealth
+
+    return wealth.reality_check(cid)
 
 
 # ---------- agent-facing numbers ----------
@@ -127,29 +153,54 @@ def agent_run(body: RunIn) -> dict:
     return {**result, "proposal": next((p for p in proposals if p["status"] == "pending"), None)}
 
 
-@app.get("/api/agent/stream")
-def agent_stream(customer_id: str, instruction: str | None = None) -> StreamingResponse:
-    """Server-sent events for one agent run: `step` per tool call/result, then `done` with the proposal."""
-    _need_customer(customer_id)
-    from .agent.graph import stream_run
+def _sse(evs) -> StreamingResponse:
+    import json
 
-    def events():
-        import json
-
-        for ev in stream_run(customer_id, instruction):
-            msgs = ev.pop("messages", None)
-            if msgs:
-                store.log_run(customer_id, msgs)
-            if ev["type"] == "done":
-                ps = store.list_proposals(customer_id)
-                ev["proposal"] = next((p for p in ps if p["status"] == "pending"), None)
+    def gen():
+        for ev in evs:
             yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
 
-    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.get("/api/agent/stream")
+def agent_stream(customer_id: str, instruction: str | None = None) -> StreamingResponse:
+    """Server-sent events for one agent run: `step` per tool call/result, then `done` with the proposal.
+    Each finished run is recorded (replays.py) so it can be replayed later without calling the model."""
+    _need_customer(customer_id)
+    from . import replays
+
+    return _sse(replays.record(customer_id, replays.live_events(customer_id, instruction), model=NEMOTRON_MODEL))
+
+
+# --- recorded runs: replay a past agent run's event stream at N× speed ---
+
+@app.get("/api/replays")
+def replays_list(customer_id: str | None = None) -> list[dict]:
+    return store.list_replays(customer_id)
+
+
+@app.get("/api/replays/{rid}")
+def replay_meta(rid: str) -> dict:
+    r = store.get_replay(rid)
+    if r is None:
+        raise HTTPException(404, "no such replay")
+    return {k: v for k, v in r.items() if k not in ("events", "proposal")} | {"events": len(r["events"])}
+
+
+@app.get("/api/replays/{rid}/stream")
+def replay_stream(rid: str, speed: float = Query(8.0, ge=0, le=1000)) -> StreamingResponse:
+    """The recorded run's events in the live stream's format, paced at `speed`× (0 = instant)."""
+    from . import replays
+
+    if store.get_replay(rid) is None:
+        raise HTTPException(404, "no such replay")
+    return _sse(replays.replay(rid, speed))
 
 
 class PlanIn(BaseModel):
     plan: dict
+    constraints: dict | None = None  # the proposal's customer rules (PR 4), so the preview matches approve
 
 
 @app.post("/api/customers/{cid}/plan/simulate")
@@ -167,7 +218,7 @@ def plan_simulate(cid: str, body: PlanIn) -> dict:
     try:
         from .agent.validator import validate_plan_v2
 
-        validate_plan_v2(cid, plan)
+        validate_plan_v2(cid, plan, constraints=body.constraints)
         reasons: list[str] = []
     except PlanRejected as e:
         reasons = list(getattr(e, "reasons", None) or [str(e)])
@@ -201,3 +252,89 @@ def reject_proposal(pid: str) -> dict:
     if not p:
         raise HTTPException(404, "no such proposal")
     return store.set_status(pid, "rejected")
+
+
+# ---------- talk to the plan (PR 4) ----------
+
+class AdjustIn(BaseModel):
+    message: str
+
+
+def _adjust_events(pid: str, message: str):
+    from .agent.graph import stream_adjust
+
+    p = store.get_proposal(pid)
+    for ev in stream_adjust(pid, message):
+        msgs = ev.pop("messages", None)
+        if msgs and p:
+            store.log_run(p["customer_id"], msgs)
+        if ev["type"] == "done":
+            ev["proposal"] = store.get_proposal(ev["proposal_id"]) if ev.get("proposal_id") else None
+        yield ev
+
+
+def _check_adjustable(pid: str) -> None:
+    from .agent.graph import AdjustError, adjustable
+
+    try:
+        adjustable(pid)
+    except AdjustError as e:
+        raise HTTPException(e.status, e.detail)
+
+
+@app.get("/api/proposals/{pid}/adjust/stream")
+def adjust_stream(pid: str, message: str = Query(..., min_length=1, max_length=500)) -> StreamingResponse:
+    """Server-sent events for one "talk to the plan" change; same events as /api/agent/stream plus
+    `constraints`, `clarify` and `compare`. `done` carries the new pending proposal (the old one is superseded)."""
+    _check_adjustable(pid)
+
+    def events():
+        import json
+
+        for ev in _adjust_events(pid, message):
+            yield f"event: {ev['type']}\ndata: {json.dumps(ev, default=str)}\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.post("/api/proposals/{pid}/adjust")
+def adjust_proposal(pid: str, body: AdjustIn) -> dict:
+    """Blocking version of adjust/stream (scripts, eval). Returns the `done` event, or 422 with the error."""
+    _check_adjustable(pid)
+    last: dict = {}
+    for ev in _adjust_events(pid, body.message):
+        if ev["type"] in ("done", "error"):
+            last = ev
+    if last.get("type") != "done":
+        raise HTTPException(422, last.get("error") or "adjust failed")
+    return last
+
+
+@app.post("/api/proposals/{pid}/restore")
+def restore_proposal(pid: str) -> dict:
+    """"Keep previous": supersede this adjusted plan and make its parent pending again."""
+    p = store.restore(pid)
+    if not p:
+        raise HTTPException(409, "only the latest adjusted plan can be undone")
+    return p
+
+
+class RuleIn(BaseModel):
+    key: str
+    item: str | None = None
+
+
+@app.post("/api/proposals/{pid}/constraints/remove")
+def remove_constraint(pid: str, body: RuleIn) -> dict:
+    """Drop one customer rule. The plan itself doesn't change; ask for a change to re-plan without it."""
+    from .agent import constraints as C
+
+    p = store.get_proposal(pid)
+    if not p:
+        raise HTTPException(404, "no such proposal")
+    if p["status"] != "pending":
+        raise HTTPException(409, f"proposal is {p['status']}, not pending")
+    out = store.set_constraints(pid, C.remove(p.get("constraints"), body.key, body.item))
+    sim = {**(out["simulation"] or {}), "constraint_labels": C.describe(out.get("constraints"))}
+    store.annotate(pid, constraint_labels=sim["constraint_labels"])
+    return {**out, "simulation": sim}

@@ -21,12 +21,18 @@ export function knobsFrom(p: Proposal): Knobs {
 /** The agent's plan with the slider values applied. */
 export function planFrom(ai: Proposal, k: Knobs): PlanV2 {
   const pl = ai.plan
-  const flow = pl.redirects?.[0]?.flow ?? 'external_cash_management'
+  // The slider scales every named redirect/pause together (monthly surplus, paused investing).
+  const ai0 = pl.redirects ?? []
+  const total = ai0.reduce((a, r) => a + r.amount_per_month, 0)
+  const cents = (n: number) => Math.round(n * 100) / 100
+  const redirects = k.redirect <= 0 ? []
+    : total > 0 ? ai0.map((r) => ({ ...r, amount_per_month: cents((r.amount_per_month * k.redirect) / total) }))
+    : [{ flow: 'monthly_surplus', amount_per_month: cents(k.redirect) }]
   return {
     ...pl,
     version: 2,
     monthly_debt_budget: Math.round(k.budget * 100) / 100,
-    redirects: k.redirect > 0 ? [{ flow, amount_per_month: Math.round(k.redirect * 100) / 100 }] : [],
+    redirects,
     spending_targets: (pl.spending_targets ?? []).map((t) => ({ ...t, target: k.cuts[t.category] ?? t.target })),
   }
 }
@@ -35,5 +41,5 @@ const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct
 /** "2027-02" -> "Feb 2027"; null -> "Never". */
 export const ym = (s: string | null | undefined) => (s ? `${MON[+s.slice(5, 7) - 1]} ${s.slice(0, 4)}` : 'Never')
 export const ymShort = (s: string) => `${MON[+s.slice(5, 7) - 1]} ’${s.slice(2, 4)}`
-export const SOURCE_NAME: Record<string, string> = { cash: 'Savings', cd: 'CD', brokerage: 'Brokerage' }
+export const SOURCE_NAME: Record<string, string> = { cash: 'PNC savings', cd: 'CD', brokerage: 'Brokerage' }
 export const title = (s: string) => s.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())

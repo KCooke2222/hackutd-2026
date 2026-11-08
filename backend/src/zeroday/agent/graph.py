@@ -96,7 +96,8 @@ def gather_snapshot(customer_id: str) -> dict:
         from .. import insights
 
         cf = insights.cash_flow(customer_id)
-        cash = {k: cf.get(k) for k in ("monthly_avg", "unknown_outflow_per_month", "essentials_by_category", "card_spending_by_category")}
+        cash = {k: cf.get(k) for k in ("monthly_avg", "saved_per_month", "named_flows", "spending_by_category",
+                                       "card_spending_by_category")}
         cash["last_3_months"] = (cf.get("months") or [])[-3:]
     except ImportError:  # insights not built yet
         r = finance.refill_breakdown(customer_id)
@@ -118,8 +119,27 @@ def gather_snapshot(customer_id: str) -> dict:
         "ladder": {"emergency_buffer": lad["emergency_buffer"], "keep_months": lad["keep_months"],
                    "tiers": [{k: t[k] for k in ("key", "proposable", "available", "cost_pct")} for t in lad["tiers"]]},
         "totals": sheet["totals"],
+        "reality_check": _reality_brief(customer_id),
         "assumptions": ASSUMPTIONS,
     }
+
+
+def _reality_brief(customer_id: str) -> dict | None:
+    """The reality check without the per-category detail (the LLM gets the verdict and the gap)."""
+    try:
+        from .. import wealth
+
+        rc = wealth.reality_check(customer_id)
+    except Exception:  # noqa: BLE001 - the plan still runs without it
+        return None
+    return _reality_fields(rc)
+
+
+def _reality_fields(rc: dict | None) -> dict:
+    """The verdict and the gap, for prompts (an {"error"} or a missing check gives {})."""
+    if not isinstance(rc, dict) or "realistic" not in rc:
+        return {}
+    return {k: rc.get(k) for k in ("realistic", "message", "gap_per_month", "cash_runs_out", "close_gap", "monthly")}
 
 
 # ---------- message log helpers ----------
@@ -151,7 +171,7 @@ def summarize(name: str, args: dict, content: str) -> str:
         if name == "sql":
             return f"{len(d.get('rows', []))} rows"
         if name == "cash_flow":
-            return f"{_usd(d['unknown_outflow_per_month'])}/mo unknown out"
+            return f"{_usd(d['saved_per_month'])}/mo saved"
         if name == "spending_detail":
             return f"avg {_usd(d['avg'])} · low {_usd(d['min'])}"
         if name == "find_recurring":
@@ -200,7 +220,7 @@ def _label_raw(name: str, args: dict) -> str:
         return "SQL query"
     return {
         "cash_flow": "Cash flow", "find_recurring": "Recurring charges", "debt_priority": "Debt ranking",
-        "liquidity_ladder": "Cash ladder", "propose_plan": "Propose plan",
+        "liquidity_ladder": "Cash ladder", "optimize_plan": "Optimize plan", "propose_plan": "Propose plan",
     }.get(name, name)
 
 
@@ -246,10 +266,65 @@ def _ask_json(llm, prompt: str) -> tuple[Any, dict]:
     return data, e
 
 
+def _react(llm, tools: list, system: str, instruction: str, w, st: dict, messages: list, limit: int = RECURSION_LIMIT) -> str:
+    """Run one ReAct agent, streaming `call`/`result` events and appending to `messages`. Stops once propose_plan
+    saved (st["proposal_id"]) or gave up (st["stop"]). Returns the model's last text reply."""
+    from langgraph.prebuilt import create_react_agent
+
+    agent = create_react_agent(llm, tools, prompt=system)
+    pending: dict[str, dict] = {}
+    final = ""
+    for update in agent.stream({"messages": [("user", instruction)]}, {"recursion_limit": limit}, stream_mode="updates"):
+        for node in update.values():
+            for m in (node or {}).get("messages", []):
+                e = _entry(m)
+                messages.append(e)
+                if m.type == "ai":
+                    why = e.get("reasoning") or e["content"]
+                    for c in getattr(m, "tool_calls", None) or []:
+                        pending[c["id"]] = c
+                        w({"type": "call", "id": c["id"], "name": c["name"], "label": _label(c["name"], c["args"]), "args": c["args"], "why": why})
+                        why = ""
+                    if not m.tool_calls:
+                        final = e["content"]
+                elif m.type == "tool":
+                    c = pending.get(m.tool_call_id, {})
+                    w({"type": "result", "id": m.tool_call_id, "name": e["name"], "result": summarize(e["name"], c.get("args", {}), e["content"])})
+        if st.get("proposal_id") or st.get("stop"):
+            break  # saved (explain writes the headline) or out of attempts
+    return final
+
+
+def _explain(llm, w, proposal_id: str, messages: list, extra: dict | None = None) -> dict:
+    """The explain phase: short UI labels for a saved proposal, stored on it. Falls back to a code headline."""
+    _phase(w, "explain", "Writing it up")
+    p = store.get_proposal(proposal_id)
+    data, e = _ask_json(llm, prompts.fill(
+        prompts.EXPLAIN, plan=p["plan"], simulation=sim_brief(p["simulation"]),
+        cut_options=[{k: o.get(k) for k in ("category", "label", "cut_per_month", "merchants", "high_cost_debt_free",
+                                            "months_sooner", "net_worth_24m_gain")}
+                     for o in p["simulation"].get("cut_options") or []],
+        reality=_reality_fields(p["simulation"].get("reality_check"))))
+    if not isinstance(data, dict) or not isinstance(data.get("headline"), str) or not data["headline"]:
+        sim = p["simulation"]
+        data = {"headline": f"High-cost debt $0 by {sim.get('high_cost_debt_free') or 'never'}", "levers": [], "cuts": [], "options": []}
+    rc = p["simulation"].get("reality_check") or {}
+    gap = rc.get("gap_per_month") or 0
+    if rc and rc.get("realistic") is False and f"{gap:,.0f}" not in data["headline"]:
+        data["headline"] = f"${gap:,.0f}/mo short: {data['headline']}"  # the gap always leads
+    data = {**data, **(extra or {})}
+    try:
+        store.annotate(p["id"], explain=data)
+    except AttributeError:
+        pass
+    _phase(w, "explain", "", data["headline"][:60])
+    w({"type": "final", "text": data["headline"], "why": ""})
+    return {"explain": data, "final": data["headline"], "messages": [*messages, {**e, "name": "explain"}]}
+
+
 def build_graph(customer_id: str):
     llm = _llm()
     from langgraph.graph import END, START, StateGraph
-    from langgraph.prebuilt import create_react_agent
 
     try:
         from .sql_tool import SCHEMA_DOC
@@ -286,50 +361,18 @@ def build_graph(customer_id: str):
         keep = (s["snapshot"].get("assumptions") or {}).get("default_emergency_months", 3.0)
         system = prompts.fill(prompts.PLAN, keep_emergency_months=f"{keep:g}", sql_schema=SCHEMA_DOC,
                               snapshot=s["snapshot"], diagnosis=s.get("diagnosis") or {}, assumptions=s["snapshot"].get("assumptions") or {})
-        agent = create_react_agent(llm, make_tools(customer_id, st), prompt=system)
         messages = list(s.get("messages") or [])
-        pending: dict[str, dict] = {}
-        final = ""
-        for update in agent.stream({"messages": [("user", s.get("instruction") or DEFAULT_INSTRUCTION)]},
-                                   {"recursion_limit": RECURSION_LIMIT}, stream_mode="updates"):
-            for node in update.values():
-                for m in (node or {}).get("messages", []):
-                    e = _entry(m)
-                    messages.append(e)
-                    if m.type == "ai":
-                        why = e.get("reasoning") or e["content"]
-                        for c in getattr(m, "tool_calls", None) or []:
-                            pending[c["id"]] = c
-                            w({"type": "call", "id": c["id"], "name": c["name"], "label": _label(c["name"], c["args"]), "args": c["args"], "why": why})
-                            why = ""
-                        if not m.tool_calls:
-                            final = e["content"]
-                    elif m.type == "tool":
-                        c = pending.get(m.tool_call_id, {})
-                        w({"type": "result", "id": m.tool_call_id, "name": e["name"], "result": summarize(e["name"], c.get("args", {}), e["content"])})
-            if st.get("proposal_id") or st.get("stop"):
-                break  # saved (explain writes the headline) or out of attempts
+        final = _react(llm, make_tools(customer_id, st), system, s.get("instruction") or DEFAULT_INSTRUCTION, w, st, messages)
         out: dict = {"messages": messages, "final": final, "proposal_id": st.get("proposal_id")}
         if not st.get("proposal_id"):
             reasons = "; ".join(st.get("last_reasons") or []) or "the agent did not propose a plan"
-            out["error"] = f"No valid plan: {reasons}"[:400]
+            rc = s["snapshot"].get("reality_check") or {}
+            lead = f"{rc['message']} " if rc and not rc.get("realistic") else ""
+            out["error"] = f"{lead}No valid plan: {reasons}"[:700]
         return out
 
     def explain(s: AgentState) -> dict:
-        w = _writer()
-        _phase(w, "explain", "Writing it up")
-        p = store.get_proposal(s["proposal_id"])
-        data, e = _ask_json(llm, prompts.fill(prompts.EXPLAIN, plan=p["plan"], simulation=sim_brief(p["simulation"])))
-        if not isinstance(data, dict) or not isinstance(data.get("headline"), str) or not data["headline"]:
-            sim = p["simulation"]
-            data = {"headline": f"High-cost debt $0 by {sim.get('high_cost_debt_free') or 'never'}", "levers": [], "cuts": []}
-        try:
-            store.annotate(p["id"], explain=data)
-        except AttributeError:
-            pass
-        _phase(w, "explain", "", data["headline"][:60])
-        w({"type": "final", "text": data["headline"], "why": ""})
-        return {"explain": data, "final": data["headline"], "messages": [*(s.get("messages") or []), {**e, "name": "explain"}]}
+        return _explain(llm, _writer(), s["proposal_id"], list(s.get("messages") or []))
 
     g = StateGraph(AgentState)
     g.add_node("gather", gather)
@@ -388,6 +431,201 @@ def stream_run(customer_id: str, instruction: str | None = None):
         yield {"type": "error", "error": f"{type(ex).__name__}: {ex}"[:400], "messages": state.get("messages") or []}
         return
     r = _result(state)
+    if r["error"]:
+        yield {"type": "error", "error": r["error"], "messages": r["messages"]}
+        return
+    yield {"type": "done", **r}
+
+
+# ---------- talk to the plan (PR 4) ----------
+#
+# load (code: parent plan + snapshot) -> interpret (LLM, JSON: request -> enforced constraints)
+#   -> clarify? END | already satisfied? keep (code, no re-plan) | plan (ReAct from the current plan)
+#   -> compare (code: cost vs the parent) -> explain
+# A worse change is applied with a warning; the customer decides.
+
+ADJUST_RECURSION_LIMIT = 30
+
+
+class AdjustError(Exception):
+    def __init__(self, status: int, detail: str):
+        super().__init__(detail)
+        self.status, self.detail = status, detail
+
+
+class AdjustState(AgentState, total=False):
+    request: str
+    summary: str
+    constraints: dict
+    new_constraints: dict
+    only_constraints: bool
+    clarify: str | None
+    fast: bool
+    compare: dict | None
+
+
+def adjustable(pid: str) -> dict:
+    """The proposal to adjust, or AdjustError (404 unknown, 409 not pending, 422 not a v2 plan)."""
+    p = store.get_proposal(pid)
+    if not p:
+        raise AdjustError(404, "no such proposal")
+    if p["status"] != "pending":
+        raise AdjustError(409, f"proposal is {p['status']}, not pending; open the latest plan")
+    if (p.get("plan") or {}).get("version") != 2:
+        raise AdjustError(422, "proposal is a v1 plan; re-run the agent")
+    return p
+
+
+def _warning(cmp: dict) -> str | None:
+    """The pushback line, built from the comparison in code (no LLM numbers)."""
+    return ("Costs you: " + ", ".join(cmp["why"])) if cmp.get("worse") and cmp.get("why") else None
+
+
+def build_adjust_graph(pid: str, request: str):
+    from langgraph.graph import END, START, StateGraph
+
+    from .. import wealth
+    from . import constraints as C
+    from .adjust import compare as compare_plans
+    from .validator import PlanRejected, validate_plan_v2
+
+    parent = adjustable(pid)
+    cid = parent["customer_id"]
+    llm = _llm()
+    try:
+        from .sql_tool import SCHEMA_DOC
+    except ImportError:
+        SCHEMA_DOC = "(sql tool not available)"
+    old = parent.get("constraints") or {}
+
+    def load(s: AdjustState) -> dict:
+        w = _writer()
+        _phase(w, "gather", "Reading your plan and accounts")
+        snap = gather_snapshot(cid)
+        _phase(w, "gather", "", f"{len(snap['debts'])} debts · current plan")
+        return {"snapshot": snap}
+
+    def interpret(s: AdjustState) -> dict:
+        w = _writer()
+        _phase(w, "interpret", "Understanding your request")
+        spend = wealth.context(cid)["spend"]
+        cats = ", ".join(f"{k} ({'essential' if v.get('essential') else f'${v['avg']:,.0f}/mo'})" for k, v in spend.items())
+        data, e = _ask_json(llm, prompts.fill(prompts.INTERPRET, categories=cats, plan=parent["plan"],
+                                              outcome=sim_brief(parent["simulation"]), constraints=old, request=request))
+        if not isinstance(data, dict):
+            data = {}
+        new, dropped = C.normalize(data.get("constraints"))
+        clarify = data.get("clarify") if isinstance(data.get("clarify"), str) and data["clarify"].strip() else None
+        msgs = [*(s.get("messages") or []), {**e, "name": "interpret"}]
+        if clarify and not new:
+            _phase(w, "interpret", "", "needs a detail")
+            w({"type": "clarify", "text": clarify})
+            return {"clarify": clarify, "messages": msgs}
+        merged = C.merge(old, new)
+        summary = str(data.get("summary") or request)[:80]
+        only = bool(data.get("only_constraints")) and bool(new)
+        fast = only and not C.check(parent["plan"], merged, spend)
+        w({"type": "constraints", "constraints": merged, "labels": C.describe(merged), "added": C.describe(new), "dropped": dropped})
+        labels = [d["label"] for d in C.describe(new)]
+        _phase(w, "interpret", "", (", ".join(labels) or summary)[:60])
+        return {"constraints": merged, "new_constraints": new, "summary": summary, "only_constraints": only,
+                "fast": fast, "messages": msgs}
+
+    def keep(s: AdjustState) -> dict:
+        """The plan already obeys the new rules: save it again under them, no re-plan."""
+        w = _writer()
+        _phase(w, "keep", "Checking your plan against it")
+        try:
+            sim = dict(validate_plan_v2(cid, parent["plan"], constraints=s["constraints"]))
+        except (PlanRejected, ValueError, KeyError, TypeError):
+            _phase(w, "keep", "", "needs changes")
+            return {"fast": False}
+        from .. import balances
+
+        sim["balances_snapshot"] = balances.snapshot(cid)
+        try:
+            p = store.create_proposal(cid, parent["plan"], sim, "Your plan already does this.", parent_id=pid,
+                                      constraints=s["constraints"], request=request)
+        except store.Conflict as ex:
+            return {"fast": False, "error": str(ex)}
+        _phase(w, "keep", "", "already fits")
+        return {"proposal_id": p["id"]}
+
+    def plan(s: AdjustState) -> dict:
+        w = _writer()
+        st: dict = {"parent_id": pid, "request": request}
+        snap = s["snapshot"]
+        system = prompts.fill(prompts.ADJUST, constraints=s.get("constraints") or "none", summary=s.get("summary") or request,
+                              sql_schema=SCHEMA_DOC, plan=parent["plan"], outcome=sim_brief(parent["simulation"]),
+                              snapshot=snap, assumptions=snap.get("assumptions") or {})
+        messages = list(s.get("messages") or [])
+        final = _react(llm, make_tools(cid, st, s.get("constraints")), system, request, w, st, messages, ADJUST_RECURSION_LIMIT)
+        out: dict = {"messages": messages, "final": final, "proposal_id": st.get("proposal_id")}
+        if not st.get("proposal_id"):
+            reasons = "; ".join(st.get("last_reasons") or []) or "the agent did not propose a plan"
+            out["error"] = f"No valid plan for that change: {reasons}"[:400]
+        return out
+
+    def compare(s: AdjustState) -> dict:
+        w = _writer()
+        child = store.get_proposal(s["proposal_id"])
+        cmp = compare_plans(parent["simulation"], child["simulation"], parent["plan"], child["plan"])
+        store.annotate(child["id"], compare=cmp, constraint_labels=C.describe(s.get("constraints")))
+        w({"type": "compare", **cmp})
+        return {"compare": cmp}
+
+    def explain(s: AdjustState) -> dict:
+        w = _writer()
+        cmp = s.get("compare") or {}
+        extra = {"warning": _warning(cmp), "request": request}
+        if s.get("fast"):
+            data = {**(parent["simulation"].get("explain") or {}), "headline": "No change needed: your plan already fits", **extra}
+            store.annotate(s["proposal_id"], explain=data)
+            w({"type": "final", "text": data["headline"], "why": ""})
+            return {"explain": data, "final": data["headline"]}
+        return _explain(llm, w, s["proposal_id"], list(s.get("messages") or []), extra)
+
+    g = StateGraph(AdjustState)
+    for name, fn in (("load", load), ("interpret", interpret), ("keep", keep), ("plan", plan), ("compare", compare), ("explain", explain)):
+        g.add_node(name, fn)
+    g.add_edge(START, "load")
+    g.add_edge("load", "interpret")
+    g.add_conditional_edges("interpret", lambda s: END if s.get("clarify") else "keep" if s.get("fast") else "plan",
+                            {END: END, "keep": "keep", "plan": "plan"})
+    g.add_conditional_edges("keep", lambda s: "compare" if s.get("proposal_id") else END if s.get("error") else "plan",
+                            {"compare": "compare", "plan": "plan", END: END})
+    g.add_conditional_edges("plan", lambda s: "compare" if s.get("proposal_id") else END, {"compare": "compare", END: END})
+    g.add_edge("compare", "explain")
+    g.add_edge("explain", END)
+    return g.compile()
+
+
+def stream_adjust(pid: str, request: str):
+    """Like stream_run, for one adjustment. Extra events: `constraints` (the rules now in force), `clarify`
+    (a question instead of a plan), `compare` (cost vs the previous plan). `done` carries proposal_id (the new
+    pending proposal) or clarify."""
+    request = (request or "").strip()
+    if not request:
+        yield {"type": "error", "error": "say what you'd like to change"}
+        return
+    try:
+        graph = build_adjust_graph(pid, request[:500])
+    except (AgentUnavailable, AdjustError) as e:
+        yield {"type": "error", "error": getattr(e, "detail", str(e))}
+        return
+    state: dict = {"messages": []}
+    try:
+        for mode, chunk in graph.stream({"customer_id": "", "instruction": request, "messages": []},
+                                        stream_mode=["custom", "values"]):
+            if mode == "custom":
+                yield chunk
+            else:
+                state = chunk
+    except Exception as ex:  # noqa: BLE001
+        yield {"type": "error", "error": f"{type(ex).__name__}: {ex}"[:400], "messages": state.get("messages") or []}
+        return
+    r = {**_result(state), "clarify": state.get("clarify"), "compare": state.get("compare"),
+         "constraints": state.get("constraints")}
     if r["error"]:
         yield {"type": "error", "error": r["error"], "messages": r["messages"]}
         return

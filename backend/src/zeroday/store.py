@@ -13,13 +13,16 @@ SCHEMA = """
 create table if not exists proposals (
   id text primary key,
   customer_id text not null,
-  status text not null default 'pending',  -- pending | executing | approved | executed | rejected | stale | failed
+  status text not null default 'pending',  -- pending | executing | approved | executed | rejected | stale | failed | superseded
   created_at text not null,
   decided_at text,
   plan json not null,           -- what the agent proposed (validated)
   simulation json not null,     -- recomputed by the validator, not the LLM
   rationale text,
-  execution json
+  execution json,
+  parent_id text,               -- the proposal this one adjusts ("talk to the plan"); null for a fresh run
+  constraints json,             -- the customer's accumulated rules (agent/constraints.py)
+  request text                  -- what the customer asked for, for the adjust history
 );
 create table if not exists agent_runs (
   id text primary key,
@@ -47,6 +50,18 @@ create table if not exists linked_accounts (
   as_of_date text
 );
 create index if not exists linked_accounts_customer on linked_accounts (customer_id);
+-- Recorded agent runs (the SSE event stream with time offsets), replayable without calling the model. See replays.py.
+create table if not exists run_replays (
+  id text primary key,
+  customer_id text not null,
+  recorded_at text not null,
+  duration_ms integer not null,
+  model text,
+  headline text,
+  proposal_id text,
+  proposal json,                -- the proposal as it was when the run finished (restored on import)
+  events json not null          -- [{"t": ms since start, "type": str, "data": {...}}]
+);
 """
 
 LINKED_COLS = [
@@ -61,6 +76,10 @@ def _conn() -> sqlite3.Connection:
     c = sqlite3.connect(DB_PATH)
     c.row_factory = sqlite3.Row
     c.executescript(SCHEMA)
+    have = {r[1] for r in c.execute("pragma table_info(proposals)")}
+    for col, typ in (("parent_id", "text"), ("constraints", "json"), ("request", "text")):
+        if col not in have:  # databases created before PR 4
+            c.execute(f"alter table proposals add column {col} {typ}")
     return c
 
 
@@ -70,20 +89,49 @@ def _now() -> str:
 
 def _row(r: sqlite3.Row) -> dict:
     d = dict(r)
-    for k in ("plan", "simulation", "execution"):
+    for k in ("plan", "simulation", "execution", "constraints"):
         if d.get(k):
             d[k] = json.loads(d[k])
     return d
 
 
-def create_proposal(customer_id: str, plan: dict, simulation: dict, rationale: str) -> dict:
+class Conflict(RuntimeError):
+    """The proposal being adjusted is no longer pending (approved, rejected or adjusted meanwhile)."""
+
+
+def create_proposal(customer_id: str, plan: dict, simulation: dict, rationale: str, *, parent_id: str | None = None,
+                    constraints: dict | None = None, request: str | None = None) -> dict:
+    """Save a pending proposal. With parent_id (an adjustment), the parent goes pending -> superseded in the
+    same transaction, so the customer has one pending plan at a time."""
     pid = uuid.uuid4().hex[:12]
     with _conn() as c:
         c.execute(
-            "insert into proposals (id, customer_id, created_at, plan, simulation, rationale) values (?,?,?,?,?,?)",
-            (pid, customer_id, _now(), json.dumps(plan), json.dumps(simulation), rationale),
+            "insert into proposals (id, customer_id, created_at, plan, simulation, rationale, parent_id, constraints, request)"
+            " values (?,?,?,?,?,?,?,?,?)",
+            (pid, customer_id, _now(), json.dumps(plan), json.dumps(simulation), rationale, parent_id,
+             json.dumps(constraints) if constraints else None, request),
         )
+        if parent_id:
+            cur = c.execute("update proposals set status = 'superseded', decided_at = ? where id = ? and status = 'pending'",
+                            (_now(), parent_id))
+            if cur.rowcount != 1:  # raising inside the `with` rolls back the insert too
+                raise Conflict(f"proposal {parent_id} is no longer pending")
     return get_proposal(pid)
+
+
+def restore(pid: str) -> dict | None:
+    """"Keep previous": the adjusted child becomes superseded and its parent is pending again. Only from the
+    pending child of a superseded parent; returns the parent, or None if that isn't the state."""
+    with _conn() as c:
+        r = c.execute("select parent_id, status from proposals where id = ?", (pid,)).fetchone()
+        if not r or not r["parent_id"] or r["status"] != "pending":
+            return None
+        cur = c.execute("update proposals set status = 'pending', decided_at = null where id = ? and status = 'superseded'",
+                        (r["parent_id"],))
+        if cur.rowcount != 1:
+            return None
+        c.execute("update proposals set status = 'superseded', decided_at = ? where id = ?", (_now(), pid))
+    return get_proposal(r["parent_id"])
 
 
 def get_proposal(pid: str) -> dict | None:
@@ -119,6 +167,14 @@ def annotate(pid: str, **fields) -> dict | None:
         sim = json.loads(r["simulation"] or "{}")
         sim.update(fields)
         c.execute("update proposals set simulation = ? where id = ?", (json.dumps(sim), pid))
+    return get_proposal(pid)
+
+
+def set_constraints(pid: str, constraints: dict | None) -> dict | None:
+    """Replace a pending proposal's constraints (the customer removed a rule tag)."""
+    with _conn() as c:
+        c.execute("update proposals set constraints = ? where id = ? and status = 'pending'",
+                  (json.dumps(constraints) if constraints else None, pid))
     return get_proposal(pid)
 
 
@@ -170,3 +226,52 @@ def linked_accounts(customer_id: str | None = None) -> list[dict]:
         d["secured"] = bool(d["secured"])
         out.append(d)
     return out
+
+
+# --- recorded runs (replays.py) ---
+
+REPLAY_COLS = ["id", "customer_id", "recorded_at", "duration_ms", "model", "headline", "proposal_id", "proposal", "events"]
+
+
+def save_replay(r: dict) -> dict:
+    """Insert a recorded run; ignored if that id already exists (fixture import is idempotent)."""
+    row = {**r, "proposal": json.dumps(r.get("proposal")) if r.get("proposal") is not None else None,
+           "events": json.dumps(r["events"], default=str)}
+    with _conn() as c:
+        c.execute(f"insert or ignore into run_replays ({','.join(REPLAY_COLS)}) values ({','.join('?' * len(REPLAY_COLS))})",
+                  tuple(row.get(k) for k in REPLAY_COLS))
+    return get_replay(r["id"])
+
+
+def get_replay(rid: str) -> dict | None:
+    with _conn() as c:
+        r = c.execute("select * from run_replays where id = ?", (rid,)).fetchone()
+    if not r:
+        return None
+    d = dict(r)
+    d["events"] = json.loads(d["events"])
+    d["proposal"] = json.loads(d["proposal"]) if d["proposal"] else None
+    return d
+
+
+def list_replays(customer_id: str | None = None) -> list[dict]:
+    q = "select id, customer_id, recorded_at, duration_ms, model, headline, proposal_id from run_replays"
+    with _conn() as c:
+        if customer_id:
+            rows = c.execute(q + " where customer_id = ? order by recorded_at desc", (customer_id,)).fetchall()
+        else:
+            rows = c.execute(q + " order by recorded_at desc").fetchall()
+    return [dict(r) for r in rows]
+
+
+def restore_proposal(p: dict) -> bool:
+    """Put a proposal from a replay fixture back, as it was recorded. No-op if that id exists. True if inserted."""
+    cols = ["id", "customer_id", "status", "created_at", "decided_at", "plan", "simulation", "rationale", "execution"]
+    vals = [p.get(k) for k in cols]
+    for i, k in enumerate(cols):
+        if k in ("plan", "simulation", "execution") and vals[i] is not None and not isinstance(vals[i], str):
+            vals[i] = json.dumps(vals[i])
+    vals[2] = vals[2] or "pending"
+    with _conn() as c:
+        cur = c.execute(f"insert or ignore into proposals ({','.join(cols)}) values ({','.join('?' * len(cols))})", vals)
+        return cur.rowcount == 1

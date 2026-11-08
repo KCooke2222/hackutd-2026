@@ -1,15 +1,16 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "seed": 20261108,
   "history_start": "2024-11-01",
   "as_of_date": "2026-10-31",
   "months": 24,
   "customers": 30,
   "accounts": 196,
-  "transactions": 21225,
+  "transactions": 45555,
   "monthly_statements": 4704,
   "currency": "USD",
+  "derived_from": "PNC pnc-utd-hackathon-2026 Lab_Package/generate_history.py (Apache-2.0), modified by Zeroday",
   "balance_convention": "Assets and liabilities are positive; balance_change increases or decreases that account balance.",
-  "calibration": "Opening balances and explicit external cash-management transfers are calibrated to preserve supplied ending balances.",
+  "calibration": "Opening balances are calibrated to preserve supplied ending balances. What the household does not spend on regular lines goes to lumpy, merchant-named irregular spending; nothing leaves to an unknown destination.",
   "limitations": "Synthetic monthly accrual, no daily compounding, IRA market returns, taxes, contribution eligibility, or actual banking fees modeled."
 }

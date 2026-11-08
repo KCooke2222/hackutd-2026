@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: install backend frontend test seed reseed linked
+.PHONY: install backend frontend test seed reseed linked record
 
 install:
 	cd backend && $(UV) sync
@@ -26,3 +26,9 @@ reseed:
 # Regenerate the linked external accounts (student loans, brokerage, property, other cards) in SQLite.
 linked:
 	cd backend && $(UV) run python scripts/extend_data.py
+
+# Record live agent runs as replay fixtures (backend/data/replays/). Re-run after the data or agent changes.
+CUSTOMER ?= C001
+RUNS ?= 1
+record:
+	cd backend && $(UV) run python scripts/record_runs.py --customer $(CUSTOMER) --runs $(RUNS) --replace

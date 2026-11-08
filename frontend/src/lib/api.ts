@@ -57,7 +57,31 @@ export type SimV2 = {
   budget?: { current_debt_payments: number; redirects: number; checking_cuts: number; card_cuts: number; max_monthly_debt_budget: number; minimums: number }
 }
 
-export type Explain = { headline: string; levers?: { kind: string; label: string; amount?: number }[]; cuts?: { category: string; how: string }[] }
+export type Explain = {
+  headline: string
+  levers?: { kind: string; label: string; amount?: number }[]
+  cuts?: { category: string; how: string }[]
+  warning?: string | null // talk to the plan: the cost of a worse change, written in code
+  request?: string
+  options?: { category: string; label: string; buys: string }[]
+}
+
+// ---------- talk to the plan (PR 4) ----------
+
+/** A customer rule, as a removable tag. `item` names the list/map entry (e.g. the category). */
+export type RuleLabel = { key: string; item: string | null; label: string }
+export type Constraints = Record<string, unknown>
+
+/** The adjusted plan vs the plan it replaced (computed in code). */
+export type Compare = {
+  net_worth_24m: { before: number; after: number; delta: number }
+  interest_total: { before: number; after: number; delta: number }
+  high_cost_debt_free: { before: string | null; after: string | null; months_later: number | null }
+  worse: boolean
+  cost: number
+  why: string[]
+  changes: string[]
+}
 
 export type Proposal = {
   id: string
@@ -65,8 +89,11 @@ export type Proposal = {
   status: string
   created_at: string
   plan: PlanV2
-  simulation: SimV2 & { explain?: Explain; balances_snapshot?: unknown }
+  simulation: SimV2 & { explain?: Explain; balances_snapshot?: unknown; compare?: Compare; constraint_labels?: RuleLabel[] }
   rationale: string
+  parent_id?: string | null
+  constraints?: Constraints | null
+  request?: string | null
   execution?: {
     mode?: string
     note?: string
@@ -171,7 +198,7 @@ export type TimelinePayment = {
 }
 export type FlowMonth = {
   month: string; income: number; essentials: number; discretionary: number; debt_payments: number
-  savings_invest: number; transfers_out: number; surplus: number
+  savings_invest: number; surplus: number
 }
 export type TimelineChange = { group: string; label: string; text: string; changed: boolean; sub: string; before: number | null; after: number | null }
 export type Timeline = {
@@ -179,9 +206,126 @@ export type Timeline = {
   months: string[]
   accounts: TimelineAccount[]
   payments: TimelinePayment[]
-  cashflow: { before: FlowMonth[]; plan: FlowMonth[]; transfers_out_name: string }
+  cashflow: { before: FlowMonth[]; plan: FlowMonth[] }
   changes: TimelineChange[]
   totals: { debt_payments: { before: number; plan: number }; net_worth: { before: number[]; plan: number[] } }
   feasible: boolean
   problems: string[]
+}
+
+// ---------- goal tracking (backend tracking.py; demo months are simulated) ----------
+
+export type TrackLevel = 'on_track' | 'drifting' | 'off_track'
+export type TrackStatus = {
+  level: TrackLevel; late_months: number; goal_month: string; projected_month: string | null; goal_reached: boolean
+  reasons: string[]; breaks: string[]; nudges: string[]
+  over: { account_id: string; name: string; actual: number; expected: number; pct: number }[]
+}
+export type TrackPoint = { month: string; expected: number; band: number; expected_total: number; actual?: number; actual_total?: number; projected?: number }
+export type TrackDebt = {
+  account_id: string; name: string; apr_pct: number; high_cost: boolean; start: number; actual: number; expected: number
+  goal_month: string | null; projected_month: string | null; done: boolean; late_months: number
+}
+export type TrackAlert = { month_index: number; month: string; scenario: string; level: TrackLevel | 'good'; title: string; text: string }
+export type SwitchSource = { kind: 'card_cap' | 'cut' | 'pause_flow'; label: string; detail?: string; amount: number }
+export type SwitchOption = {
+  key: 'lock_in' | 'move_date'; title: string; goal_month: string; feasible: boolean
+  extra_per_month?: number; sources?: SwitchSource[]; steps?: string[]; projected_month?: string | null
+  available?: number; needed?: number; why?: string
+  new_month?: string | null; months_later?: number; monthly_debt_budget?: number; net_worth_24m?: number
+}
+export type Tracking = {
+  active: true
+  proposal: { id: string; created_at: string; headline?: string | null }
+  month_index: number; horizon: number; now: string
+  goal: { label: string; month: string; net_worth_24m: number; projected_net_worth_24m: number | null }
+  status: TrackStatus
+  path: TrackPoint[]
+  debts: TrackDebt[]
+  tiles: { net_worth: number; net_worth_expected: number; cash: number; cash_expected: number; total_debt: number; total_debt_expected: number }
+  alerts: TrackAlert[]
+  scenarios: { key: string; label: string }[]
+  history: { month_index: number; month: string; scenario: string }[]
+  tolerance_pct: number
+  switch?: { options: SwitchOption[]; replan: boolean }
+}
+
+export type RealityCheck = {
+  realistic: boolean
+  message: string
+  gap_per_month: number
+  cash_runs_out: string | null
+  close_gap: null | {
+    spend_less_per_month: number
+    earn_more_per_month: number
+    spending_target_per_month: number
+    income_target_per_month: number
+    spending_alone_can_close: boolean
+    min_extra_income_if_spending_maxed: number
+  }
+  monthly: { income: number; spending: number; debt_room: number; interest: number; card_charges: number; minimums: number; principal_paydown: number; shortfall: number; lowest_cash: number }
+  today: { debt_change_per_month: number; cash_change_per_month: number }
+  levers: {
+    spending_cuts_per_month: number
+    cuts: { category: string; current: number; target: number; save: number }[]
+    redirect_per_month: number
+    lump_sums: { source: string; to_debt: string; name: string; amount: number }[]
+    discretionary_left_per_month: number
+  }
+}
+
+// ---------- scenarios (roadmap PR 6) ----------
+
+export type ScenarioEvent =
+  | { kind: 'job_loss'; start: number; months: number }
+  | { kind: 'income_change'; start: number; pct: number; months?: number | null }
+  | { kind: 'expense'; start: number; amount: number }
+
+export type ScenarioSpec = { id: string; label: string; events: ScenarioEvent[] }
+
+export type Verdict = 'holds' | 'bends' | 'breaks'
+
+export type ScenarioSim = {
+  months: SimMonth[]
+  debts: SimDebt[]
+  net_worth_24m: number
+  interest_total: number
+  high_cost_debt_free: string | null
+  min_cash: number
+  min_cash_month: string
+  borrowed_on_card: number
+}
+
+export type ScenarioResult = ScenarioSpec & {
+  verdict: Verdict
+  why: string
+  slip_months: number | null
+  nw_delta: number
+  sim: ScenarioSim
+  adjusted: ScenarioSim & { verdict: Verdict; why: string; slip_months: number | null; nw_delta: number; paused: string[]; advice: string }
+}
+
+export type ScenarioRun = {
+  customer_id: string
+  monthly_income: number
+  emergency_buffer: number
+  reference: ScenarioSim
+  baseline: ScenarioSim
+  results: ScenarioResult[]
+}
+
+export type ScenarioRange = {
+  runs: number
+  months: { month: string; p10: number; p50: number; p90: number }[]
+  p_high_cost_free: number
+  p_borrowed: number
+}
+
+/** A recorded agent run (backend replays.py); replayed through /api/replays/{id}/stream?speed=N. */
+export type ReplayMeta = { id: string; customer_id: string; recorded_at: string; duration_ms: number; model: string | null; headline: string | null; proposal_id: string | null }
+export type ReplayRun = { id: string; speed: number; duration_ms: number }
+
+export const fmtDuration = (ms: number) => {
+  const s = Math.round(ms / 1000)
+  return s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s` : `${s}s`
 }

@@ -20,7 +20,7 @@ def test_c001_queries_work():
     assert r["columns"] == ["name", "balance", "apr_pct"]
     names = [row[0] for row in r["rows"]]
     assert "Store card" in names and "PNC Credit card" in names
-    r = q("SELECT month, income, transfers_out_unknown FROM v_monthly_cashflow ORDER BY month")
+    r = q("SELECT month, income, surplus FROM v_monthly_cashflow ORDER BY month")
     assert len(r["rows"]) >= 12 and all(row[1] > 0 for row in r["rows"])
     r = q("WITH m AS (SELECT month, SUM(amount) s FROM v_transactions WHERE flow_class='expense' GROUP BY month) "
           "SELECT COUNT(*), ROUND(AVG(s), 2) FROM m")

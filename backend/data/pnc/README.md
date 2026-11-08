@@ -1,6 +1,6 @@
 # Synthetic account history
 
-The supplied snapshot contains 30 synthetic customers and 196 accounts. Every account has 24 complete calendar months of generated history, **2024-11-01 through 2026-10-31**. The ledger has **21,225 entries** and **4,704 monthly statements**. `history_manifest.json` records the authoritative dates, seed, counts, and schema version. No real financial records are used.
+The supplied snapshot contains 30 synthetic customers and 196 accounts. Every account has 24 complete calendar months of generated history, **2024-11-01 through 2026-10-31**. The ledger has **42,701 entries** and **4,704 monthly statements**. `history_manifest.json` records the authoritative dates, seed, counts, and schema version. No real financial records are used.
 
 ## Files and keys
 
@@ -34,7 +34,7 @@ Sort by `posted_date`, then `transaction_id` to follow an account's ledger. Asse
 
 | Type | Activity |
 | --- | --- |
-| Checking | Two paycheck installments, external funding/deposits, withdrawals, bills, and linked savings/investment/debt transfers |
+| Checking | Two paycheck installments, merchant-named bills and spending, linked savings/investment/debt transfers, payments on linked (other-bank) loans, and lumpy irregular spending (travel, gifts, home, car, annual bills, medical, family) |
 | Savings | Split-payroll deposits, linked contributions and withdrawals, occasional direct payments, monthly interest |
 | CD | Monthly contributions and synthetic interest accrual |
 | IRA | Monthly contributions and simplified interest accrual; no market-price returns or tax/eligibility rules |
@@ -53,13 +53,37 @@ next month's opening balance = previous month's closing balance
 last month's closing balance = accounts.csv balance
 ```
 
-Every recorded running balance also reconciles entry by entry. Assets remain nonnegative. Internal-transfer legs have the same owner, date, and amount. The generator preserves all original snapshot balances, scheduled payments, debt APRs, and profile values.
+Every recorded running balance also reconciles entry by entry. Assets remain nonnegative. Internal-transfer legs have the same owner, date, and amount. The generator preserves all original snapshot balances, scheduled payments, debt APRs and incomes; `monthly_non_debt_expenses` adds the new childcare and family-support lines where a household has them.
 
 Monthly `paycheck_income` sums paychecks across deposit accounts. `spending` counts direct checking/savings expenses and card purchases once. `debt_payments` includes only the liability-side payment, not its checking counterpart. It is shown separately because treating payments as new spending would double-count card purchases and principal movement. Interest, fees, and asset accrual are separate measures. `income_less_spending_and_charges` is paycheck income less spending, debt interest, and fees; it is an accrual activity measure, **not** a checking cash-flow statement or measured savings rate.
 
-Opening balances and explicit `external_cash_management` inflows/outflows are calibrated to the original final snapshot. These represent unlisted external accounts. They are shown in separate external-transfer columns and excluded from earned income and spending. They are artificial calibration flows, not evidence of actual household saving behavior. The history is a generated illustration, not a reconstruction of real or previously observed activity. Seasonal spending and fixed yields/fees are generator assumptions.
+Opening balances and the irregular spending are calibrated to the original final snapshot: every account still ends at PNC's closing balance. The checking leftover PNC sent to an unlisted account is spent instead, on merchant-named lumpy categories (a summer trip, holiday gifts, a furniture month, car repairs, registration and premiums, medical bills, money to family), capped so checking never runs dry. Nothing is saved to an account the app can't see. The history is a generated illustration, not a reconstruction of real or previously observed activity. Seasonal spending and fixed yields/fees are generator assumptions.
+
+## Changes vs PNC
+
+`backend/scripts/gen_history.py` is derived from PNC's `Lab_Package/generate_history.py`
+([pnc-utd-hackathon-2026](https://github.com/devfulcrum/pnc-utd-hackathon-2026)), licensed under the
+[Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0). PNC's original files are kept unchanged in
+`backend/data/pnc_original/`. Same seed (20261108) and the same PNC random stream, so incomes, total
+spending, asset/loan flows and final checking balances match PNC; Zeroday's choices use a separate per-customer stream.
+
+| PNC | Zeroday |
+| --- | --- |
+| A residual `external_cash_management` withdrawal (~$2.9k/mo for C001) to "an unlisted external account", and matching funding deposits | Named lines: payments on linked loans (student loan, store card; amounts match `zeroday.linked`), brokerage auto-invest (only with a linked brokerage), childcare and Zelle to family (some households), then lumpy irregular spending that takes the leftover: travel 26%, home and household 22%, gifts and holidays 14%, car repairs 12%, annual bills 10%, medical 8%, family support 8% (merchant-named, deterministic per customer) |
+| Nothing records where the residual went | It is real spending, so it is in `monthly_non_debt_expenses` (profiles.csv) and the emergency buffer; there is no hidden savings balance |
+| Direct spending split .45/.20/.15/rest into housing/utilities/groceries/other | Rent or HOA + escrow + repairs (~40–46%), utilities ~5–7% (seasonal), car and renters insurance, phone + internet, 2–5 subscriptions, healthcare, groceries, other |
+| Card spend in four equal pieces | Per-household weights × monthly noise across groceries/transport/dining/shopping |
+| One generic description per category | Several transactions per category per month with merchant names from fixed lists |
+| CRLF line endings | LF |
 
 ## Reproduce
+
+```bash
+cd backend && uv run python scripts/gen_history.py     # reads data/pnc_original, writes data/pnc
+uv run pytest -q tests/test_gen_history.py              # reconciliation, snapshot, determinism
+```
+
+PNC's original instructions (for `pnc_original/`):
 
 From the package directory:
 
