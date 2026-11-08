@@ -9,11 +9,11 @@ redirect flow names: nothing is hard-coded to one customer or one flow.
 
 from __future__ import annotations
 
-from . import wealth
+from . import categories, wealth
 
 ASSET_NAMES = {"cash": "Cash (checking + savings)", "cd": "CD", "brokerage": "Brokerage", "ira": "IRA",
                "property": "Property"}
-SOURCE_NAMES = {"cash": "Savings", "cd": "CD", "brokerage": "Brokerage"}
+SOURCE_NAMES = {"cash": "Cash", "cd": "CD", "brokerage": "Brokerage"}
 
 
 def _usd(x: float) -> str:
@@ -151,25 +151,29 @@ def timeline(customer_id: str, plan: dict, *, live: bool = True) -> dict:
         if c:
             cut_by["essentials" if c.get("essential") else "discretionary"] += max(c["avg"] - float(t.get("target", c["avg"])), 0.0)
     split = _spend_split(customer_id, ctx)
-    redirect = sum(float(r.get("amount_per_month") or 0) for r in plan.get("redirects") or [])
-    flow_names = [str(r.get("flow")) for r in plan.get("redirects") or [] if r.get("flow")]
-    out_name = _title(flow_names[0]) if len(flow_names) == 1 else "Transfers out"
+    # Redirects: the monthly surplus (would stay in cash) or a paused contribution (would be invested).
+    movable = ctx["movable_flows"]
+    paused: dict[str, float] = {}
+    for r in plan.get("redirects") or []:
+        flow, amt = str(r.get("flow") or ""), float(r.get("amount_per_month") or 0)
+        if flow in movable and movable[flow]["flag"] == categories.PAUSE and amt > 0:
+            paused[flow] = paused.get(flow, 0.0) + min(amt, movable[flow]["max_per_month"])
+    invest_plan = max(f["invest_contrib"] - sum(paused.values()), 0.0)
 
     def rows(s: dict, after: bool) -> list[dict]:
         tc = _to_cash(s, ctx)
         ess = max(split["essentials"] - (cut_by["essentials"] if after else 0), 0.0)
         dis = max(split["discretionary"] - (cut_by["discretionary"] if after else 0), 0.0)
-        out = max(f["unknown_out"] - (redirect if after else 0), 0.0)
-        inv = f["invest_contrib"]
+        inv = invest_plan if after else f["invest_contrib"]
         res = []
         for i, lab in enumerate(labels[1:]):
-            debt = f["income"] - ess - dis - inv - out - tc[i]
+            debt = f["income"] - ess - dis - inv - tc[i]
             res.append({"month": lab, "income": round(f["income"], 2), "essentials": round(ess, 2),
                         "discretionary": round(dis, 2), "debt_payments": round(max(debt, 0.0), 2),
-                        "savings_invest": round(inv, 2), "transfers_out": round(out, 2), "surplus": round(tc[i], 2)})
+                        "savings_invest": round(inv, 2), "surplus": round(tc[i], 2)})
         return res
 
-    cashflow = {"before": rows(base, False), "plan": rows(sim, True), "transfers_out_name": out_name}
+    cashflow = {"before": rows(base, False), "plan": rows(sim, True)}
 
     # ---- every change and every non-change ----
     changes: list[dict] = []
@@ -198,12 +202,14 @@ def timeline(customer_id: str, plan: dict, *, live: bool = True) -> dict:
             add("Debts", p["name"], f"{_usd(b)} → {_steps(p['plan'], labels[1:], p['payoff_plan'], p['autopay'])}", True, "; ".join(subs), b, a)
 
     for r in plan.get("redirects") or []:
-        amt = float(r.get("amount_per_month") or 0)
-        if amt > 0:
-            add("Money out", _title(r.get("flow") or "transfers"), f"{_usd(f['unknown_out'])} → {_usd(max(f['unknown_out'] - amt, 0))}/mo",
-                True, f"{_usd(amt)}/mo goes to debt instead", f["unknown_out"], max(f["unknown_out"] - amt, 0))
-    if redirect <= 0 and f["unknown_out"] > 0.5:
-        add("Money out", "Transfers out", f"no change ({_usd(f['unknown_out'])}/mo)", False, "", f["unknown_out"], f["unknown_out"])
+        flow, amt = str(r.get("flow") or ""), float(r.get("amount_per_month") or 0)
+        meta = movable.get(flow)
+        if amt <= 0 or meta is None:
+            continue
+        cur = meta["max_per_month"]
+        group = "Saving" if meta["flag"] == categories.PAUSE else "Money out"
+        add(group, meta["label"], f"{_usd(cur)} → {_usd(max(cur - amt, 0))}/mo", True,
+            f"{_usd(amt)}/mo goes to debt instead", cur, max(cur - amt, 0))
     for ls in plan.get("lump_sums") or []:
         amt = float(ls.get("amount") or 0)
         if amt > 0:
@@ -222,7 +228,11 @@ def timeline(customer_id: str, plan: dict, *, live: bool = True) -> dict:
             add("Spending", _title(cat), f"no change ({_usd(c['avg'])}/mo)", False, "", c["avg"], c["avg"])
 
     add("Income", "Income", f"no change ({_usd(f['income'])}/mo, assumed flat)", False, "", f["income"], f["income"])
-    add("Saving", "Investing", f"no change ({_usd(f['invest_contrib'])}/mo)", False, "", f["invest_contrib"], f["invest_contrib"])
+    if paused:
+        add("Saving", "Investing", f"{_usd(f['invest_contrib'])} → {_usd(invest_plan)}/mo", True,
+            "paused: " + ", ".join(movable[k]["label"] for k in paused), f["invest_contrib"], invest_plan)
+    else:
+        add("Saving", "Investing", f"no change ({_usd(f['invest_contrib'])}/mo)", False, "", f["invest_contrib"], f["invest_contrib"])
     sources = {ls.get("source") for ls in plan.get("lump_sums") or [] if float(ls.get("amount") or 0) > 0}
     for k in ("cd", "brokerage", "ira"):
         bal = ctx["assets"][k]

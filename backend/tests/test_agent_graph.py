@@ -12,5 +12,5 @@ def test_parse_json_handles_think_fences_and_prose():
 
 def test_gather_snapshot_covers_all_debts():
     s = gather_snapshot("C001")
-    assert len(s["debts"]) >= 4 and s["cash_flow"].get("unknown_outflow_per_month") is not None
+    assert len(s["debts"]) >= 4 and s["cash_flow"].get("saved_per_month") is not None
     assert s["assumptions"].get("prepay_hurdle_pct") == 8.0

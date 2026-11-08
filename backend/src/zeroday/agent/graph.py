@@ -96,7 +96,8 @@ def gather_snapshot(customer_id: str) -> dict:
         from .. import insights
 
         cf = insights.cash_flow(customer_id)
-        cash = {k: cf.get(k) for k in ("monthly_avg", "unknown_outflow_per_month", "essentials_by_category", "card_spending_by_category")}
+        cash = {k: cf.get(k) for k in ("monthly_avg", "saved_per_month", "named_flows", "spending_by_category",
+                                       "card_spending_by_category")}
         cash["last_3_months"] = (cf.get("months") or [])[-3:]
     except ImportError:  # insights not built yet
         r = finance.refill_breakdown(customer_id)
@@ -151,7 +152,7 @@ def summarize(name: str, args: dict, content: str) -> str:
         if name == "sql":
             return f"{len(d.get('rows', []))} rows"
         if name == "cash_flow":
-            return f"{_usd(d['unknown_outflow_per_month'])}/mo unknown out"
+            return f"{_usd(d['saved_per_month'])}/mo saved"
         if name == "spending_detail":
             return f"avg {_usd(d['avg'])} · low {_usd(d['min'])}"
         if name == "find_recurring":
@@ -319,10 +320,14 @@ def build_graph(customer_id: str):
         w = _writer()
         _phase(w, "explain", "Writing it up")
         p = store.get_proposal(s["proposal_id"])
-        data, e = _ask_json(llm, prompts.fill(prompts.EXPLAIN, plan=p["plan"], simulation=sim_brief(p["simulation"])))
+        data, e = _ask_json(llm, prompts.fill(
+            prompts.EXPLAIN, plan=p["plan"], simulation=sim_brief(p["simulation"]),
+            cut_options=[{k: o.get(k) for k in ("category", "label", "cut_per_month", "merchants", "high_cost_debt_free",
+                                                "months_sooner", "net_worth_24m_gain")}
+                         for o in p["simulation"].get("cut_options") or []]))
         if not isinstance(data, dict) or not isinstance(data.get("headline"), str) or not data["headline"]:
             sim = p["simulation"]
-            data = {"headline": f"High-cost debt $0 by {sim.get('high_cost_debt_free') or 'never'}", "levers": [], "cuts": []}
+            data = {"headline": f"High-cost debt $0 by {sim.get('high_cost_debt_free') or 'never'}", "levers": [], "cuts": [], "options": []}
         try:
             store.annotate(p["id"], explain=data)
         except AttributeError:

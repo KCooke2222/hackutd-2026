@@ -1,4 +1,4 @@
-"""Grade a live agent run against the C001 reference plan (docs/agent-v2/CONTRACT.md).
+"""Grade a live agent run against an honest reference plan (docs/agent-v2/CONTRACT.md).
 
     cd backend && uv run python scripts/eval_agent.py [--runs N] [--customer C001] [--latest]
 
@@ -10,53 +10,80 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import time
 
-from zeroday import balance_sheet, store
+from zeroday import balance_sheet, categories, store
 from zeroday.assumptions import ASSUMPTIONS
 from zeroday.wealth import simulate_plan
 
 HURDLE = ASSUMPTIONS["prepay_hurdle_pct"]
 
 
+def _ceil(x: float) -> float:
+    return math.ceil(x * 100) / 100
+
+
 def reference_plan(cid: str) -> dict:
-    """The plan a careful human would make for C001: redirect the unknown outflow, avalanche the
-    high-cost debts, small proven cuts, no asset sales."""
+    """The honest plan a careful human would make from real money only:
+    - high-cost debt (above the hurdle) in avalanche order;
+    - lump sums from PNC cash above the emergency buffer (if compare_sources says use);
+    - if high-cost debt is still left, redirect the monthly surplus (if any) and pause flexible contributions;
+    - no spending cuts: cuts are the customer's choice, offered as priced options (wealth.cut_options);
+    - never a fixed or ask item, never IRA/property, no brokerage sale."""
     from zeroday import insights
+    from zeroday.wealth import budget_limit, compare_sources, context
 
-    debts = [a for a in balance_sheet.accounts(cid) if a["side"] == "debt"]
-    high = sorted((d for d in debts if d["apr_pct"] > HURDLE), key=lambda d: -d["apr_pct"])
-    from zeroday.wealth import budget_limit, context
-
-    cf = insights.cash_flow(cid)
-    redirect = round(min(2500.0, cf["unknown_outflow_per_month"] * 0.85), 2)
-    cuts = []
-    for cat in ("dining", "shopping"):
-        sd = insights.spending_detail(cid, cat)
-        target = round(max(sd["min"], sd["avg"] * 0.8), 2)
-        if target < sd["avg"]:
-            names = [m["name"] for m in sd["merchants"][:2]] or [cat]
-            cuts.append({"category": cat, "current": sd["avg"], "target": target,
-                         "proof_month": sd["min_month"], "how": [f"fewer {n} orders" for n in names]})
+    ctx = context(cid)
+    high = sorted((d for d in ctx["debts"] if d["apr_pct"] > HURDLE and d["balance"] > 0), key=lambda d: -d["apr_pct"])
+    lumps, left = [], {d["account_id"]: d["balance"] for d in high}
+    if high:
+        cmp = compare_sources(cid, sum(left.values()), high[0]["account_id"])["sources"]
+        ranked = [x["source"] for x in cmp if x["source"] == "cash" and x.get("use")]
+        avail = dict(ctx["lump_available"])
+        for src in ranked:
+            for d in high:
+                take = round(min(left[d["account_id"]], avail[src], avail["cash_total"]), 2)
+                if take >= 1:
+                    lumps.append({"source": src, "amount": take, "to_debt": d["account_id"]})
+                    left[d["account_id"]] -= take
+                    avail[src] -= take
+                    avail["cash_total"] -= take
+    redirects = []
+    if sum(left.values()) > 1:
+        for flow, f in ctx["movable_flows"].items():
+            if f["max_per_month"] >= 1:
+                redirects.append({"flow": flow, "amount_per_month": round(f["max_per_month"], 2)})
     plan = {
         "version": 2,
         "monthly_debt_budget": 0.0,
         "extra_order": [d["account_id"] for d in high],
-        "lump_sums": [],
-        "redirects": [{"flow": "external_cash_management", "amount_per_month": redirect}],
-        "spending_targets": cuts,
-        "autopay_full_cards": [d["account_id"] for d in debts if d["account_type"] == "credit_card"],
+        "lump_sums": lumps,
+        "redirects": redirects,
+        "spending_targets": [],
+        "autopay_full_cards": [d["account_id"] for d in high if d["account_type"] == "credit_card"],
         "keep_emergency_months": ASSUMPTIONS["default_emergency_months"],
     }
-    plan["monthly_debt_budget"] = budget_limit(context(cid), plan)["max_monthly_debt_budget"]
-    return plan
+    plan["monthly_debt_budget"] = round(budget_limit(ctx, plan)["max_monthly_debt_budget"], 2)
+    return _fit_lumps(cid, plan)
+
+
+def _fit_lumps(cid: str, plan: dict) -> dict:
+    from zeroday.agent.validator import fit_lumps
+
+    return fit_lumps(cid, plan)
 
 
 def grade(cid: str, plan: dict, sim: dict, ref_sim: dict, extra: dict) -> list[tuple[str, bool, str]]:
+    from zeroday.wealth import context
+
+    ctx = context(cid)
     debts = {a["account_id"]: a for a in balance_sheet.accounts(cid) if a["side"] == "debt"}
-    high = sorted((k for k, d in debts.items() if d["apr_pct"] > HURDLE), key=lambda k: -debts[k]["apr_pct"])
+    high = sorted((k for k, d in debts.items() if d["apr_pct"] > HURDLE and d["balance"] > 0),
+                  key=lambda k: -debts[k]["apr_pct"])
     sources = {l["source"] for l in plan.get("lump_sums", []) if l.get("amount", 0) > 0}
+    targets = plan.get("spending_targets", [])
     checks: list[tuple[str, bool, str]] = []
 
     def c(name, ok, detail=""):
@@ -65,29 +92,70 @@ def grade(cid: str, plan: dict, sim: dict, ref_sim: dict, extra: dict) -> list[t
     c("plan v2", plan.get("version") == 2, str(plan.get("version")))
     c("no IRA / property", not sources & {"ira", "property"}, str(sorted(sources)))
     brokerage = sum(l["amount"] for l in plan.get("lump_sums", []) if l["source"] == "brokerage")
-    c("no brokerage sale (surplus covers it)", brokerage == 0, f"${brokerage:,.0f}")
+    c("no brokerage sale", brokerage == 0, f"${brokerage:,.0f}")
     c("extra_order = high-cost debts by APR", plan.get("extra_order") == high,
       f"{plan.get('extra_order')} vs {high}")
-    store_cards = [k for k, d in debts.items() if d["account_type"] == "credit_card" and d["institution"] != "PNC"]
+    store_cards = [k for k in high if debts[k]["account_type"] == "credit_card" and debts[k]["institution"] != "PNC"]
     c("store card in plan", all(k in plan.get("extra_order", []) for k in store_cards), str(store_cards))
-    redirect = sum(r.get("amount_per_month", 0) for r in plan.get("redirects", []))
-    c("uses the unknown outflow (redirect or flag)", redirect >= 1000 or extra.get("needs_customer_input"),
-      f"redirect ${redirect:,.0f}/mo, flag={extra.get('needs_customer_input')}")
-    cuts_ok = all(t.get("proof_month") and t.get("how") and t["target"] >= 0.7 * t["current"] - 0.01
-                  for t in plan.get("spending_targets", []))
-    c("cuts have proof month + how, <=30%", cuts_ok, json.dumps(plan.get("spending_targets", []))[:200])
+
+    # Flex flags: nothing fixed/ask moved, redirects only flexible flows, cuts within each category's limit.
+    moved = [t["category"] for t in targets
+             if t["target"] < ctx["spend"].get(t["category"], {}).get("avg", 0) - 0.5
+             and categories.spending_flag(t["category"])["flag"] not in (categories.TRIM, categories.CANCEL)]
+    c("no fixed/ask item moved", not moved, str(moved))
+    flows = [r.get("flow") for r in plan.get("redirects", [])]
+    c("every redirect is a flexible flow", all(f in categories.MOVABLE_FLOWS for f in flows), str(flows))
+    over = [t["category"] for t in targets
+            if categories.spending_flag(t["category"])["flag"] == categories.TRIM
+            and t["target"] < ctx["spend"][t["category"]]["avg"] * (1 - categories.SPENDING[t["category"]]["max_pct"] / 100) - 0.5]
+    c("cuts have proof month + how, within limits",
+      all(t.get("proof_month") and t.get("how") for t in targets) and not over, json.dumps(targets)[:200])
+
+    # Honest net worth: month 0 is the real balance sheet; the gain is at most interest saved + real cuts.
+    nw0 = balance_sheet.balance_sheet(cid)["totals"]["net_worth"]
+    cut_dollars = sum(max(0.0, ctx["spend"][t["category"]]["avg"] - t["target"]) for t in targets
+                      if t["category"] in ctx["spend"]) * 24
+    gain = sim["net_worth_24m"] - sim["baseline_net_worth_24m"]
+    bound = sim["baseline_interest_total"] - sim["interest_total"] + cut_dollars * 1.05 + 300
+    c("net worth honest", abs(sim["months"][0]["net_worth"] - nw0) <= 1 and gain <= bound,
+      f"nw0 ${sim['months'][0]['net_worth']:,.0f} vs sheet ${nw0:,.0f}; gain ${gain:,.0f} <= ${bound:,.0f}")
+
     c("keeps >= 2 months emergency", plan.get("keep_emergency_months", 0) >= ASSUMPTIONS["min_emergency_months"],
       str(plan.get("keep_emergency_months")))
     c("feasible", sim.get("feasible"), "; ".join(sim.get("problems", [])))
     ref_free, got_free = ref_sim.get("high_cost_debt_free"), sim.get("high_cost_debt_free")
-    c("high-cost debt free within ref + 2 months", got_free and _months_between(ref_free, got_free) <= 2,
-      f"{got_free} vs ref {ref_free}")
+    on_time = (got_free is not None and _months_between(ref_free, got_free) <= 2) if ref_free else True
+    c("high-cost debt free within ref + 2 months", on_time, f"{got_free} vs ref {ref_free}")
     c("24m net worth >= ref - $750", sim["net_worth_24m"] >= ref_sim["net_worth_24m"] - 750,
       f"${sim['net_worth_24m']:,.0f} vs ref ${ref_sim['net_worth_24m']:,.0f} (baseline ${sim['baseline_net_worth_24m']:,.0f})")
     c("beats baseline", sim["net_worth_24m"] > sim["baseline_net_worth_24m"], "")
+
+    # Ask items become questions; no slack is said, not invented.
+    diag = extra.get("diagnosis") or {}
+    if not extra.get("latest"):
+        asks = [k for k, v in ctx["spend"].items() if categories.spending_flag(k)["flag"] == categories.ASK and v["avg"] > 0]
+        qs = diag.get("questions_for_customer") or []
+        c("ask items raised as questions", not asks or len(qs) > 0, f"asks={asks} questions={qs}"[:200])
+        residual = ctx["flows"]["residual"]
+        said = diag.get("monthly_surplus")
+        c("monthly slack stated honestly", isinstance(said, (int, float)) and said <= max(residual, 0) + 100,
+          f"said {said} vs real {residual:,.0f}")
     head = extra.get("headline") or ""
     c("headline <= 10 words", 0 < len(head.split()) <= 10, head)
     return checks
+
+
+def soft_grade(plan: dict, prop_sim: dict, extra: dict) -> list[tuple[str, bool, str]]:
+    """Graded softly (reported, never fails a run): cuts are offered as choices, not imposed."""
+    top = [o["category"] for o in (prop_sim.get("cut_options") or [])]
+    said = [str(o.get("category")) for o in ((extra.get("explain") or {}).get("options") or []) if isinstance(o, dict)]
+    need = min(2, len(top))
+    hit = [x for x in top if x in said]
+    return [
+        ("mentions the main cut options as choices", len(hit) >= need, f"top={top} said={said}"),
+        ("plan leaves cuts to the customer", not plan.get("spending_targets"),
+         str([t["category"] for t in plan.get("spending_targets") or []])),
+    ]
 
 
 def _months_between(a: str | None, b: str | None) -> int:
@@ -102,13 +170,18 @@ def main() -> int:
     ap.add_argument("--customer", default="C001")
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--latest", action="store_true")
+    ap.add_argument("--show-ref", action="store_true")
     args = ap.parse_args()
     cid = args.customer
 
     ref = reference_plan(cid)
-    ref_sim = simulate_plan(cid, ref)
+    from zeroday.agent.validator import validate_plan_v2
+
+    ref_sim = validate_plan_v2(cid, ref)  # the reference must pass the same validator the agent faces
     print(f"REFERENCE  free={ref_sim['high_cost_debt_free']}  nw24=${ref_sim['net_worth_24m']:,.0f}  "
-          f"baseline=${ref_sim['baseline_net_worth_24m']:,.0f}  feasible={ref_sim['feasible']}")
+          f"baseline=${ref_sim['baseline_net_worth_24m']:,.0f}  feasible={ref_sim['feasible']} {ref_sim['problems']}")
+    if args.show_ref:
+        print(json.dumps(ref, indent=1))
 
     all_ok = True
     for i in range(args.runs if not args.latest else 1):
@@ -119,7 +192,6 @@ def main() -> int:
             before = {p["id"] for p in store.list_proposals(cid)}
             out = graph.run(cid)
             extra = {k: out.get(k) for k in ("diagnosis", "explain", "error")}
-            extra["needs_customer_input"] = (out.get("diagnosis") or {}).get("needs_customer_input")
             extra["headline"] = (out.get("explain") or {}).get("headline")
             new = [p for p in store.list_proposals(cid) if p["id"] not in before]
             if not new:
@@ -130,14 +202,25 @@ def main() -> int:
         else:
             prop = store.list_proposals(cid)[0]
             extra["headline"] = prop.get("rationale")
+            extra["latest"] = True
         plan = prop["plan"] if isinstance(prop["plan"], dict) else json.loads(prop["plan"])
         sim = simulate_plan(cid, plan)
         checks = grade(cid, plan, sim, ref_sim, extra)
         ok = all(passed for _, passed, _ in checks)
         all_ok &= ok
-        print(f"\nRUN {i+1}  proposal={prop['id']}  {time.time()-t0:.0f}s  {'PASS' if ok else 'FAIL'}")
+        print(f"\nRUN {i+1}  proposal={prop['id']}  {time.time()-t0:.0f}s  {'PASS' if ok else 'FAIL'}  "
+              f"free={sim['high_cost_debt_free']}  nw24=${sim['net_worth_24m']:,.0f}  "
+              f"baseline=${sim['baseline_net_worth_24m']:,.0f}")
+        print("  plan:", json.dumps({k: plan.get(k) for k in ("monthly_debt_budget", "lump_sums", "redirects")})[:400])
+        print("  cuts:", json.dumps([(t["category"], t["target"], t.get("how")) for t in plan.get("spending_targets", [])])[:300])
+        if extra.get("diagnosis"):
+            print("  diagnosis:", json.dumps(extra["diagnosis"])[:400])
         for name, passed, detail in checks:
             print(f"  {'✓' if passed else '✗'} {name:45s} {detail}")
+        if not extra.get("latest"):
+            for name, passed, detail in soft_grade(plan, prop.get("simulation") or {}, extra):
+                print(f"  {'~✓' if passed else '~✗'} {name:44s} {detail}"[:300])
+            print("  options:", json.dumps((extra.get("explain") or {}).get("options"))[:400])
     return 0 if all_ok else 1
 
 

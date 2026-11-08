@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "seed": 20261108,
+  "history_start": "2024-11-01",
+  "as_of_date": "2026-10-31",
+  "months": 24,
+  "customers": 30,
+  "accounts": 196,
+  "transactions": 21225,
+  "monthly_statements": 4704,
+  "currency": "USD",
+  "balance_convention": "Assets and liabilities are positive; balance_change increases or decreases that account balance.",
+  "calibration": "Opening balances and explicit external cash-management transfers are calibrated to preserve supplied ending balances.",
+  "limitations": "Synthetic monthly accrual, no daily compounding, IRA market returns, taxes, contribution eligibility, or actual banking fees modeled."
+}

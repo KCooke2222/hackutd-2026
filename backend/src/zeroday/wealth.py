@@ -1,18 +1,22 @@
 """Net-worth math for agent v2: where should each dollar come from, and what does a plan do to net worth?
 
-Deterministic: every number comes from the data plus assumptions.py. The LLM never computes any of it.
+Deterministic: every number comes from the data plus assumptions.py and categories.py. The LLM never computes any of it.
 
 Cash-flow model (monthly averages, last 12 months, checking + savings):
-    residual = income - expenses - observed PNC debt payments - investment contributions - unknown outflow
-Linked debts (store card, student loan) aren't in PNC's data; we assume their minimums are paid out of
-the unknown outflow, so the outflow that can be redirected is `unknown - linked minimums`.
+    residual = income - cash expenses - all debt payments (PNC and linked) - investment contributions
+The residual is what is left each month: it stays in PNC cash (negative residual = drawing cash down).
+Every other outflow is named spending (including lumpy irregular spending: travel, repairs, gifts, bills).
+
+Cash pool: PNC checking + savings at their yield. The emergency buffer is checked on it.
 
 Baseline (plan None) = current behaviour: every debt gets its observed payment (linked: its minimum),
-the card keeps today's spending, the unknown outflow keeps leaving.
+the card keeps today's spending, contributions continue, the residual stays in cash.
 
 Plan: `monthly_debt_budget` pays every debt. Each month: autopay cards that were at $0 pay the full
-statement, every other debt gets its minimum, the rest goes down `extra_order`; anything left returns
-to cash. Cash changes by residual + current debt payments + redirects + checking cuts - budget (+ leftover).
+statement, every other debt gets its minimum, the rest goes down `extra_order`; anything left is saved.
+The budget's sources are today's debt payments + redirected surplus + paused contributions + checking cuts.
+Redirecting the surplus moves money that would have stayed in cash, so cash grows that much less (the honest
+gain is only the APR minus the cash yield). Pausing a contribution stops that asset's deposits.
 Card cuts lower card charges, so they speed payoff inside the same budget; checking cuts free cash.
 """
 
@@ -22,11 +26,11 @@ import math
 from collections import defaultdict
 
 from . import assumptions as A
-from . import balance_sheet, finance, linked, pnc_data
+from . import balance_sheet, categories, finance, linked, pnc_data
 
 LUMP_SOURCES = ("cash", "cd", "brokerage")
-FLOW_KEY = "external_cash_management"
-SURPLUS_MONTHS_OK = 3  # invested sources are worth tapping only if surplus + cash take longer than this
+SURPLUS = "monthly_surplus"
+INVEST_MONTHS_OK = 12  # invested sources are worth tapping only if cash + flexible monthly money take longer than this
 
 
 # ---------------- data ----------------
@@ -35,48 +39,50 @@ def _month_keys(txs: list[dict], months: int) -> list[str]:
     return sorted({t["posted_date"][:7] for t in txs})[-months:]
 
 
-def _local_flows(customer_id: str, months: int = 12) -> dict:
+def _contribution_dest(t: dict) -> str | None:
+    """Where an investment contribution from checking goes: ira / cd / brokerage (None = checking <-> savings)."""
+    if t["flow_class"] == "external_transfer":
+        return "brokerage"
+    tid = t.get("transfer_id") or ""
+    kind = tid.split("-")[2] if tid.count("-") >= 3 else ""
+    return kind if kind in ("ira", "cd") else None
+
+
+def _flows(customer_id: str, months: int = 12) -> dict:
+    """Monthly cash-flow averages over checking + savings, every outflow named."""
     txs = [t for t in pnc_data.customer_transactions(customer_id) if t["account_type"] in ("checking", "savings")]
     keys = _month_keys(txs, months)
     n = max(len(keys), 1)
     win = [t for t in txs if t["posted_date"][:7] in keys]
     income = sum(t["amount"] for t in win if t["flow_class"] == "income")
     expenses = sum(t["amount"] for t in win if t["flow_class"] == "expense")
-    debt = sum(t["amount"] for t in win if t["category"] == "debt_payment" and t["account_type"] == "checking")
-    invest = sum(t["amount"] for t in win if t["category"] == "investment_contribution")
-    unknown = sum(-t["balance_change"] for t in win if t["flow_class"] == "external_transfer")
-    return {
+    debt = sum(-t["balance_change"] for t in win if t["category"] == "debt_payment" and t["account_type"] == "checking")
+    contrib = {"ira": 0.0, "cd": 0.0, "brokerage": 0.0}
+    for t in win:
+        if t["category"] == "investment_contribution" and t["account_type"] == "checking" and t["balance_change"] < 0:
+            dest = _contribution_dest(t)
+            if dest:
+                contrib[dest] += -t["balance_change"]
+    contrib = {k: v / n for k, v in contrib.items()}
+    f = {
         "income": income / n, "expenses": expenses / n, "debt_payments": debt / n,
-        "invest_contrib": invest / n, "unknown_out": unknown / n, "source": "local", "months": keys,
+        "contrib": contrib, "invest_contrib": sum(contrib.values()),
+        "months": keys,
     }
-
-
-def _flows(customer_id: str) -> dict:
-    """Monthly cash-flow averages. Uses insights.cash_flow when present and self-consistent."""
-    local = _local_flows(customer_id)
-    try:
-        from .insights import cash_flow  # fork B
-    except ImportError:
-        cash_flow = None
-    f = local
-    if cash_flow is not None:
-        try:
-            cf = cash_flow(customer_id)
-            a = cf["monthly_avg"]
-            cand = {
-                "income": a["income"], "expenses": a["essentials"] + a["discretionary"],
-                "debt_payments": a["debt_payments"], "invest_contrib": a["savings_invest"],
-                "unknown_out": cf.get("unknown_outflow_per_month", a["transfers_out_unknown"]),
-                "source": "insights", "months": local["months"],
-            }
-            resid = cand["income"] - cand["expenses"] - cand["debt_payments"] - cand["invest_contrib"] - cand["unknown_out"]
-            if abs(resid) <= 0.1 * max(cand["income"], 1):  # guard against a different accounting basis
-                f = cand
-        except Exception:  # noqa: BLE001 - fall back to local math
-            f = local
-    f = dict(f)
-    f["residual"] = f["income"] - f["expenses"] - f["debt_payments"] - f["invest_contrib"] - f["unknown_out"]
+    f["residual"] = f["income"] - f["expenses"] - f["debt_payments"] - f["invest_contrib"]
     return f
+
+
+def movable_flows(ctx: dict) -> dict[str, dict]:
+    """Named flows a plan may redirect or pause, with the most it can take per month."""
+    f = ctx["flows"]
+    out = {}
+    for key in categories.MOVABLE_FLOWS:
+        meta = categories.FLOWS[key]
+        limit = max(f["residual"], 0.0) if key == SURPLUS else f["contrib"].get(meta.get("dest", ""), 0.0)
+        out[key] = {"flow": key, "flag": meta["flag"], "label": meta["label"], "max_per_month": round(limit, 2),
+                    "dest": meta.get("dest")}
+    return out
 
 
 def _spend_categories(customer_id: str, months: int = 12) -> dict[str, dict]:
@@ -102,9 +108,12 @@ def _spend_categories(customer_id: str, months: int = 12) -> dict[str, dict]:
         lo = min(monthly, key=lambda x: x["amount"])
         card_avg = sum(d["card"].values()) / n
         cash_avg = sum(d["cash"].values()) / n
+        flag = categories.spending_flag(cat)
         out[cat] = {
             "category": cat,
-            "essential": cat in finance.ESSENTIAL_CATEGORIES,
+            "flag": flag["flag"],
+            "max_cut_pct": flag.get("max_pct"),
+            "essential": cat in categories.ESSENTIAL or flag["flag"] in (categories.FIXED, categories.ASK),
             "avg": round(card_avg + cash_avg, 2),
             "card_avg": round(card_avg, 2),
             "cash_avg": round(cash_avg, 2),
@@ -184,16 +193,21 @@ def context(customer_id: str, keep_months: float | None = None, live: bool = Tru
     def bal(types):
         return sum(r["balance"] for r in rows if r["side"] == "asset" and r["account_type"] in types)
 
+    def pool(rs):
+        total = sum(r["balance"] for r in rs)
+        return total, (sum(r["balance"] * (r["annual_yield_pct"] or 0) for r in rs) / total) if total else 0.0
+
     cash_rows = [r for r in rows if r["side"] == "asset" and r["account_type"] in ("checking", "savings")]
-    cash = sum(r["balance"] for r in cash_rows)
-    cash_yield = (sum(r["balance"] * (r["annual_yield_pct"] or 0) for r in cash_rows) / cash) if cash else 0.0
+    cash, cash_yield = pool(cash_rows)
     brok_rows = [r for r in rows if r["side"] == "asset" and r["account_type"] == "brokerage"]
     brok = sum(r["balance"] for r in brok_rows)
     basis = sum((r["cost_basis"] if r["cost_basis"] is not None else r["balance"]) for r in brok_rows)
     gain_frac = max(brok - basis, 0) / brok if brok else 0.0
     monthly_exp = prof.get("monthly_non_debt_expenses", 0.0)
     lad = balance_sheet.ladder(rows, monthly_exp, keep)
-    return {
+    tiers = {t["key"]: t for t in lad["tiers"]}
+    cash_avail = tiers["cash"]["available"]  # PNC cash above the buffer
+    ctx = {
         "customer_id": customer_id,
         "keep_months": keep,
         "monthly_expenses": monthly_exp,
@@ -202,7 +216,6 @@ def context(customer_id: str, keep_months: float | None = None, live: bool = Tru
         "debts": debts,
         "linked_minimums": round(linked_min, 2),
         "current_debt_payments": round(current_payments, 2),
-        "redirectable_outflow": round(max(flows["unknown_out"] - linked_min, 0.0), 2),
         "card_spend": card_spend,
         "spend": _spend_categories(customer_id),
         "assets": {
@@ -210,9 +223,32 @@ def context(customer_id: str, keep_months: float | None = None, live: bool = Tru
             "cd": bal({"cd"}), "brokerage": brok, "brokerage_gain_frac": gain_frac,
             "ira": bal({"ira"}), "property": bal({"property"}),
         },
-        "ladder": {t["key"]: t for t in lad["tiers"]},
+        "ladder": tiers,
+        # Lump-sum limit: cash above the buffer.
+        "lump_available": {"cash": round(min(cash, cash_avail), 2), "cash_total": round(cash_avail, 2)},
         "hurdle_pct": hurdle,
     }
+    ctx["movable_flows"] = movable_flows(ctx)
+    ctx["flexible_monthly"] = flexible_monthly(ctx)
+    return ctx
+
+
+def flexible_monthly(ctx: dict) -> float:
+    """Most monthly money a plan can free without selling anything or asking for cuts: the surplus and every
+    pausable contribution. Trims are the customer's choice (cut_options), so they don't count here."""
+    return round(sum(f["max_per_month"] for f in ctx["movable_flows"].values()), 2)
+
+
+def trim_room(ctx: dict) -> dict:
+    """Per trim category: the most it can be cut each month (to its limit, never below its lowest month)."""
+    out = {}
+    for cat, c in ctx["spend"].items():
+        flag = categories.spending_flag(cat)
+        if flag["flag"] == categories.TRIM and not c["essential"]:
+            floor = max(c["min"], c["avg"] * (1 - flag["max_pct"] / 100))
+            out[cat] = {"room": round(max(c["avg"] - floor, 0.0), 2), "floor": round(floor, 2),
+                        "max_pct": flag["max_pct"], "min_month": c["min_month"], "min": c["min"]}
+    return out
 
 
 # ---------------- money-source math ----------------
@@ -248,34 +284,40 @@ def compare_sources(customer_id: str, amount: float, target_debt: str, *, live: 
     eligible = d["extra_eligible"]
     out = []
 
-    # Monthly surplus: the unexplained outflow, net of linked minimums.
-    per = ctx["redirectable_outflow"]
+    # Monthly surplus: what is left in checking each month (money that would otherwise sit in cash).
+    oy = cy
+    per = ctx["movable_flows"][SURPLUS]["max_per_month"]
     if per > 0 and amount > 0:
         left, i, nw = amount, 0, 0.0
         while left > 0.005:
             i += 1
             take = min(per, left)
-            nw += take * (_f(apr, H - i) - _f(cy, H - i))
+            nw += take * (_f(apr, H - i) - _f(oy, H - i))
             left -= take
-        out.append({"source": "surplus", "available": round(per, 2), "gross_needed": round(amount, 2), "upfront_cost": 0.0,
-                    "nw_delta_24m": round(nw, 2), "months_needed": i, "use": eligible and nw > 0,
-                    "why": f"redirect up to ${per:,.0f}/mo of the unexplained outflow; {i} mo; assumes it would otherwise earn {cy:.1f}%"})
+        out.append({"source": "surplus", "flow": SURPLUS, "available": round(per, 2), "gross_needed": round(amount, 2),
+                    "upfront_cost": 0.0, "nw_delta_24m": round(nw, 2), "months_needed": i, "use": eligible and nw > 0,
+                    "why": f"redirect up to ${per:,.0f}/mo of the monthly surplus left in checking; {i} mo; "
+                           f"that money would otherwise earn {oy:.1f}%"})
     else:
-        out.append({"source": "surplus", "available": 0.0, "gross_needed": round(amount, 2), "upfront_cost": 0.0,
-                    "nw_delta_24m": 0.0, "use": False, "why": "no unexplained outflow to redirect"})
+        out.append({"source": "surplus", "flow": SURPLUS, "available": 0.0, "gross_needed": round(amount, 2),
+                    "upfront_cost": 0.0, "nw_delta_24m": 0.0, "use": False,
+                    "why": "no monthly surplus: income does not cover spending, payments and contributions"})
 
     # Cash above the emergency buffer.
-    avail = ctx["ladder"]["cash"]["available"]
-    n = min(amount, avail)
-    nw = n * (_f(apr, H) - _f(cy, H))
+    total_avail = ctx["lump_available"]["cash_total"]
     floor_month = A.get("min_emergency_months")
     at_min = max(a["cash"] - floor_month * ctx["monthly_expenses"], 0.0)
-    why = (f"${avail:,.0f} above the {ctx['keep_months']:g}-month buffer (${ctx['emergency_buffer']:,.0f})" if avail > 0
-           else f"nothing above the {ctx['keep_months']:g}-month buffer (${ctx['emergency_buffer']:,.0f}); "
-                f"${at_min:,.0f} at {floor_month:g} months")
-    out.append({"source": "cash", "available": round(avail, 2), "gross_needed": round(n, 2), "upfront_cost": 0.0,
-                "nw_delta_24m": round(nw, 2), "use": eligible and avail > 0 and nw > 0, "why": why})
-    cheaper = avail + max(per, 0.0) * SURPLUS_MONTHS_OK
+    for src, label, y in (("cash", "PNC checking + savings", cy),):
+        avail = ctx["lump_available"][src]
+        n = min(amount, avail)
+        nw = n * (_f(apr, H) - _f(y, H))
+        why = (f"${avail:,.0f} of {label} ({y:.1f}%) usable: above the "
+               f"{ctx['keep_months']:g}-month buffer (${ctx['emergency_buffer']:,.0f})" if avail > 0
+               else f"nothing above the {ctx['keep_months']:g}-month buffer (${ctx['emergency_buffer']:,.0f}); "
+                    f"${at_min:,.0f} at {floor_month:g} months")
+        out.append({"source": src, "available": round(avail, 2), "gross_needed": round(n, 2), "upfront_cost": 0.0,
+                    "nw_delta_24m": round(nw, 2), "use": eligible and avail > 0 and nw > 0, "why": why})
+    cheaper = total_avail + ctx["flexible_monthly"] * INVEST_MONTHS_OK
 
     # Invested sources: lose expected return, pay penalty/tax up front.
     for src, bal_key, label in (("cd", "cd", "CD"), ("brokerage", "brokerage", "brokerage"), ("ira", "ira", "IRA")):
@@ -301,7 +343,8 @@ def compare_sources(customer_id: str, amount: float, target_debt: str, *, live: 
             use = eligible and nw > 0
         if use and amount <= cheaper + 0.5:
             use = False
-            why += f"; not needed: surplus + cash cover ${amount:,.0f} within {SURPLUS_MONTHS_OK} months"
+            why += (f"; not needed: cash above the buffer + up to ${ctx['flexible_monthly']:,.0f}/mo of "
+                    f"pauses and surplus clear ${amount:,.0f} within {INVEST_MONTHS_OK} months (selling loses net worth)")
         out.append({"source": src, "available": round(net_avail, 2), "gross_needed": round(g, 2), "upfront_cost": round(cost, 2),
                     "nw_delta_24m": round(nw, 2), "use": use, "why": why})
 
@@ -312,7 +355,28 @@ def compare_sources(customer_id: str, amount: float, target_debt: str, *, live: 
            "amount": round(amount, 2), "horizon_months": H, "sources": out}
     if not eligible:
         res["note"] = f"{d['name']} is below the {ctx['hurdle_pct']:g}% prepay hurdle or secured: minimum only"
+    lp = lump_plan(ctx, [s["source"] for s in out if s["use"] and s["source"] == "cash"])
+    if lp:
+        res["lump_plan"] = lp
+        res["lump_plan_note"] = ("cash above the buffer can pay these high-cost debts today (highest APR first); "
+                                 "simulate it as lump_sums; keep it only if simulate_plan stays feasible")
     return res
+
+
+def lump_plan(ctx: dict, sources: list[str]) -> list[dict]:
+    """Split cash above the buffer across every high-cost debt, highest APR first, cheapest source first."""
+    avail = dict(ctx["lump_available"])
+    out = []
+    for d in sorted((x for x in ctx["debts"] if x["extra_eligible"] and x["balance"] > 0), key=lambda x: -x["apr_pct"]):
+        left = d["balance"]
+        for src in sources:
+            take = round(min(left, avail[src], avail["cash_total"]), 2)
+            if take >= 1:
+                out.append({"source": src, "amount": take, "to_debt": d["account_id"]})
+                left -= take
+                avail[src] -= take
+                avail["cash_total"] -= take
+    return out
 
 
 # ---------------- simulation ----------------
@@ -331,15 +395,32 @@ def cut_split(ctx: dict, targets: list[dict]) -> dict:
     return {"card": card_cut, "cash": cash_cut}
 
 
+def plan_flows(ctx: dict, plan: dict) -> dict:
+    """The plan's redirects by kind: surplus redirected, contributions paused per destination, unknown flows."""
+    surplus, paused, unknown = 0.0, defaultdict(float), []
+    movable = ctx["movable_flows"]
+    for r in plan.get("redirects") or []:
+        flow, amt = r.get("flow"), float(r.get("amount_per_month") or 0)
+        if flow == SURPLUS:
+            surplus += amt
+        elif flow in movable:
+            paused[movable[flow]["dest"]] += amt
+        else:
+            unknown.append(flow)
+    return {"surplus": surplus, "paused": dict(paused), "total": surplus + sum(paused.values()), "unknown": unknown}
+
+
 def budget_limit(ctx: dict, plan: dict) -> dict:
-    redirect = sum(float(r.get("amount_per_month") or 0) for r in plan.get("redirects") or [])
+    pf = plan_flows(ctx, plan)
     cuts = cut_split(ctx, plan.get("spending_targets") or [])
     return {
         "current_debt_payments": ctx["current_debt_payments"],
-        "redirects": round(redirect, 2),
+        "redirects": round(pf["total"], 2),
+        "surplus_redirected": round(pf["surplus"], 2),
+        "contributions_paused": round(sum(pf["paused"].values()), 2),
         "checking_cuts": round(cuts["cash"], 2),
         "card_cuts": round(cuts["card"], 2),
-        "max_monthly_debt_budget": round(ctx["current_debt_payments"] + redirect + cuts["cash"], 2),
+        "max_monthly_debt_budget": round(ctx["current_debt_payments"] + pf["total"] + cuts["cash"], 2),
         "minimums": round(sum(d["min_payment"] for d in ctx["debts"]), 2),
     }
 
@@ -352,7 +433,7 @@ def simulate_plan(customer_id: str, plan: dict | None, *, live: bool = True, ctx
     if plan is None:
         res = base
     else:
-        res = _run(ctx, plan)
+        res = _run(ctx, plan, base_cash=[m["cash"] for m in base["months"]])
     res["baseline_net_worth_24m"] = base["net_worth_24m"]
     res["baseline_interest_total"] = base["interest_total"]
     res["baseline_high_cost_debt_free"] = base["high_cost_debt_free"]
@@ -361,7 +442,7 @@ def simulate_plan(customer_id: str, plan: dict | None, *, live: bool = True, ctx
     return res
 
 
-def _run(ctx: dict, plan: dict | None) -> dict:
+def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> dict:
     H = A.get("horizon_months")
     a = ctx["assets"]
     f = ctx["flows"]
@@ -370,6 +451,7 @@ def _run(ctx: dict, plan: dict | None) -> dict:
     cash = a["cash"]
     inv = {"cd": a["cd"], "brokerage": a["brokerage"], "ira": a["ira"]}
     rets = {k: A.ret(k) for k in inv}
+    contrib = dict(f["contrib"])
     prop = a["property"]
     upfront = 0.0
 
@@ -378,7 +460,7 @@ def _run(ctx: dict, plan: dict | None) -> dict:
         budget = None
         order: list[str] = []
         autopay: set[str] = set()
-        cash_in = f["residual"]
+        saved = f["residual"]  # stays in cash each month
     else:
         cuts = cut_split(ctx, plan.get("spending_targets") or [])
         charges = max(ctx["card_spend"] - cuts["card"], 0.0)
@@ -388,10 +470,18 @@ def _run(ctx: dict, plan: dict | None) -> dict:
             if x not in debts:
                 problems.append(f"extra_order: unknown debt {x}")
         autopay = {x for x in plan.get("autopay_full_cards") or [] if x in debts}
-        redirect = sum(float(r.get("amount_per_month") or 0) for r in plan.get("redirects") or [])
-        if redirect > ctx["redirectable_outflow"] + 0.5:
-            problems.append(f"redirects ${redirect:,.0f}/mo exceed the ${ctx['redirectable_outflow']:,.0f}/mo outflow left after linked minimums")
-        cash_in = f["residual"] + ctx["current_debt_payments"] + redirect + cuts["cash"] - budget
+        pf = plan_flows(ctx, plan)
+        for flow in pf["unknown"]:
+            problems.append(f"redirect flow {flow!r} is not a movable flow")
+        lim = ctx["movable_flows"][SURPLUS]["max_per_month"]
+        if pf["surplus"] > lim + 0.5:
+            problems.append(f"redirecting ${pf['surplus']:,.0f}/mo exceeds the ${lim:,.0f}/mo surplus left in checking")
+        for dest, amt in pf["paused"].items():
+            if amt > contrib.get(dest, 0.0) + 0.5:
+                problems.append(f"pausing ${amt:,.0f}/mo of {dest} contributions exceeds the ${contrib.get(dest, 0):,.0f}/mo made")
+            contrib[dest] = max(contrib.get(dest, 0.0) - amt, 0.0)
+        # The budget is paid from today's payments + freed money; whatever it doesn't use is still saved.
+        saved = f["residual"] + ctx["current_debt_payments"] + sum(pf["paused"].values()) + cuts["cash"] - budget
         minimums = sum(d["min_payment"] for d in debts.values())
         if budget + 0.005 < minimums:
             problems.append(f"monthly_debt_budget ${budget:,.0f} is below the ${minimums:,.0f} of minimums")
@@ -421,6 +511,8 @@ def _run(ctx: dict, plan: dict | None) -> dict:
             d["bal"] -= amt
             if d["bal"] <= 0.005 and d["payoff"] is None:
                 d["payoff"] = 0
+        if cash < -0.5:
+            problems.append("lump sums take more cash than there is")
 
     floor = min(ctx["emergency_buffer"], a["cash"]) - 1
     cash_problem = False
@@ -444,7 +536,7 @@ def _run(ctx: dict, plan: dict | None) -> dict:
         cash *= 1 + a["cash_yield_pct"] / 1200
         for k in inv:
             inv[k] *= 1 + (rets[k] or 0) / 1200
-        inv["ira"] += f["invest_contrib"]
+            inv[k] += contrib.get(k, 0.0)
         was_zero = {k for k, d in debts.items() if d["bal"] <= 0.005}
         for d in debts.values():
             it = d["bal"] * d["apr_pct"] / 1200
@@ -452,6 +544,7 @@ def _run(ctx: dict, plan: dict | None) -> dict:
             d["interest"] += it
             if d["is_pnc_card"]:
                 d["bal"] += charges
+        left = 0.0
         if budget is None:
             for d in debts.values():
                 d["bal"] -= min(d["baseline_payment"], d["bal"])
@@ -470,8 +563,7 @@ def _run(ctx: dict, plan: dict | None) -> dict:
                 pay = min(d["bal"], left)
                 d["bal"] -= pay
                 left -= pay
-            cash += left  # nothing left to prepay: back to cash
-        cash += cash_in
+        cash += saved + left  # the residual (and any unused budget) stays in cash
         for d in debts.values():
             if d["bal"] <= 0.005:
                 d["bal"] = 0.0
@@ -479,9 +571,13 @@ def _run(ctx: dict, plan: dict | None) -> dict:
                     d["payoff"] = i
             elif d["payoff"] is not None and d["is_card"]:
                 d["payoff"] = None  # card refilled
-        if plan is not None and cash < floor and not cash_problem:
+        # A plan may not take cash below the buffer, nor lower than where current behaviour already leaves it
+        # (a household that is already short is not made shorter; a plan cannot fix a negative monthly residual).
+        floor_i = min(floor, base_cash[i] - 1) if base_cash else floor
+        if plan is not None and cash < floor_i and not cash_problem:
             problems.append(f"{_label(i)}: cash ${cash:,.0f} falls below the {ctx['keep_months']:g}-month buffer "
-                            f"(${ctx['emergency_buffer']:,.0f})")
+                            f"(${ctx['emergency_buffer']:,.0f})"
+                            + (f" and below the ${base_cash[i]:,.0f} current behaviour leaves" if base_cash and base_cash[i] < floor else ""))
             cash_problem = True
         months.append(snapshot(i))
         if months[-1]["high_cost_debt"] <= 0.01:
@@ -499,8 +595,62 @@ def _run(ctx: dict, plan: dict | None) -> dict:
                    "interest": round(d["interest"], 2)} for d in debts.values()],
         "months": months,
         "net_worth_24m": months[-1]["net_worth"],
+        "net_worth_now": months[0]["net_worth"] + (upfront if plan else 0.0),
         "interest_total": round(sum(d["interest"] for d in debts.values()), 2),
         "high_cost_debt_free": _label(high_free) if high_free is not None else None,
         "upfront_cost": round(upfront, 2),
         "monthly_card_spending": round(charges, 2),
+        "monthly_saved": round(saved, 2),
     }
+
+
+# ---------------- optional cuts (the customer's choice) ----------------
+
+def cut_options(customer_id: str, plan: dict, *, n: int = 3, live: bool = True, ctx: dict | None = None,
+                sim: dict | None = None) -> list[dict]:
+    """Spending cuts the plan does NOT make, each priced on its own: the plan plus that one cut (trim to its
+    limit, never below the lowest month; subscriptions by cancelling the biggest recurring charge), every freed
+    dollar to debt. Cuts are the customer's choice, so a plan never needs them; these are the tradeoffs to offer.
+    Returns the `n` that buy the most 24-month net worth."""
+    ctx = ctx or context(customer_id, keep_months=plan.get("keep_emergency_months"), live=live)
+    base = sim or simulate_plan(customer_id, plan, ctx=ctx)
+    have = {t.get("category") for t in plan.get("spending_targets") or []}
+    rooms = trim_room(ctx)
+    out = []
+    for cat, c in ctx["spend"].items():
+        if cat in have or c["avg"] <= 0:
+            continue
+        flag = categories.spending_flag(cat)
+        meta = _detail_meta(customer_id, cat)
+        names = [m["name"] for m in meta["merchants"][:2]]
+        if flag["flag"] == categories.TRIM and rooms.get(cat, {}).get("room", 0) >= 5:
+            target = math.ceil(rooms[cat]["floor"] * 100) / 100
+            how = [f"Scale back {' and '.join(names)}" if names else "Scale back"]
+        elif flag["flag"] == categories.CANCEL and meta["recurring"]:
+            r = max(meta["recurring"], key=lambda r: float(r.get("amount") or 0))
+            target = math.ceil(max(0.0, c["avg"] - float(r["amount"])) * 100) / 100
+            how = [f"Cancel {r['name']}"]
+        else:
+            continue
+        proof = next((m["month"] for m in c["monthly"] if m["amount"] <= target + 0.5), c["min_month"])
+        t = {"category": cat, "current": c["avg"], "target": target, "proof_month": proof, "how": how}
+        cand = {**plan, "spending_targets": [*(plan.get("spending_targets") or []), t]}
+        if cand.get("extra_order"):
+            cand["monthly_debt_budget"] = round(budget_limit(ctx, cand)["max_monthly_debt_budget"], 2)
+        s = simulate_plan(customer_id, cand, ctx=ctx)
+        if not s.get("feasible"):
+            continue
+        sooner = None
+        if base.get("high_cost_debt_free") and s.get("high_cost_debt_free"):
+            (ya, ma), (yb, mb) = (map(int, x.split("-")) for x in (base["high_cost_debt_free"], s["high_cost_debt_free"]))
+            sooner = (ya - yb) * 12 + (ma - mb)
+        out.append({
+            "category": cat, "label": flag["label"], "flag": flag["flag"], "current": round(c["avg"], 2),
+            "target": target, "cut_per_month": round(c["avg"] - target, 2), "how": how, "merchants": names,
+            "proof_month": proof, "high_cost_debt_free": s.get("high_cost_debt_free"), "months_sooner": sooner,
+            "net_worth_24m_gain": round(s["net_worth_24m"] - base["net_worth_24m"], 2),
+            "interest_saved": round(base["interest_total"] - s["interest_total"], 2),
+            "spending_target": t,
+        })
+    out.sort(key=lambda o: -o["net_worth_24m_gain"])
+    return out[:n]

@@ -5,9 +5,9 @@ Accounting (so the buckets add up): cash accounts (checking + savings) are the h
 - essentials / discretionary: spending from cash accounts AND card purchases, by category.
 - debt_payments: payments to all debts minus new card purchases (those are already counted as spending),
   i.e. interest + principal actually retired. Negative when the card grew that month.
-- savings_invest: contributions from cash to CDs / IRA (moves between checking and savings net to zero).
-- transfers_out_unknown: net money sent to unlisted external accounts.
-- surplus = income - all of the above = the change in cash that month.
+- savings_invest: contributions from cash to CDs / IRA / linked brokerage (checking <-> savings nets to zero).
+- surplus = income - all of the above = the change in PNC cash that month.
+Every outflow is named; categories.py says which ones a plan may move.
 
 Read-only. Pure functions over pnc_data + linked; no network.
 """
@@ -17,11 +17,11 @@ from __future__ import annotations
 import statistics
 from collections import defaultdict
 
-from . import linked, pnc_data
+from . import categories, linked, pnc_data
 from .finance import ESSENTIAL_CATEGORIES
 
 CASH = {"checking", "savings"}
-BUCKETS = ("income", "essentials", "discretionary", "debt_payments", "savings_invest", "transfers_out_unknown", "surplus")
+BUCKETS = ("income", "essentials", "discretionary", "debt_payments", "savings_invest", "surplus")
 # PNC's descriptions are generic; they name no merchant.
 GENERIC_DESCRIPTIONS = {"purchase", "payment", "withdrawal", "deposit", "fee", "paycheck", "interest accrual"}
 
@@ -65,6 +65,7 @@ def cash_flow(customer_id: str, months: int = 12) -> dict:
     per = {m: defaultdict(float) for m in keep}
     ess_cat: dict[str, float] = defaultdict(float)
     card_cat: dict[str, float] = defaultdict(float)
+    all_cat: dict[str, float] = defaultdict(float)
     for t in rows:
         m = per[t["posted_date"][:7]]
         ch = t["balance_change"]
@@ -72,6 +73,7 @@ def cash_flow(customer_id: str, months: int = 12) -> dict:
             amt = _spend_amount(t)
             essential = t["category"] in ESSENTIAL_CATEGORIES
             m["essentials" if essential else "discretionary"] += amt
+            all_cat[t["category"]] += amt
             if essential:
                 ess_cat[t["category"]] += amt
             if _is_card_purchase(t):
@@ -83,12 +85,10 @@ def cash_flow(customer_id: str, months: int = 12) -> dict:
         fc, cat = t["flow_class"], t["category"]
         if fc == "income":
             m["income"] += ch
-        elif fc == "internal_transfer" and cat == "debt_payment":
-            m["_debt_paid"] += -ch
-        elif fc == "internal_transfer" and cat == "investment_contribution":
+        elif cat == "debt_payment":
+            m["_debt_paid"] += -ch  # PNC debts (internal) and linked debts (external)
+        elif cat == "investment_contribution":
             m["savings_invest"] += -ch
-        elif fc == "external_transfer":
-            m["transfers_out_unknown"] += -ch
         elif fc == "internal_transfer":
             m["_internal_cash"] += ch  # checking <-> savings, nets to ~0
         elif fc == "non_cash":
@@ -101,28 +101,47 @@ def cash_flow(customer_id: str, months: int = 12) -> dict:
         m = per[k]
         m["debt_payments"] = m["_debt_paid"] - m["_card_purchases"]
         m["surplus"] = (m["income"] - m["essentials"] - m["discretionary"] - m["debt_payments"]
-                        - m["savings_invest"] - m["transfers_out_unknown"] + m["_internal_cash"] + m["_other"])
+                        - m["savings_invest"] + m["_internal_cash"] + m["_other"])
         out_months.append({"month": k, **{b: _r(m[b]) for b in BUCKETS},
                            "debt_payments_gross": _r(m["_debt_paid"]), "card_purchases": _r(m["_card_purchases"])})
     n = len(keep) or 1
     avg = {b: _r(sum(x[b] for x in out_months) / n) for b in BUCKETS + ("debt_payments_gross", "card_purchases")}
     lmins = _linked_minimums(customer_id)
     lsum = _r(sum(x["min_payment"] for x in lmins))
+    from .wealth import _flows
+
+    f = _flows(customer_id, months)
+    named = [
+        {"flow": "monthly_surplus", "per_month": _r(max(f["residual"], 0.0)), "residual_per_month": _r(f["residual"])},
+        {"flow": "brokerage_auto_invest", "per_month": _r(f["contrib"]["brokerage"])},
+        {"flow": "cd_contribution", "per_month": _r(f["contrib"]["cd"])},
+        {"flow": "ira_contribution", "per_month": _r(f["contrib"]["ira"])},
+        {"flow": "debt_minimums", "per_month": _r(f["debt_payments"]), "linked_minimums_per_month": lsum},
+    ]
+    for x in named:
+        meta = categories.FLOWS[x["flow"]]
+        x.update(flag=meta["flag"], label=meta["label"])
     return {
         "customer_id": customer_id,
         "period": {"from": keep[0] if keep else None, "to": keep[-1] if keep else None, "months": len(keep)},
         "months": out_months,
         "monthly_avg": avg,
-        "unknown_outflow_per_month": avg["transfers_out_unknown"],
+        "saved_per_month": _r(f["residual"]),
+        "named_flows": [x for x in named if x["per_month"] or x["flow"] == "monthly_surplus"],
+        "spending_by_category": [
+            {"category": c, "monthly_avg": _r(v / n), "flag": categories.spending_flag(c)["flag"],
+             **({"max_cut_pct": categories.SPENDING[c]["max_pct"]} if categories.SPENDING.get(c, {}).get("max_pct") else {})}
+            for c, v in sorted(all_cat.items(), key=lambda kv: -kv[1])],
         "essentials_by_category": {c: _r(v / n) for c, v in sorted(ess_cat.items(), key=lambda kv: -kv[1])},
         "card_spending_by_category": {c: _r(v / n) for c, v in sorted(card_cat.items(), key=lambda kv: -kv[1])},
         "linked_debt_minimums": lmins,
         "linked_debt_minimums_per_month": lsum,
         "notes": [
             "debt_payments = payments to debts minus new card purchases (card purchases are counted as spending)",
-            "linked debt minimums are not in PNC's payment history; they are likely paid from the unknown outflow",
-        ] if lmins else [
-            "debt_payments = payments to debts minus new card purchases (card purchases are counted as spending)",
+            "saved_per_month = income - spending - debt payments - contributions; it stays in cash, "
+            "so redirecting it to debt only gains the APR minus the cash yield",
+            "flags: fixed = never moved; ask = ask the customer, never moved; trim = cut up to max_cut_pct; "
+            "cancel = only by cancelling named subscriptions; redirect/pause = may go to debt",
         ],
     }
 
@@ -158,6 +177,8 @@ def spending_detail(customer_id: str, category: str, months: int = 12) -> dict:
         "customer_id": customer_id,
         "category": category,
         "essential": category in ESSENTIAL_CATEGORIES,
+        "flag": categories.spending_flag(category)["flag"],
+        **({"max_cut_pct": categories.SPENDING[category]["max_pct"]} if categories.SPENDING.get(category, {}).get("max_pct") else {}),
         "avg": _r(sum(vals) / n),
         "p25": _r(_p25(vals)),
         "min": _r(min(vals)) if vals else 0.0,
@@ -181,8 +202,6 @@ def _kind(t: dict) -> str | None:
         return "debt_payment"
     if cat == "investment_contribution":
         return "saving"
-    if fc == "external_transfer":
-        return "transfer_out"
     return None  # internal checking -> savings moves
 
 
@@ -220,13 +239,6 @@ def find_recurring(customer_id: str, months: int = 12) -> list[dict]:
             "kind": kind,
             "description": desc,
             "seen_in_history": True,
-        })
-    for d in _linked_minimums(customer_id):
-        out.append({
-            "name": f"{d['name']} minimum", "amount": d["min_payment"], "cadence": "monthly", "months_seen": 0,
-            "day": None, "amount_varies_pct": 0.0, "account": d["account_id"], "category": "debt_payment",
-            "kind": "debt_payment", "description": "linked account minimum (not in PNC history)",
-            "seen_in_history": False,
         })
     out.sort(key=lambda r: -r["amount"])
     return out

@@ -4,16 +4,15 @@ import { api, usd } from '../lib/api'
 
 type Month = {
   month: string; income: number; essentials: number; discretionary: number; debt_payments: number
-  savings_invest: number; transfers_out_unknown: number; surplus: number
+  savings_invest: number; surplus: number
 }
-type CashFlow = { months: Month[]; monthly_avg: Month; unknown_outflow_per_month: number }
+type CashFlow = { months: Month[]; monthly_avg: Month; saved_per_month: number }
 
 const SERIES = [
   { key: 'essentials', name: 'Essentials', color: 'var(--muted)' },
   { key: 'discretionary', name: 'Discretionary', color: 'var(--c-disc)' },
   { key: 'debt_payments', name: 'Debt payoff', color: 'var(--c-debt)' },
-  { key: 'savings_invest', name: 'Saved', color: 'var(--c-save)' },
-  { key: 'transfers_out_unknown', name: 'Unknown outflow', color: 'var(--c-out)' },
+  { key: 'savings_invest', name: 'Invested', color: 'var(--c-save)' },
 ] as const
 
 const short = (v: number) => (Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`)
@@ -43,7 +42,7 @@ export default function IncomeExpense({ cid }: { cid: string }) {
       </div>
       <div className="outs">
         <div><div className="k">Income / mo</div><div className="v">{usd(a.income)}</div></div>
-        <div><div className="k">Unknown outflow / mo</div><div className="v bad">{usd(cf.unknown_outflow_per_month)}</div></div>
+        <div><div className="k">Saved / mo</div><div className={`v ${cf.saved_per_month > 0 ? '' : 'bad'}`}>{usd(cf.saved_per_month)}</div></div>
         <div><div className="k">Debt payoff / mo</div><div className="v">{usd(a.debt_payments)}</div></div>
         <div><div className="k">Left over / mo</div><div className={`v ${a.surplus > 0 ? '' : 'bad'}`}>{usd(a.surplus)}</div></div>
       </div>

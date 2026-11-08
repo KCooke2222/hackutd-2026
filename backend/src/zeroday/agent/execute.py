@@ -10,7 +10,7 @@ Called from the approve route only (never from graph.py or tools.py; test_safety
 
 from __future__ import annotations
 
-from .. import balance_sheet, balances, finance, store
+from .. import balance_sheet, balances, categories, finance, store
 from ..config import NESSIE_KEY
 
 EDITABLE = ("monthly_debt_budget", "extra_order", "lump_sums", "redirects", "spending_targets",
@@ -37,12 +37,16 @@ def schedule(customer_id: str, plan: dict) -> tuple[list[dict], list[dict]]:
         if ls["source"] == "cash" and d.get("account_type") == "credit_card" and d.get("source") in ("nessie", "pnc"):
             transfers.append({"from": "savings", "to": "credit_card", "to_debt": ls["to_debt"], "amount": round(float(ls["amount"]), 2)})
         else:
-            what = {"cash": "Move cash", "cd": "Break CD", "brokerage": "Sell from brokerage"}[ls["source"]]
+            what = {"cash": "Move cash", "cd": "Break CD",
+                    "brokerage": "Sell from brokerage"}[ls["source"]]
             steps.append({"kind": "lump_sum", "step": f"{what}: pay ${float(ls['amount']):,.2f} to {name}", **ls})
     steps.append({"kind": "budget", "step": f"Pay ${plan['monthly_debt_budget']:,.2f}/mo across all debts, extra in order",
                   "extra_order": [debts.get(a, {}).get("name", a) for a in plan.get("extra_order") or []]})
     for r in plan.get("redirects") or []:
-        steps.append({"kind": "redirect", "step": f"Redirect ${float(r['amount_per_month']):,.2f}/mo of {r['flow']} to debt", **r})
+        meta = categories.flow_flag(r["flow"]) or {"flag": "redirect", "label": r["flow"]}
+        verb = "Pause" if meta["flag"] == categories.PAUSE else "Redirect"
+        steps.append({"kind": "redirect", "step": f"{verb} ${float(r['amount_per_month']):,.2f}/mo of {meta['label'].lower()} "
+                                                  f"to debt", **r})
     for t in plan.get("spending_targets") or []:
         steps.append({"kind": "spending_target", "step": f"{t['category']}: ${t['current']:,.0f} -> ${t['target']:,.0f}/mo",
                       "category": t["category"], "target": t["target"], "how": t.get("how") or []})
