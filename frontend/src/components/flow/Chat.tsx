@@ -31,7 +31,7 @@ function suggest(p: Proposal): string[] {
   return [...new Set(out)].filter((x) => !rules.has(x.toLowerCase())).slice(0, 4)
 }
 
-type Run = { steps: Step[]; done: boolean; error: string | null; clarify: string | null; added: RuleLabel[]; dropped: string[] }
+type Run = { steps: Step[]; done: boolean; error: string | null; clarify: string | null; added: RuleLabel[]; dropped: string[]; notes: string[] }
 type Result = { compare: Compare; proposal: Proposal; request: string }
 
 // Browser speech-to-text (Chrome/Edge/Safari). Not in TS's DOM lib, so typed loosely.
@@ -102,14 +102,18 @@ export default function Chat({ ai, onAdjusted, onRules, onQuestion, bare = false
     if (onQuestion && (!ai || isQuestion(m))) { onQuestion(m); setText(''); return }
     if (!ai) return
     setErr(null); setResult(null)
-    setRun({ steps: [], done: false, error: null, clarify: null, added: [], dropped: [] })
+    setRun({ steps: [], done: false, error: null, clarify: null, added: [], dropped: [], notes: [] })
     const s = new EventSource(`/api/proposals/${ai.id}/adjust/stream?message=${encodeURIComponent(m)}`)
     es.current = s
     const end = (patch: Partial<Run>) => { s.close(); setRun((r) => (r ? { ...r, done: true, ...patch } : r)) }
     listenSteps(s, (f) => setRun((r) => (r ? { ...r, steps: f(r.steps) } : r)))
     s.addEventListener('constraints', (e) => {
       const d = JSON.parse((e as MessageEvent).data)
-      setRun((r) => (r ? { ...r, added: d.added ?? [], dropped: d.dropped ?? [] } : r))
+      setRun((r) => (r ? { ...r, added: d.added ?? [], dropped: d.dropped ?? [], notes: [...new Set([...r.notes, ...(d.notes ?? [])])] } : r))
+    })
+    s.addEventListener('notes', (e) => {
+      const d = JSON.parse((e as MessageEvent).data)
+      setRun((r) => (r ? { ...r, notes: [...new Set([...r.notes, ...(d.notes ?? [])])] } : r))
     })
     s.addEventListener('done', (e) => {
       const d = JSON.parse((e as MessageEvent).data)
@@ -194,6 +198,7 @@ export default function Chat({ ai, onAdjusted, onRules, onQuestion, bare = false
       )}
       {run && (running || run.error || run.clarify) && <Steps steps={run.steps} done={run.done} waiting="Reading your plan" />}
       {run && run.added.length > 0 && <div className="small muted" style={{ marginTop: 6 }}>New rule: {run.added.map((r) => r.label).join(' · ')}</div>}
+      {run && run.notes.length > 0 && <div className="small" style={{ marginTop: 4 }}>{run.notes.join(' · ')}</div>}
       {run && run.dropped.length > 0 && <div className="small muted">Couldn't use: {run.dropped.join('; ')}</div>}
       {run?.clarify && <div className="notice small">{run.clarify}</div>}
       {run?.error && <div className="error">{run.error}</div>}

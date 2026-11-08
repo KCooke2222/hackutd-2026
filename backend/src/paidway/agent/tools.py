@@ -3,6 +3,7 @@ validate_plan_v2. Nothing here imports paidway.nessie.write; money moves only on
 """
 
 from __future__ import annotations
+import json
 
 from typing import Literal
 
@@ -235,13 +236,30 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
         from ..planning import solver
 
         given = to_plan(kwargs)
+        # Never re-propose the exact inputs that were just rejected: the same inputs get the same answer.
+        key = json.dumps(kwargs, sort_keys=True, default=str)
+        if key in st.setdefault("rejected_inputs", set()):
+            st["stop"] = True
+            return {"saved": False, "reasons": st.get("last_reasons") or ["same inputs as a rejected plan"],
+                    "stop": "same inputs as the rejected plan; stop and explain"}
         try:
             # The customer's rules become solver inputs, so the solved plan obeys them by construction;
             # validate_plan_v2(constraints=...) re-checks them as a safety net.
             from ..planning import wealth
-            from .constraints import solver_inputs
+            from .constraints import clamp_caps, solver_inputs
+            spend = wealth.context(customer_id)["spend"]
+            # A cut deeper than the category allows is raised to the deepest allowed one, not rejected.
+            asked = {str(t.get("category", "")).lower(): float(t["target"]) for t in given["spending_targets"] or []
+                     if t.get("target") is not None}
+            clamped, notes = clamp_caps({"category_max": asked}, spend)
+            for t in given["spending_targets"] or []:
+                cat = str(t.get("category", "")).lower()
+                if cat in clamped.get("category_max", {}):
+                    t["target"] = clamped["category_max"][cat]
+            st.setdefault("cap_notes", [])
+            st["cap_notes"] += [n for n in notes if n not in st["cap_notes"]]
             inputs = solver_inputs(cons, given["keep_emergency_months"], given["spending_targets"],
-                                   wealth.context(customer_id)["spend"] if cons else None)
+                                   spend if cons else None)
             declined = _declined(kwargs, inputs)
             inputs["declined_cuts"] = declined
             solved = solver.solve(customer_id, inputs, with_tradeoffs=False)
@@ -251,6 +269,7 @@ def make_tools(customer_id: str, state: dict | None = None, constraints: dict | 
                 sim = {**sim, "no_cuts": solved["sim"]["no_cuts"]}
         except (PlanRejected, ValueError, KeyError, TypeError, AttributeError) as e:
             st["rejections"] += 1
+            st["rejected_inputs"].add(key)
             reasons = list(getattr(e, "reasons", None) or [str(e)])
             st["last_reasons"] = reasons
             if st["rejections"] > MAX_REJECTIONS:

@@ -238,3 +238,34 @@ def solver_inputs(constraints: dict | None, keep_months: float | None, targets: 
     if cmin:
         res["category_min"] = dict(cmin)
     return res
+
+
+def clamp_caps(new: dict | None, spend: dict | None) -> tuple[dict, list[str]]:
+    """Raise any category_max that would cut deeper than the category allows (its max cut %, or the customer's
+    own lowest month) up to that floor, so a "cut X more" request becomes the deepest allowed cut instead of
+    a rejected plan. Returns (constraints, notes); each note is one short line for the chat."""
+    import math
+
+    from ..data import categories
+    from ..planning import assumptions as A
+
+    c = dict(new or {})
+    caps = dict(c.get("category_max") or {})
+    notes: list[str] = []
+    for cat, cap in list(caps.items()):
+        s = (spend or {}).get(cat) or {}
+        avg = s.get("avg")
+        flag = categories.spending_flag(cat)
+        if avg is None or flag["flag"] in (categories.CANCEL, categories.ASK, categories.FIXED):
+            continue
+        pct = float(flag.get("max_pct") or A.get("max_cut_pct"))
+        floor = max(math.ceil(float(avg) * (1 - pct / 100)), math.ceil(float(s.get("min") or 0)))
+        if cap < floor - 0.5:
+            caps[cat] = float(floor)
+            name = cat.replace('_', ' ').capitalize()
+            notes.append(f"{name} capped at {pct:g}%, ${floor:,.0f}/mo: the most one category is cut"
+                         if floor == math.ceil(float(avg) * (1 - pct / 100)) else
+                         f"{name} capped at ${floor:,.0f}/mo: your lowest month")
+    if caps:
+        c["category_max"] = caps
+    return c, notes

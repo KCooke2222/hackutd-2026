@@ -606,6 +606,7 @@ class AdjustState(AgentState, total=False):
     clarify: str | None
     fast: bool
     compare: dict | None
+    cap_notes: list[str]
 
 
 def adjustable(pid: str) -> dict:
@@ -665,15 +666,17 @@ def build_adjust_graph(pid: str, request: str):
             _phase(w, "interpret", "", "needs a detail")
             w({"type": "clarify", "text": clarify})
             return {"clarify": clarify, "messages": msgs}
+        new, capped = C.clamp_caps(new, spend)
         merged = C.merge(old, new)
         summary = str(data.get("summary") or request)[:80]
         only = bool(data.get("only_constraints")) and bool(new)
         fast = only and not C.check(parent["plan"], merged, spend)
-        w({"type": "constraints", "constraints": merged, "labels": C.describe(merged), "added": C.describe(new), "dropped": dropped})
+        w({"type": "constraints", "constraints": merged, "labels": C.describe(merged), "added": C.describe(new), "dropped": dropped,
+           "notes": capped})
         labels = [d["label"] for d in C.describe(new)]
         _phase(w, "interpret", "", (", ".join(labels) or summary)[:60])
         return {"constraints": merged, "new_constraints": new, "summary": summary, "only_constraints": only,
-                "fast": fast, "messages": msgs}
+                "fast": fast, "messages": msgs, "cap_notes": capped}
 
     def keep(s: AdjustState) -> dict:
         """The plan already obeys the new rules: save it again under them, no re-plan."""
@@ -704,6 +707,8 @@ def build_adjust_graph(pid: str, request: str):
                               snapshot=snap, assumptions=snap.get("assumptions") or {})
         messages = list(s.get("messages") or [])
         final = _react(llm, make_tools(cid, st, s.get("constraints")), system, request, w, st, messages, ADJUST_RECURSION_LIMIT)
+        if st.get("cap_notes"):
+            w({"type": "notes", "notes": st["cap_notes"]})
         out: dict = {"messages": messages, "final": final, "proposal_id": st.get("proposal_id")}
         if not st.get("proposal_id"):
             reasons = "; ".join(st.get("last_reasons") or []) or "the agent did not propose a plan"
@@ -723,7 +728,9 @@ def build_adjust_graph(pid: str, request: str):
         cmp = s.get("compare") or {}
         extra = {"warning": _warning(cmp), "request": request}
         if s.get("fast"):
-            data = {**(parent["simulation"].get("explain") or {}), "headline": "No change needed: your plan already fits", **extra}
+            head = ("Already at the limit. " + "; ".join(s["cap_notes"])) if s.get("cap_notes") else \
+                "No change needed: your plan already fits"
+            data = {**(parent["simulation"].get("explain") or {}), "headline": head, **extra}
             store.annotate(s["proposal_id"], explain=data)
             w({"type": "final", "text": data["headline"], "why": ""})
             return {"explain": data, "final": data["headline"]}
