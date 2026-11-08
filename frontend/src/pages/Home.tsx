@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
-import type { BalanceSheet, Proposal } from '../lib/api'
+import type { BalanceSheet, Proposal, Tracking } from '../lib/api'
 import { isV2, knobsFrom, planFrom } from '../lib/flow'
 import type { Knobs, Preview } from '../lib/flow'
 import Snapshot from '../components/flow/Snapshot'
@@ -11,6 +11,8 @@ import Outcome from '../components/flow/Outcome'
 import PlanTimeline from '../components/flow/PlanTimeline'
 import IncomeExpense from '../components/IncomeExpense'
 import Brand from '../components/Brand'
+import Dashboard from '../components/dash/Dashboard'
+import DemoPanel from '../components/dash/DemoPanel'
 
 type Health = { nessie: boolean; nvidia: boolean; model: string }
 const NAMES = ['Snapshot', 'Thinking', 'Plan', 'Done']
@@ -41,6 +43,18 @@ export default function Home() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  // Home is the goal dashboard once the customer has an approved plan (view 'dash'); the 4-step flow otherwise.
+  const [track, setTrack] = useState<Tracking | null>(null)
+  const [view, setView] = useState<'dash' | 'flow'>('flow')
+  const [demo, setDemo] = useState(() => new URLSearchParams(location.search).get('demo') === '1')
+
+  async function loadTrack(show: boolean) {
+    const t = await api<Tracking | { active: false }>(`/customers/${cid}/tracking`).catch(() => null)
+    const on = t && t.active ? t : null
+    setTrack(on)
+    if (show) setView(on ? 'dash' : 'flow')
+    return on
+  }
 
   useEffect(() => {
     api<{ customer_id: string }[]>('/customers').then((l) => setIds(l.map((c) => c.customer_id)))
@@ -49,7 +63,8 @@ export default function Home() {
 
   useEffect(() => {
     setSheet(null); setSummary(null); setAi(null); setKnobs(null); setOutlook(null); setApproved(null); setErr(null)
-    setScreen(0); setReached(0); setRunKey(0)
+    setScreen(0); setReached(0); setRunKey(0); setTrack(null)
+    loadTrack(!urlPlan.current)
     api<BalanceSheet>(`/customers/${cid}/balance-sheet`).then(setSheet).catch((e) => setErr(e.message))
     api<Summary>(`/customers/${cid}/summary`).then(setSummary).catch((e) => setErr(e.message))
     api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => {
@@ -79,7 +94,7 @@ export default function Home() {
   }, [knobs, cid, ai])
 
   function go(i: number) {
-    setScreen(i); setReached((r) => Math.max(r, i)); setErr(null)
+    setView('flow'); setScreen(i); setReached((r) => Math.max(r, i)); setErr(null)
   }
 
   function openPlan(p: Proposal, why: string) {
@@ -95,7 +110,7 @@ export default function Home() {
     setBusy(true); setErr(null)
     try {
       const p = await api<Proposal>(`/proposals/${ai.id}/approve`, { method: 'POST', body: JSON.stringify({ plan: planFrom(ai, knobs) }) })
-      setApproved(p); setPast((ps) => ps.map((x) => (x.id === ai.id ? { ...x, status: 'rejected' } : x))); go(3)
+      setApproved(p); setPast((ps) => ps.map((x) => (x.id === ai.id ? { ...x, status: 'rejected' } : x))); go(3); loadTrack(false)
     } catch (e) {
       setErr((e as Error).message)
     } finally {
@@ -116,6 +131,15 @@ export default function Home() {
     }
   }
 
+  async function openById(id: string) {
+    const ps = await api<Proposal[]>(`/proposals?customer_id=${cid}`)
+    const v2 = ps.filter((p) => isV2(p)).sort((a, b) => b.created_at.localeCompare(a.created_at))
+    setPast(v2)
+    const hit = v2.find((p) => p.id === id)
+    if (hit) { setReached(2); openPlan(hit, '') }
+  }
+
+  const dash = view === 'dash' && track != null
   const canGo = (j: number) => j <= reached && (j !== 3 || approved != null) && (j !== 2 || ai != null)
 
   return (
@@ -124,9 +148,14 @@ export default function Home() {
         <div className="masthead-in">
           <Brand />
           <nav className="dots" aria-label="Steps">
+            {track && (
+              <button className={dash ? 'on' : ''} onClick={() => { setErr(null); setView('dash') }} aria-current={dash ? 'page' : undefined}>
+                Dashboard
+              </button>
+            )}
             {NAMES.map((n, j) => (
-              <button key={n} className={j === screen ? 'on' : j < reached ? 'done' : ''} disabled={!canGo(j)} onClick={() => go(j)} aria-current={j === screen ? 'step' : undefined}>
-                <span className="n">{j < reached && j !== screen ? '✓' : j + 1}</span>{n}
+              <button key={n} className={!dash && j === screen ? 'on' : j < reached ? 'done' : ''} disabled={!canGo(j)} onClick={() => go(j)} aria-current={!dash && j === screen ? 'step' : undefined}>
+                <span className="n">{j < reached && (dash || j !== screen) ? '✓' : j + 1}</span>{n}
               </button>
             ))}
           </nav>
@@ -142,6 +171,15 @@ export default function Home() {
       {health && !health.nvidia && <div className="notice small">No NVIDIA_API_KEY: the agent can't run.</div>}
       {note && <div className="notice small">{note}</div>}
       {err && screen !== 2 && <div className="error">{err}</div>}
+
+      {dash && (
+        <>
+          <div className="dash-bar"><button className="ghost" onClick={() => setDemo((d) => !d)}>{demo ? 'Hide demo' : 'Demo'}</button></div>
+          {demo && <DemoPanel cid={cid} t={track} onData={(t) => setTrack(t)} />}
+          <Dashboard cid={cid} t={track} onChose={openById} onReplan={findPlan} onSnapshot={() => go(0)} />
+        </>
+      )}
+      <div style={{ display: dash ? 'none' : 'block' }}>
 
       {screen === 0 && sheet && summary && <Snapshot sheet={sheet} summary={summary} />}
       {screen === 0 && <IncomeExpense cid={cid} />}
@@ -176,7 +214,13 @@ export default function Home() {
           </span>
         )}
         {screen === 1 && <button className="primary" disabled={!thinkingDone || !ai} onClick={() => go(2)}>See plan</button>}
-        {screen === 3 && <button onClick={() => { setNote(null); go(0) }}>Start over</button>}
+        {screen === 3 && (
+          <span className="flow-actions">
+            <button onClick={() => { setNote(null); go(0) }}>Start over</button>
+            <button className="primary" onClick={() => loadTrack(true)}>Go to dashboard</button>
+          </span>
+        )}
+      </div>
       </div>
       </main>
     </div>

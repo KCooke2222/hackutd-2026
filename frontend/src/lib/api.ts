@@ -185,3 +185,40 @@ export type Timeline = {
   feasible: boolean
   problems: string[]
 }
+
+// ---------- goal tracking (backend tracking.py; demo months are simulated) ----------
+
+export type TrackLevel = 'on_track' | 'drifting' | 'off_track'
+export type TrackStatus = {
+  level: TrackLevel; late_months: number; goal_month: string; projected_month: string | null; goal_reached: boolean
+  reasons: string[]; breaks: string[]; nudges: string[]
+  over: { account_id: string; name: string; actual: number; expected: number; pct: number }[]
+}
+export type TrackPoint = { month: string; expected: number; band: number; expected_total: number; actual?: number; actual_total?: number; projected?: number }
+export type TrackDebt = {
+  account_id: string; name: string; apr_pct: number; high_cost: boolean; start: number; actual: number; expected: number
+  goal_month: string | null; projected_month: string | null; done: boolean; late_months: number
+}
+export type TrackAlert = { month_index: number; month: string; scenario: string; level: TrackLevel | 'good'; title: string; text: string }
+export type SwitchSource = { kind: 'card_cap' | 'cut' | 'pause_flow'; label: string; detail?: string; amount: number }
+export type SwitchOption = {
+  key: 'lock_in' | 'move_date'; title: string; goal_month: string; feasible: boolean
+  extra_per_month?: number; sources?: SwitchSource[]; steps?: string[]; projected_month?: string | null
+  available?: number; needed?: number; why?: string
+  new_month?: string | null; months_later?: number; monthly_debt_budget?: number; net_worth_24m?: number
+}
+export type Tracking = {
+  active: true
+  proposal: { id: string; created_at: string; headline?: string | null }
+  month_index: number; horizon: number; now: string
+  goal: { label: string; month: string; net_worth_24m: number; projected_net_worth_24m: number | null }
+  status: TrackStatus
+  path: TrackPoint[]
+  debts: TrackDebt[]
+  tiles: { net_worth: number; net_worth_expected: number; cash: number; cash_expected: number; total_debt: number; total_debt_expected: number }
+  alerts: TrackAlert[]
+  scenarios: { key: string; label: string }[]
+  history: { month_index: number; month: string; scenario: string }[]
+  tolerance_pct: number
+  switch?: { options: SwitchOption[]; replan: boolean }
+}

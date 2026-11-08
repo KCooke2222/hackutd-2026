@@ -18,6 +18,8 @@ from .api_insights import router as _insights_router  # noqa: E402
 app.include_router(_insights_router)
 from .api_timeline import router as _timeline_router  # noqa: E402
 app.include_router(_timeline_router)
+from .api_tracking import router as _tracking_router  # noqa: E402
+app.include_router(_tracking_router)
 
 
 def _need_customer(cid: str) -> dict:
