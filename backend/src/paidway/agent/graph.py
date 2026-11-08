@@ -1,7 +1,8 @@
-"""Agent v2: a LangGraph StateGraph on Nemotron (OpenAI-compatible endpoint).
+"""Agent v3: a LangGraph StateGraph on Nemotron (OpenAI-compatible endpoint).
 
-gather (code: full snapshot) -> diagnose (LLM, JSON) -> plan (ReAct with read-only tools + propose_plan)
--> explain (LLM, JSON). Validation lives in propose_plan (validate_plan_v2); after MAX_REJECTIONS rejections
+First run: gather (code: brief + solver plan) -> check (<= 2 tool calls, only on flags) -> decide (1 LLM call,
+JSON: buffer, driver, whys) -> propose (code calls propose_plan; the explanation's figures come from the saved
+proposal). Talk to the plan: interpret -> plan (ReAct) -> compare -> explain. Validation lives in propose_plan (validate_plan_v2); after MAX_REJECTIONS rejections
 the run stops with an error. Nothing here can move money.
 """
 
@@ -237,6 +238,9 @@ class AgentState(TypedDict, total=False):
     explain: dict | None
     final: str
     error: str | None
+    brief: dict
+    checked: str
+    decision: dict
 
 
 def _writer():
@@ -323,68 +327,184 @@ def _explain(llm, w, proposal_id: str, messages: list, extra: dict | None = None
     return {"explain": data, "final": data["headline"], "messages": [*messages, {**e, "name": "explain"}]}
 
 
+# ---------- agent v3 first run: code builds the brief, one agent pass makes the calls ----------
+
+MAX_CHECK_CALLS = 2
+_FIGURE = re.compile(r"\$\s?\d|\d+(\.\d+)?\s?%|\b20\d\d\b")  # the agent writes words; code writes every figure
+
+
+def _words(x, limit: int = 220) -> str:
+    """Agent text with no figures in it ("" if it slipped one in: code writes the numbers)."""
+    t = str(x or "").strip()
+    return "" if not t or _FIGURE.search(t) else t[:limit]
+
+
+def _month(ym: str | None) -> str:
+    if not ym:
+        return "never"
+    import datetime as _dt
+
+    try:
+        return _dt.date(int(ym[:4]), int(ym[5:7]), 1).strftime("%b %Y")
+    except (ValueError, IndexError):
+        return str(ym)
+
+
+def _for_agent(brief: dict) -> dict:
+    """The brief, trimmed to what the agent's judgement needs (smaller prompt, faster first token)."""
+    snap, plan = brief["snapshot"], brief["plan"]
+    cf = snap.get("cash_flow") or {}
+    return {
+        "profile": snap.get("profile"),
+        "cash_flow": {k: cf.get(k) for k in ("monthly_avg", "saved_per_month", "named_flows", "card_spending_by_category")},
+        "debts": [{k: d.get(k) for k in ("name", "balance", "apr_pct", "min_payment", "secured")} for d in snap["debts"]],
+        "assets": [{k: a.get(k) for k in ("name", "kind", "balance")} for a in snap["assets"]],
+        "ladder": snap.get("ladder"),
+        "plan": {k: plan.get(k) for k in ("paydown", "lump_sums", "extra_order", "spending_targets", "no_cuts", "payoff",
+                                          "high_cost_debt_free", "baseline_high_cost_debt_free", "net_worth_gain",
+                                          "interest_saved", "upfront_cost", "tradeoffs")},
+        "buffers": brief["buffers"],
+        "flags": brief["flags"],
+        "spending_avg": brief["spending_avg"],
+        "reality": {k: (snap.get("reality_check") or {}).get(k) for k in ("realistic", "message", "gap_per_month", "close_gap")},
+    }
+
+
+def _explain_v3(p: dict, d: dict) -> dict:
+    """The saved proposal's explanation: every figure from the proposal's own plan and simulation, the agent's
+    words (driver, whys, downsides) beside them."""
+    plan, sim = p["plan"], p["simulation"]
+    b = sim.get("budget") or {}
+    names = {x["account_id"]: x["name"] for x in sim.get("debts") or [] if "account_id" in x}
+    gain = round(sim["net_worth_24m"] - sim["baseline_net_worth_24m"])
+    headline = f"High-cost debt $0 by {_month(sim.get('high_cost_debt_free'))}, {'+' if gain >= 0 else '-'}${abs(gain):,} net worth in 2 years"
+    rc = sim.get("reality_check") or {}
+    if rc.get("realistic") is False:
+        headline = f"${rc.get('gap_per_month') or 0:,.0f}/mo short: {headline}"
+    net, gross, cur = b.get("net_paydown_per_month"), b.get("monthly_debt_budget"), b.get("current_net_paydown_per_month")
+    summary = (f"You'd pay {_usd(gross)}/mo to debt; {_usd(net)} of it actually shrinks the balance (was {_usd(cur)}),"
+               f" the rest covers new card purchases.") if net is not None else ""
+    why = {c.get("category"): _words(c.get("why"), 120) for c in d.get("cuts") or [] if isinstance(c, dict)}
+    cuts, levers = [], [{"kind": "debt_payment", "label": f"{_usd(net)}/mo off the debt", "amount": net}] if net is not None else []
+    for t in plan.get("spending_targets") or []:
+        bu = t.get("buys") or {}
+        buys = (f"{bu['months_sooner']} months sooner, +{_usd(bu['net_worth_gain'])} in 2 years"
+                if t.get("source") == "suggested" and bu.get("months_sooner") is not None else "")
+        cuts.append({"category": t["category"], "how": "; ".join(t.get("how") or []) if isinstance(t.get("how"), list) else (t.get("how") or ""),
+                     "why": why.get(t["category"]) or "", "suggested": t.get("source") == "suggested", "buys": buys,
+                     "from": t.get("current"), "to": t.get("target")})
+        levers.append({"kind": "cut", "label": f"{t['category'].replace('_', ' ')} to {_usd(t.get('target'))}/mo", "amount": t.get("target")})
+    for l in plan.get("lump_sums") or []:
+        levers.append({"kind": "lump_sum", "label": f"{_usd(l['amount'])} {l['source']} to {names.get(l['to_debt'], l['to_debt'])}", "amount": l["amount"]})
+    return {"headline": headline, "summary": summary, "driver": _words(d.get("driver"), 300),
+            "buffer_months": plan.get("keep_emergency_months"), "buffer_why": _words(d.get("buffer_why")),
+            "lumps_why": _words(d.get("lumps_why")), "downsides": [w for w in (_words(x, 140) for x in d.get("downsides") or []) if w][:3],
+            "underwater": _words(d.get("underwater"), 300), "levers": levers, "cuts": cuts, "options": []}
+
+
 def build_graph(customer_id: str):
+    """gather (code: brief + solver plan) -> check (<= 2 tool calls, only when the brief has flags)
+    -> decide (1 LLM call: buffer, driver, whys) -> propose (code: propose_plan, explanation from its numbers)."""
     llm = _llm()
     from langgraph.graph import END, START, StateGraph
 
-    try:
-        from .sql_tool import SCHEMA_DOC
-    except ImportError:
-        SCHEMA_DOC = "(sql tool not available)"
+    from . import brief as brief_mod
 
     def gather(s: AgentState) -> dict:
         w = _writer()
-        _phase(w, "gather", "Reading all accounts")
-        snap = gather_snapshot(customer_id)
+        _phase(w, "gather", "Reading accounts")
+        _phase(w, "build", "Building the plan")
+        b = brief_mod.build(customer_id)
+        snap = b["snapshot"]
         _phase(w, "gather", "", f"{len(snap['debts'])} debts · {len(snap['assets'])} assets")
-        return {"snapshot": snap}
+        pl = b["plan"]
+        _phase(w, "build", "", f"$0 by {_month(pl.get('high_cost_debt_free'))} · {len([t for t in pl.get('spending_targets') or [] if t.get('source') == 'suggested'])} cuts suggested")
+        return {"snapshot": snap, "brief": b}
 
-    def diagnose(s: AgentState) -> dict:
+    def check(s: AgentState) -> dict:
         w = _writer()
-        _phase(w, "diagnose", "Diagnosing")
-        data, e = _ask_json(llm, prompts.fill(prompts.DIAGNOSE, snapshot=s["snapshot"]))
-        if isinstance(data, list):
-            data = {"causes": data}
+        fl = s["brief"]["flags"]
+        _phase(w, "check", "Checking odd spending")
+        tools = {t.name: t for t in make_tools(customer_id, {}) if t.name in ("spending_detail", "sql")}
+        msgs: list = [("user", prompts.fill(prompts.CHECK, flags=fl, spending=s["brief"]["spending_avg"]))]
+        log = list(s.get("messages") or [])
+        ai = llm.bind_tools(list(tools.values())).invoke(msgs)
+        log.append({**_entry(ai), "name": "check"})
+        calls = (getattr(ai, "tool_calls", None) or [])[:MAX_CHECK_CALLS]
+        from langchain_core.messages import ToolMessage
+
+        if calls:
+            why = _entry(ai).get("reasoning") or ai.content or ""
+            outs = []
+            for c in calls:
+                w({"type": "call", "id": c["id"], "name": c["name"], "label": _label(c["name"], c["args"]), "args": c["args"], "why": why})
+                why = ""
+                try:
+                    res = tools[c["name"]].invoke(c["args"])
+                except Exception as ex:  # noqa: BLE001
+                    res = {"error": str(ex)}
+                content = json.dumps(res, default=str)[:6000]
+                w({"type": "result", "id": c["id"], "name": c["name"], "result": summarize(c["name"], c["args"], content)})
+                outs.append(ToolMessage(content=content, tool_call_id=c["id"], name=c["name"]))
+                log.append({"role": "tool", "name": c["name"], "content": content[:2000]})
+            ai2 = llm.invoke([*msgs, ai, *outs, ("user", "Now answer in one sentence per flag. No more tool calls.")])
+            log.append({**_entry(ai2), "name": "check"})
+            note = ai2.content if isinstance(ai2.content, str) else str(ai2.content)
+        else:
+            note = ai.content if isinstance(ai.content, str) else str(ai.content)
+        _phase(w, "check", "", ", ".join(f["category"].replace("_", " ") for f in fl)[:60])
+        return {"checked": note.strip()[:800], "messages": log}
+
+    def decide(s: AgentState) -> dict:
+        w = _writer()
+        _phase(w, "decide", "Choosing what to suggest")
+        b = s["brief"]
+        data, e = _ask_json(llm, prompts.fill(prompts.DECIDE, default_buffer=f"{b['default_buffer_months']:g}",
+                                              brief=_for_agent(b), checked=s.get("checked") or "no flags"))
         if not isinstance(data, dict):
-            data = {"causes": [], "unparsed": e["content"][:400]}
-        causes = [c for c in data.get("causes") or [] if isinstance(c, dict)]
-        top = causes[0] if causes else {}
+            data = {}
         try:
-            res = f"{top.get('label', 'no causes')}" + (f" {_usd(top['amount_per_month'])}/mo" if top.get("amount_per_month") else "")
+            m = float(data.get("buffer_months"))
         except (TypeError, ValueError):
-            res = str(top.get("label", "done"))
-        _phase(w, "diagnose", "", res[:60])
-        return {"diagnosis": data, "messages": [*(s.get("messages") or []), {**e, "name": "diagnose"}]}
+            m = b["default_buffer_months"]
+        if f"{m:g}" not in b["buffers"]:
+            m = b["default_buffer_months"]
+        data["buffer_months"] = m
+        _phase(w, "decide", "", f"keep {m:g} months of cash")
+        return {"decision": data, "messages": [*(s.get("messages") or []), {**e, "name": "decide"}]}
 
-    def plan(s: AgentState) -> dict:
+    def propose(s: AgentState) -> dict:
         w = _writer()
+        _phase(w, "propose", "Saving the plan")
+        d = s.get("decision") or {}
         st: dict = {}
-        keep = (s["snapshot"].get("assumptions") or {}).get("default_emergency_months", 3.0)
-        system = prompts.fill(prompts.PLAN, keep_emergency_months=f"{keep:g}", sql_schema=SCHEMA_DOC,
-                              snapshot=s["snapshot"], diagnosis=s.get("diagnosis") or {}, assumptions=s["snapshot"].get("assumptions") or {})
-        messages = list(s.get("messages") or [])
-        final = _react(llm, make_tools(customer_id, st), system, s.get("instruction") or DEFAULT_INSTRUCTION, w, st, messages)
-        out: dict = {"messages": messages, "final": final, "proposal_id": st.get("proposal_id")}
+        tool = next(t for t in make_tools(customer_id, st) if t.name == "propose_plan")
+        out = tool.invoke({"monthly_debt_budget": 0, "extra_order": [], "keep_emergency_months": d.get("buffer_months") or 3.0,
+                           "spending_targets": [], "declined_cuts": [], "rationale": _words(d.get("driver"), 120) or "Solver plan"})
+        log = [*(s.get("messages") or []), {"role": "tool", "name": "propose_plan", "content": json.dumps(out, default=str)[:2000]}]
         if not st.get("proposal_id"):
-            reasons = "; ".join(st.get("last_reasons") or []) or "the agent did not propose a plan"
-            rc = s["snapshot"].get("reality_check") or {}
-            lead = f"{rc['message']} " if rc and not rc.get("realistic") else ""
-            out["error"] = f"{lead}No valid plan: {reasons}"[:700]
-        return out
-
-    def explain(s: AgentState) -> dict:
-        return _explain(llm, _writer(), s["proposal_id"], list(s.get("messages") or []))
+            reasons = "; ".join(st.get("last_reasons") or []) or str(out.get("stop") or out.get("reasons") or "no plan")
+            _phase(w, "propose", "", "no plan")
+            return {"messages": log, "error": f"No valid plan: {reasons}"[:700]}
+        p = store.get_proposal(st["proposal_id"])
+        ex = _explain_v3(p, d)
+        try:
+            store.annotate(p["id"], explain=ex)
+        except AttributeError:
+            pass
+        _phase(w, "propose", "", "Plan ready")
+        w({"type": "final", "text": ex["headline"], "why": ""})
+        return {"proposal_id": p["id"], "explain": ex, "final": ex["headline"], "messages": log,
+                "diagnosis": {"driver": ex["driver"]}}
 
     g = StateGraph(AgentState)
-    g.add_node("gather", gather)
-    g.add_node("diagnose", diagnose)
-    g.add_node("plan", plan)
-    g.add_node("explain", explain)
+    for name, fn in (("gather", gather), ("check", check), ("decide", decide), ("propose", propose)):
+        g.add_node(name, fn)
     g.add_edge(START, "gather")
-    g.add_edge("gather", "diagnose")
-    g.add_edge("diagnose", "plan")
-    g.add_conditional_edges("plan", lambda s: "explain" if s.get("proposal_id") else END, {"explain": "explain", END: END})
-    g.add_edge("explain", END)
+    g.add_conditional_edges("gather", lambda s: "check" if s["brief"]["flags"] else "decide", {"check": "check", "decide": "decide"})
+    g.add_edge("check", "decide")
+    g.add_edge("decide", "propose")
+    g.add_edge("propose", END)
     return g.compile()
 
 

@@ -60,7 +60,15 @@ export type SimV2 = {
 export type Explain = {
   headline: string
   levers?: { kind: string; label: string; amount?: number }[]
-  cuts?: { category: string; how: string }[]
+  cuts?: { category: string; how: string; why?: string; suggested?: boolean; buys?: string; from?: number; to?: number }[]
+  // agent v3 first run: the agent's words; every figure is written by code from the saved plan
+  summary?: string
+  driver?: string
+  buffer_months?: number
+  buffer_why?: string
+  lumps_why?: string
+  downsides?: string[]
+  underwater?: string
   warning?: string | null // talk to the plan: the cost of a worse change, written in code
   request?: string
   options?: { category: string; label: string; buys: string }[]

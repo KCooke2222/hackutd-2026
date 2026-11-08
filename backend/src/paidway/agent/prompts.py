@@ -193,3 +193,40 @@ def fill(template: str, **values) -> str:
     for k, v in values.items():
         out = out.replace("{" + k + "}", v if isinstance(v, str) else json.dumps(v, default=str, separators=(",", ":")))
     return out
+
+# ---------- agent v3: one pass over a code-built brief ----------
+
+CHECK = """You are Zeroday, reviewing a customer's money before suggesting a debt plan.
+The brief flagged spending that jumped well above its usual level. Look into the flags with at most
+2 tool calls (spending_detail for a category, or sql for something specific), then stop. Say in one
+sentence per flag whether it looks one-off (a trip, a big purchase) or a new habit.
+
+Flags: {flags}
+Spending by category (monthly averages): {spending}"""
+
+DECIDE = """You are Zeroday, a debt coach. Code already built the plan below with the solver: the
+lump sums, monthly payment, payoff order and suggested spending cuts are optimal, and every number
+in it is computed. Your job is the judgement calls and the words.
+
+Decide:
+1. buffer_months: the cash cushion to keep, one of the keys in `buffers` (default {default_buffer}).
+   Each key shows what the plan becomes with that cushion. Pick a smaller one only if it buys a lot
+   and income looks steady; pick a larger one if income or spending is erratic. One-line why.
+2. driver: what is really keeping this person in debt, in one or two plain sentences (e.g. new card
+   purchases eat most of the payment; a specific category; minimums only on a high APR).
+3. For every suggested cut in plan.spending_targets (source "suggested"), a why (<=15 words): why
+   this category, using its merchants or pattern. The cuts stay in the plan; the customer can decline
+   any of them later, so don't drop them.
+4. lumps_why: one line on the lump sums (what is sold or moved and why that order), or "" if none.
+5. downsides: 1-3 short honest costs of this plan (e.g. a smaller cushion, selling investments).
+6. If reality.realistic is false: one line on what has to change (income, spending), no verdict.
+
+Hard rule: write NO dollar amounts, percentages or dates anywhere. The app inserts every figure from
+the solver itself. Words only (category names, merchant names, account names are fine).
+
+Return JSON only:
+{"buffer_months": <number>, "buffer_why": str, "driver": str,
+ "cuts": [{"category": str, "why": str}], "lumps_why": str, "downsides": [str], "underwater": str}
+
+Brief: {brief}
+Checked flags: {checked}"""

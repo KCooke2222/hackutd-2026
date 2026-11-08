@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowLeftRight, ChartColumn, ChartSpline, CircleCheck, Database, Dot, Layers, ListOrdered, LoaderCircle,
-  MessageSquareText, PenLine, Repeat, Scale, Search, Stethoscope,
+  MessageSquareText, PenLine, Repeat, Scale, Search, Sparkles, Stethoscope, Calculator, ScanSearch,
 } from 'lucide-react'
 
 import type { Step } from '../../lib/steps'
@@ -11,6 +11,7 @@ export type { Step }
 
 const ICON: Record<string, LucideIcon> = {
   phase_gather: Database, phase_diagnose: Stethoscope, phase_explain: PenLine, phase_interpret: MessageSquareText, phase_keep: CircleCheck,
+  phase_build: Calculator, phase_check: ScanSearch, phase_decide: Sparkles, phase_propose: CircleCheck,
   sql: Search, cash_flow: ArrowLeftRight, spending_detail: ChartColumn, find_recurring: Repeat, compare_sources: Scale, debt_priority: ListOrdered,
   liquidity_ladder: Layers, simulate_plan: ChartSpline, propose_plan: CircleCheck,
 }
