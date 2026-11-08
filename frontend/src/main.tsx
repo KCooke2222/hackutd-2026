@@ -13,6 +13,7 @@ const style = styleParam()
 const q = new URLSearchParams(location.search)
 const preview = style || q.has('logo')
 if (style) applyDirection(style)
+else document.documentElement.dataset.direction = 'mac-light' // the chosen default look
 if (preview) {
   document.head.insertAdjacentHTML('beforeend', `<link rel="stylesheet" href="${LOGO_FONTS}">`)
   if (q.get('logotone') === 'style') document.documentElement.dataset.logotone = 'style'
