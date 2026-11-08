@@ -221,3 +221,32 @@ export const ACCOUNT_COLORS: Record<string, string> = {
   student_loan: '#be185d',
   property: '#78716c',
 }
+
+/** POST /customers/{cid}/plan/timeline: the plan over time, per account, before vs plan. */
+export type TimelineAccount = {
+  id: string; name: string; side: 'debt' | 'asset'; kind: string; apr_pct?: number
+  plan: number[]; before: number[]; payoff_plan?: string | null; payoff_before?: string | null
+}
+export type TimelinePayment = {
+  account_id: string; name: string; apr_pct: number; min_payment: number
+  before: number[]; plan: number[]; before_now: number; plan_now: number
+  extra_rank: number | null; autopay: boolean; lump_sum: number
+  card_charges: { before: number; plan: number } | null
+  payoff_plan: string | null; payoff_before: string | null
+}
+export type FlowMonth = {
+  month: string; income: number; essentials: number; discretionary: number; debt_payments: number
+  savings_invest: number; transfers_out: number; surplus: number
+}
+export type TimelineChange = { group: string; label: string; text: string; changed: boolean; sub: string; before: number | null; after: number | null }
+export type Timeline = {
+  customer_id: string
+  months: string[]
+  accounts: TimelineAccount[]
+  payments: TimelinePayment[]
+  cashflow: { before: FlowMonth[]; plan: FlowMonth[]; transfers_out_name: string }
+  changes: TimelineChange[]
+  totals: { debt_payments: { before: number; plan: number }; net_worth: { before: number[]; plan: number[] } }
+  feasible: boolean
+  problems: string[]
+}

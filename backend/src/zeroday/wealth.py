@@ -431,7 +431,11 @@ def _run(ctx: dict, plan: dict | None) -> dict:
         invested = sum(inv.values())
         return {"month": _label(i), "total_debt": round(total, 2), "high_cost_debt": round(high, 2),
                 "cash": round(cash, 2), "invested": round(invested, 2),
-                "net_worth": round(cash + invested + prop - total, 2)}
+                "net_worth": round(cash + invested + prop - total, 2),
+                # per-account balances for the plan timeline (timeline.py); not sent to the LLM
+                "balances": {"debts": {k: round(d["bal"], 2) for k, d in debts.items()},
+                             "assets": {"cash": round(cash, 2), **{k: round(v, 2) for k, v in inv.items()},
+                                        "property": round(prop, 2)}}}
 
     months = [snapshot(0)]
     high_free = 0 if months[0]["high_cost_debt"] <= 0.01 else None

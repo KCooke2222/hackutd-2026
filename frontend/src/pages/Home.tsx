@@ -8,6 +8,7 @@ import type { Summary } from '../components/flow/Snapshot'
 import Thinking from '../components/flow/Thinking'
 import PlanEditor from '../components/flow/PlanEditor'
 import Outcome from '../components/flow/Outcome'
+import PlanTimeline from '../components/flow/PlanTimeline'
 import IncomeExpense from '../components/IncomeExpense'
 
 type Health = { nessie: boolean; nvidia: boolean; model: string }
@@ -133,6 +134,7 @@ export default function Home() {
         <PlanEditor ai={ai} headline={ai.simulation.explain?.headline ?? (final ? firstSentence(final) : firstSentence(ai.rationale))} knobs={knobs} setKnobs={setKnobs}
           preview={outlook} busy={busy} error={err} onApprove={approve} onReject={reject} />
       )}
+      {screen === 2 && ai && knobs && <PlanTimeline cid={cid} plan={planFrom(ai, knobs)} />}
       {screen === 3 && approved && <Outcome preview={outlook} approved={approved} />}
 
       <div className="flow-nav">
