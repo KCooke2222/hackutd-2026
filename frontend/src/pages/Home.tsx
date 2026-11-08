@@ -357,7 +357,7 @@ export default function Home() {
         {screen === 3 && (
           <span className="flow-actions">
             <button onClick={() => { setNote(null); go(0) }}>Start over</button>
-            <button className="primary" onClick={() => loadTrack(true)}>Go to dashboard</button>
+            {track && <button className="primary" onClick={() => loadTrack(true)}>Go to dashboard</button>}
           </span>
         )}
       </div>

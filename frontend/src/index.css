@@ -287,3 +287,27 @@ button.primary:hover:not(:disabled) { background: var(--accent-ink); border-colo
 @media (max-width: 640px) { .drawer { top: auto; width: 100vw; height: 72vh; border-left: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; transform: translateY(105%); } .drawer.open { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
 .drawer-body form, .drawer-body input { min-width: 0; } .drawer-body input { flex: 1; width: auto; }
+
+/* ---- landing (/) ---- */
+.landing { padding-bottom: 40px; }
+.land-hero { padding: 40px 0 16px; }
+.land-hero h1 { font-size: var(--hero-size); line-height: 1.1; margin: 0 0 12px; }
+.land-hero p { font-size: 16px; max-width: 560px; margin: 0; }
+.land-cta { margin-top: 20px; }
+.land-cta button.big { display: inline-flex; align-items: center; gap: 4px; padding: 10px 20px; font-size: 15px; }
+.land-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.land-steps li { display: flex; flex-direction: column; gap: 4px; padding: 12px; background: var(--soft); border-radius: var(--tile-radius); position: relative; }
+.land-steps .n { position: absolute; top: 10px; right: 12px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.land-steps .ic, .land-coach .ic, .land-built .ic { color: var(--accent); flex: none; }
+.land-coach { display: flex; gap: 14px; align-items: flex-start; }
+.land-coach .ic { margin-top: 12px; }
+.land-demos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.land-demos button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; white-space: normal; padding: 12px 14px; border-radius: var(--tile-radius); background: var(--soft); border-color: transparent; }
+.land-demos button:hover:not(:disabled) { border-color: var(--accent-line); background: var(--accent-soft); }
+.land-built { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center; font-size: 13px; color: var(--muted); }
+.land-built li { display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 640px) {
+  .land-steps { grid-template-columns: 1fr 1fr; }
+  .land-demos { grid-template-columns: 1fr; }
+  .land-hero h1 { font-size: 32px; }
+}
