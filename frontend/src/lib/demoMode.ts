@@ -6,7 +6,7 @@
 
 const KEY = 'pw_demo'
 
-function isOn(): boolean {
+export function isOn(): boolean {
   try { return localStorage.getItem(KEY) === '1' } catch { return document.cookie.includes(`${KEY}=1`) }
 }
 
