@@ -229,10 +229,10 @@ export default function Home() {
     if (hit) { setReached(2); openPlan(hit) }
   }
 
-  /** Logo click: the dashboard if there's an approved plan, else the Snapshot step. A run in progress keeps going. */
+  /** Logo click: the dashboard if there's an approved plan, else the landing page. */
   function home() {
     setNote(null)
-    if (trackRef.current) { setErr(null); setView('dash') } else go(0)
+    if (trackRef.current) { setErr(null); setView('dash') } else window.location.assign('/')
   }
 
   const dash = view === 'dash' && track != null
