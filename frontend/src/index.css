@@ -254,7 +254,7 @@ button.primary:hover:not(:disabled) { background: var(--accent-ink); border-colo
 
 /* what the agent will do on approve / done in Nessie */
 .agent-do { border: 1px solid color-mix(in srgb, var(--good) 35%, var(--line)); }
-.act { display: grid; grid-template-columns: 128px 1fr auto; gap: 2px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.act { display: grid; grid-template-columns: 112px 1fr auto; gap: 2px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .act:last-of-type { border-bottom: 0; }
 .act code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--text); }
 .act .what { font-size: 13px; }
