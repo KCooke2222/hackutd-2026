@@ -59,6 +59,8 @@ export type SimV2 = {
     current_debt_payments: number; redirects: number; checking_cuts: number; card_cuts: number; max_monthly_debt_budget: number; minimums: number
     monthly_debt_budget?: number; net_paydown_per_month?: number; current_net_paydown_per_month?: number
     new_card_purchases?: number; current_new_card_purchases?: number
+    /** Month 1: what the debts actually take (minimums + extra), and budget no debt needs (stays in cash). */
+    paid_to_debt_per_month?: number; unused_per_month?: number
   }
   /** The same plan without its suggested cuts (solver), and what the cuts buy together. */
   no_cuts?: { net_worth_24m: number; high_cost_debt_free: string | null; interest_total: number; monthly_debt_budget: number; net_paydown_per_month: number; suggested_cut_per_month?: number; suggested_buys?: CutBuys }
@@ -135,7 +137,7 @@ export type Proposal = {
     amount?: number
     transfer?: unknown
     transfers_pending?: { to_debt: string; amount: number }[]
-    scheduled?: { kind: string; step: string; how?: string[]; runs?: string; link?: string }[]
+    scheduled?: { kind: string; step: string; how?: string[]; runs?: string; link?: string; watch?: string; [k: string]: unknown }[]
     error?: string
     /** The receipt: each Nessie write call approve sent, with its status and the id Nessie created. */
     nessie_calls?: NessieCall[]
@@ -164,7 +166,13 @@ export type ApprovePreview = {
   nessie_calls: NessieCall[]
   recorded: { kind: string; step: string; runs?: string; how?: string[] }[]
   manual: { kind: string; step: string; runs?: string; how?: string[] | string; link?: string }[]
+  /** Watched at the monthly check-in (spending targets, leftover, autopay switch-overs). */
+  agent?: AgentStep[]
+  summary?: MonthSplit | null
 }
+export type AgentStep = { kind: string; step: string; runs?: string; watch?: string; amount?: number }
+/** The month's split from execute.schedule: paid to debts = new purchases + net paydown; left_over stays in cash. */
+export type MonthSplit = { kind: string; step: string; runs?: string; budget?: number; paid?: number; new_purchases?: number; net_paydown?: number; left_over?: number }
 
 export type Source = 'pnc' | 'nessie' | 'linked'
 

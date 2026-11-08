@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Check, Clock, X } from 'lucide-react'
+import { Check, Clock, Eye, X } from 'lucide-react'
 import { usd } from '../../lib/api'
-import type { NessieCall } from '../../lib/api'
+import type { MonthSplit, NessieCall } from '../../lib/api'
 import NessieChip from '../NessieChip'
-import { pretty, what } from './AgentActions'
+import { MonthLine, pretty, what } from './AgentActions'
 import '../../styles/done.css'
 
 type Quiet = { step: string; how?: string[] | string; link?: string }
+type Watched = { kind?: string; step: string; watch?: string }
 type State = 'ok' | 'bad' | 'held'
 
 const state = (c: NessieCall): State =>
@@ -32,7 +33,8 @@ function rows(calls: NessieCall[]): Row[] {
     let r: Row
     if (c.tool.endsWith('create_bill')) {
       const w = what(c)
-      r = { key: `b${i}`, title: `Autopay: ${c.from ?? 'Checking'} pays ${c.to ?? 'the debt'}`, sub: `Recurring bill ${w.when.replace(/^\/mo · /, '')}`, amount: c.amount, per: '/mo', calls: [c] }
+      const sub = [`Recurring Nessie bill from ${c.from ?? 'Checking'}, ${w.when.replace(/^\/mo · /, '')}`, c.note].filter(Boolean).join(' · ')
+      r = { key: `b${i}`, title: c.step ? pretty(c.step) : `Autopay: ${c.from ?? 'Checking'} pays ${c.to ?? 'the debt'}`, sub, amount: c.amount, per: '/mo', calls: [c] }
     } else if (c.tool.endsWith('create_transfer') || c.tool.endsWith('create_deposit')) {
       r = { key: g ?? `t${i}`, title: `Paid off ${c.to}`, sub: `from ${c.from} · today`, amount: c.amount, calls: [c] }
     } else {
@@ -45,16 +47,17 @@ function rows(calls: NessieCall[]): Row[] {
   return out
 }
 
-function Box({ s, onClick, label }: { s: State | 'todo' | 'ticked'; onClick?: () => void; label: string }) {
-  const icon = s === 'ok' || s === 'ticked' ? <Check size={14} strokeWidth={3} /> : s === 'bad' ? <X size={14} strokeWidth={3} /> : s === 'held' ? <Clock size={12} strokeWidth={2.5} /> : null
+function Box({ s, onClick, label }: { s: State | 'todo' | 'ticked' | 'watch'; onClick?: () => void; label: string }) {
+  const icon = s === 'ok' || s === 'ticked' ? <Check size={14} strokeWidth={3} /> : s === 'bad' ? <X size={14} strokeWidth={3} /> : s === 'held' ? <Clock size={12} strokeWidth={2.5} /> : s === 'watch' ? <Eye size={13} strokeWidth={2.25} /> : null
   return onClick
     ? <button type="button" className={`cbox ${s}`} role="checkbox" aria-checked={s === 'ticked'} aria-label={label} onClick={onClick}>{icon}</button>
     : <span className={`cbox ${s}`} role="img" aria-label={label}>{icon}</span>
 }
 
-/** The Done screen's top card: "Done", then a checklist, a ticked box per move that ran in Nessie, an open box per step left. */
-export default function DoneList({ calls, held = false, recorded = [], manual = [], note, onRetry, retrying = false, children }: {
-  calls: NessieCall[]; held?: boolean; recorded?: Quiet[]; manual?: Quiet[]; note?: ReactNode
+/** The Done screen's top card: "Done", a ticked box per move that ran in Nessie, what the agent watches each month
+ *  (a status, not a checkbox), and an open box only for steps the customer does themselves. */
+export default function DoneList({ calls, held = false, recorded = [], manual = [], agent = [], summary, note, onRetry, retrying = false, children }: {
+  calls: NessieCall[]; held?: boolean; recorded?: Quiet[]; manual?: Quiet[]; agent?: Watched[]; summary?: MonthSplit | null; note?: ReactNode
   onRetry?: () => void; retrying?: boolean; children?: ReactNode
 }) {
   const list = rows(calls)
@@ -81,6 +84,7 @@ export default function DoneList({ calls, held = false, recorded = [], manual = 
         </div>
       </div>
       {note && <div className="small muted" style={{ margin: '0 0 6px' }}>{note}</div>}
+      <MonthLine s={summary} />
 
       {list.length > 0 && (
         <>
@@ -129,19 +133,35 @@ export default function DoneList({ calls, held = false, recorded = [], manual = 
         </>
       )}
 
+      {agent.length > 0 && (
+        <>
+          <div className="done-sec"><span>The agent watches these</span><span className="hint">at each monthly check-in</span></div>
+          <ul className="checklist watch">
+            {agent.map((m, i) => (
+              <li key={`a${i}`}>
+                <Box s="watch" label="The agent watches this" />
+                <div className="txt">
+                  <div className="t">{pretty(m.step)}</div>
+                  {m.watch && <div className="s">{m.watch}</div>}
+                </div>
+                <span className="wtag">Agent · monthly</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
       {recorded.length > 0 && (
         <>
-          <div className="done-sec"><span>Each month</span><span className="hint">the monthly check-in ticks these</span></div>
-          <ul className="checklist todo">
-            {recorded.map((m, i) => {
-              const k = `r${i}`
-              return (
-                <li key={k} className={ticked[k] ? 'ticked' : ''}>
-                  <Box s={ticked[k] ? 'ticked' : 'todo'} onClick={() => toggle(k)} label={pretty(m.step)} />
-                  <div className="txt"><div className="t">{pretty(m.step)}</div></div>
-                </li>
-              )
-            })}
+          <div className="done-sec"><span>Recorded with the plan</span></div>
+          <ul className="checklist watch">
+            {recorded.map((m, i) => (
+              <li key={`r${i}`}>
+                <Box s="watch" label="Recorded" />
+                <div className="txt"><div className="t">{pretty(m.step)}</div></div>
+                <span className="wtag">Recorded</span>
+              </li>
+            ))}
           </ul>
         </>
       )}

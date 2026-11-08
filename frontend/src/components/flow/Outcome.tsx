@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api, usd } from '../../lib/api'
-import type { ApprovePreview, BalanceSheet, Proposal } from '../../lib/api'
+import type { ApprovePreview, BalanceSheet, MonthSplit, Proposal } from '../../lib/api'
 import type { Preview } from '../../lib/flow'
 import NessieChip from '../NessieChip'
 import DoneList from './DoneList'
@@ -21,6 +21,8 @@ export default function Outcome({ preview, approved, planned, onChange }: {
   const held = ex.nessie_pending
   const recorded = (ex.scheduled ?? []).filter((s) => (s.runs ?? 'recorded') === 'recorded')
   const manual = (ex.scheduled ?? []).filter((s) => s.runs === 'manual')
+  const agent = (ex.scheduled ?? []).filter((s) => s.runs === 'agent')
+  const summary = ((ex.scheduled ?? []).find((s) => s.runs === 'summary') as MonthSplit | undefined) ?? planned?.summary ?? null
   const bal = ex.nessie_check ?? []
   const bills = ex.bills ?? []
 
@@ -33,7 +35,7 @@ export default function Outcome({ preview, approved, planned, onChange }: {
 
   const receipt = (
     <DoneList calls={sent?.length ? sent : held ?? []} held={!sent?.length && !!held?.length}
-      recorded={recorded} manual={manual} onRetry={ex.retry_available ? retry : undefined} retrying={busy}
+      recorded={recorded} manual={manual} agent={agent} summary={summary} onRetry={ex.retry_available ? retry : undefined} retrying={busy}
       note={held?.length && !sent?.length ? `${ex.note ?? 'Nessie unavailable'}.` : !sent && !held && planned ? `${planned.nessie_calls.length} Nessie call(s) planned.` : undefined}>
       {err && <div className="error">{err}</div>}
       {ex.error && <div className="error">{ex.error}</div>}

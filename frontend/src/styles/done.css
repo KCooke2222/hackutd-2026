@@ -30,6 +30,8 @@ button.cbox:hover:not(:disabled) { border-color: var(--good); }
 .cbox.ok, .cbox.ticked { background: var(--good); border-color: var(--good); }
 .cbox.bad { background: var(--bad); border-color: var(--bad); }
 .cbox.held { color: var(--muted); }
+.cbox.watch { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent-ink); }
+.checklist .wtag { font-size: 11px; color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 /* phones: the global 40px touch height must not stretch the box; the row keeps a big tap area */
 .checklist button.cbox { min-height: 0; height: 20px; }
 @media (max-width: 560px) { .checklist .t { font-size: 13.5px; } }

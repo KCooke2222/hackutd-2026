@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 import { Check, Clock, X } from 'lucide-react'
 import { usd } from '../../lib/api'
-import type { ApprovePreview, NessieCall } from '../../lib/api'
+import type { AgentStep, ApprovePreview, MonthSplit, NessieCall } from '../../lib/api'
 import type { Schedule } from '../../lib/flow'
 import NessieChip from '../NessieChip'
 import { title } from '../../lib/flow'
 
 type Quiet = { step: string; how?: string[] | string; link?: string }
+type Watched = { kind?: string; step: string; watch?: string }
 
 /** "gifts_holidays: $316 -> $190/mo" -> "Gifts holidays: $316 → $190/mo" */
 const CAT: Record<string, string> = { gifts_holidays: 'Gifts and holidays', home_household: 'Home and household', car_maintenance: 'Car upkeep', annual_bills: 'Annual bills' }
@@ -40,14 +41,28 @@ function fromSchedule(s: Schedule | null | undefined): NessieCall[] {
   })
 }
 
-export function callsFor(pv: ApprovePreview | null, schedule: Schedule | null | undefined): { calls: NessieCall[]; recorded: Quiet[]; manual: Quiet[] } {
-  if (pv) return { calls: pv.nessie_calls, recorded: pv.recorded, manual: pv.manual }
+export function callsFor(pv: ApprovePreview | null, schedule: Schedule | null | undefined): { calls: NessieCall[]; recorded: Quiet[]; manual: Quiet[]; agent: AgentStep[]; summary: MonthSplit | null } {
   const steps = schedule?.steps ?? []
+  const agentOf = () => steps.filter((x) => x.runs === 'agent').map((x) => ({ kind: x.kind, step: x.step, watch: x.watch as string | undefined, amount: x.amount }))
+  const summaryOf = () => (steps.find((x) => x.runs === 'summary') as MonthSplit | undefined) ?? null
+  if (pv) return { calls: pv.nessie_calls, recorded: pv.recorded, manual: pv.manual, agent: pv.agent ?? agentOf(), summary: pv.summary ?? summaryOf() }
   return {
     calls: fromSchedule(schedule),
     recorded: steps.filter((x) => (x.runs ?? 'recorded') === 'recorded'),
     manual: steps.filter((x) => x.runs === 'manual').map((x) => ({ step: x.step, how: x.how as string[] | undefined, link: x.link as string | undefined })),
+    agent: agentOf(),
+    summary: summaryOf(),
   }
+}
+
+/** "Each month: debt shrinks $196 · $1,423 covers new card purchases · $759 stays in cash". */
+export function MonthLine({ s }: { s?: MonthSplit | null }) {
+  if (!s || s.paid == null) return null
+  const bits = [<><b>{usd(Math.round(s.paid))}/mo</b> goes to your debts</>]
+  if ((s.new_purchases ?? 0) >= 1) bits.push(<>{usd(Math.round(s.new_purchases!))} of it covers new card purchases</>)
+  bits.push(<>debt shrinks <b>{usd(Math.round(s.net_paydown ?? 0))}/mo</b></>)
+  if ((s.left_over ?? 0) >= 1) bits.push(<>{usd(Math.round(s.left_over!))}/mo left over stays in cash</>)
+  return <div className="small month-line">Each month: {bits.map((b, i) => <span key={i}>{i ? ' · ' : ''}{b}</span>)}</div>
 }
 
 /** Planned view: a payoff (transfer + payment, maybe a modelled sale cost) is one row, not two or three. */
@@ -66,7 +81,9 @@ function planned(calls: NessieCall[]): Planned[] {
     const w = what(c)
     const r: Planned = c.tool.endsWith('create_transfer') || c.tool.endsWith('create_deposit')
       ? { verb: 'Pay off', text: `${c.to} from ${c.from}`, amount: c.amount, when: 'today', calls: [c] }
-      : { verb: w.verb, text: w.text, sub: c.note ?? undefined, amount: c.amount, when: w.when, calls: [c] }
+      : c.tool.endsWith('create_bill') && c.step
+        ? { verb: w.verb, text: pretty(c.step), sub: [w.text, c.note].filter(Boolean).join(' · '), amount: c.amount, when: w.when, calls: [c] }
+        : { verb: w.verb, text: w.text, sub: c.note ?? undefined, amount: c.amount, when: w.when, calls: [c] }
     if (g) byGroup.set(g, r)
     out.push(r)
   }
@@ -84,12 +101,15 @@ function mark(c: NessieCall) {
   return <span className="rmark ok" title="Done in Nessie"><Check size={14} strokeWidth={2.75} /></span>
 }
 
-/** "Tracked each month" and "You do it": the plan steps that aren't Nessie calls. */
-export function PlanSteps({ recorded = [], manual = [] }: { recorded?: Quiet[]; manual?: Quiet[] }) {
-  if (!recorded.length && !manual.length) return null
+/** "The agent watches these" (checked at each monthly check-in) and "You do it": the plan steps that aren't Nessie calls. */
+export function PlanSteps({ recorded = [], manual = [], agent = [] }: { recorded?: Quiet[]; manual?: Quiet[]; agent?: Watched[] }) {
+  if (!recorded.length && !manual.length && !agent.length) return null
   return (
     <div className="quiet">
-      {recorded.length > 0 && (<><h3>Tracked each month</h3><ul>{recorded.map((s, i) => <li key={i}>{pretty(s.step)}</li>)}</ul></>)}
+      {agent.length > 0 && (<><h3>The agent watches these</h3><ul>{agent.map((s, i) => (
+        <li key={i}>{pretty(s.step)}{s.watch && <span className="muted"> · {s.watch}</span>}</li>
+      ))}</ul></>)}
+      {recorded.length > 0 && (<><h3>Recorded with the plan</h3><ul>{recorded.map((s, i) => <li key={i}>{pretty(s.step)}</li>)}</ul></>)}
       {manual.length > 0 && (<><h3>You do it</h3><ul>{manual.map((s, i) => (
         <li key={i}>{pretty(s.step)}{s.how && <> · {Array.isArray(s.how) ? s.how.join(' · ') : s.how}</>}{s.link && <> · <a href={s.link} target="_blank" rel="noreferrer">link</a></>}</li>
       ))}</ul></>)}
@@ -98,8 +118,8 @@ export function PlanSteps({ recorded = [], manual = [] }: { recorded?: Quiet[]; 
 }
 
 /** "What the agent will do on approve" (planned), or the "Done in Nessie" receipt (sent: a check or a cross per call). */
-export default function AgentActions({ title, calls, recorded = [], manual = [], receipt = false, note, onRetry, retrying = false, children }: {
-  title: string; calls: NessieCall[]; recorded?: Quiet[]; manual?: Quiet[]; receipt?: boolean; note?: ReactNode
+export default function AgentActions({ title, calls, recorded = [], manual = [], agent = [], summary, receipt = false, note, onRetry, retrying = false, children }: {
+  title: string; calls: NessieCall[]; recorded?: Quiet[]; manual?: Quiet[]; agent?: Watched[]; summary?: MonthSplit | null; receipt?: boolean; note?: ReactNode
   onRetry?: () => void; retrying?: boolean; children?: ReactNode
 }) {
   return (
@@ -109,7 +129,7 @@ export default function AgentActions({ title, calls, recorded = [], manual = [],
         {calls.length > 0 && <span className="small muted">{receipt ? '' : `${planned(calls).length} moves · `}{calls.length} Nessie call{calls.length > 1 ? 's' : ''}</span>}
       </div>
       {note && <div className="small muted" style={{ margin: '0 0 6px' }}>{note}</div>}
-      {calls.length === 0 && <div className="small muted">Nothing runs in Nessie; the steps below are tracked or yours to do.</div>}
+      {calls.length === 0 && <div className="small muted">Nothing runs in Nessie; the agent watches the steps below, or they're yours to do.</div>}
       {!receipt && planned(calls).map((r, i) => (
         <div key={i} className="act">
           <NessieChip label={r.verb} title={`Nessie API: ${r.calls.map((c) => `${c.method} ${tool(c.tool)}`).join(', ')}`} />
@@ -143,7 +163,8 @@ export default function AgentActions({ title, calls, recorded = [], manual = [],
           </div>
         )
       })}
-      <PlanSteps recorded={recorded} manual={manual} />
+      {!receipt && <MonthLine s={summary} />}
+      <PlanSteps recorded={recorded} manual={manual} agent={agent} />
       {children}
     </div>
   )
