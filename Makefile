@@ -7,7 +7,7 @@ install:
 	cd frontend && npm install
 
 backend:
-	cd backend && $(UV) run uvicorn paidway.api.main:app --host 127.0.0.1 --port 8710 --reload --reload-dir src
+	cd backend && $(UV) run uvicorn paidway.api.main:app --host 127.0.0.1 --port 8710 --reload --reload-dir src --timeout-graceful-shutdown 2
 
 frontend:
 	cd frontend && npm run dev
