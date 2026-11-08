@@ -34,7 +34,8 @@ export default function UnderwaterOptions({ cid, gap, cards: given, noHelp: give
       .then((o) => { init(o.options); setNoHelp(o.not_helping ?? []) }).catch((e) => setErr(String(e)))
   }, [cid, given])
 
-  const helps = cards.filter((c) => c.modelled && (c.closes_per_month ?? 0) > 0.5)
+  // Smallest first, so the rows and the bar read in the same order.
+  const helps = cards.filter((c) => c.modelled && (c.closes_per_month ?? 0) > 0.5).sort((a, b) => (a.closes_per_month ?? 0) - (b.closes_per_month ?? 0))
   const noEffect = [...cards.filter((c) => c.modelled && !((c.closes_per_month ?? 0) > 0.5)).map((c) => c.title), ...noHelp.map((n) => n.title)]
   const ask = cards.filter((c) => !c.modelled)
   // Smallest first, so the bar reads as a waterfall and the last pick takes what's left.
@@ -55,6 +56,8 @@ export default function UnderwaterOptions({ cid, gap, cards: given, noHelp: give
   const total = res?.gap_before ?? gap
   const steps = (res?.steps ?? []).filter((s) => s.closes > 0.5)
   const left = res ? res.gap_after : total
+  // A picked row shows what it adds on top of the ones before it (the bar's share), not its standalone amount.
+  const share = (c: OptionCard) => steps.find((s) => s.key === c.key)?.closes ?? c.closes_per_month ?? 0
   const color = (k: string) => DEBT_COLORS[helps.findIndex((c) => c.key === k) % DEBT_COLORS.length]
 
   const apply = async () => {
@@ -85,7 +88,7 @@ export default function UnderwaterOptions({ cid, gap, cards: given, noHelp: give
           <label key={c.key} style={{ display: 'grid', gridTemplateColumns: '18px 1fr auto', gap: '0 10px', padding: '8px 0', borderTop: '1px solid var(--line)', alignItems: 'baseline' }}>
             <input type="checkbox" checked={picked.includes(c.key)} onChange={() => toggle(c.key)} />
             <b>{c.title}</b>
-            <b className="good" style={{ fontVariantNumeric: 'tabular-nums' }}>−{money(c.closes_per_month ?? 0)}/mo</b>
+            <b className="good" style={{ fontVariantNumeric: 'tabular-nums' }}>−{money(share(c))}/mo</b>
             <span />
             <span className="small muted" style={{ gridColumn: '2 / 4' }}>{brief(c.why || c.detail)}{c.new_payment != null && <> · new payment ≈ {money(c.new_payment)}/mo</>}</span>
           </label>

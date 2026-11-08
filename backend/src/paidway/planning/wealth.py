@@ -572,6 +572,9 @@ def _reality(ctx: dict, plan: dict) -> dict:
     }
 
 
+PAYOFF_SEARCH_MONTHS = 60  # how far past the horizon to look for the high-cost $0 month
+
+
 def simulate_plan(customer_id: str, plan: dict | None, *, live: bool = True, ctx: dict | None = None) -> dict:
     """Month-by-month: every debt, cash, invested, net worth. plan None = baseline (current behaviour)."""
     keep = (plan or {}).get("keep_emergency_months")
@@ -683,7 +686,11 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
     first_pay: dict[str, float] = {}  # month-1 payment per debt (the recurring bills set up on approve)
     high_free = 0 if months[0]["high_cost_debt"] <= 0.01 else None
     short_reported = False
-    for i in range(1, H + 1):
+    # Past the horizon, keep stepping (up to PAYOFF_SEARCH_MONTHS) only to find when high-cost debt reaches $0;
+    # the reported months, net worth, interest and problems stay within the horizon.
+    for i in range(1, max(H, PAYOFF_SEARCH_MONTHS) + 1):
+        if i > H and high_free is not None:
+            break
         cash *= 1 + a["cash_yield_pct"] / 1200
         for k in inv:
             inv[k] *= 1 + (rets[k] or 0) / 1200
@@ -692,7 +699,8 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
         for d in debts.values():
             it = d["bal"] * d["apr_pct"] / 1200
             d["bal"] += it
-            d["interest"] += it
+            if i <= H:
+                d["interest"] += it
             if d["is_pnc_card"]:
                 d["bal"] += charges
         left = 0.0
@@ -704,7 +712,7 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
             for k, d in debts.items():  # autopay statement in full, then minimums
                 due = d["bal"] if (k in autopay and k in was_zero) else min(d["min_payment"], d["bal"])
                 pay = min(due, left)
-                if pay + 0.005 < due and not short_reported:
+                if pay + 0.005 < due and not short_reported and i <= H:
                     problems.append(f"{_label(i)}: budget can't cover {d['name']}'s payment")
                     short_reported = True
                 d["bal"] -= pay
@@ -728,6 +736,10 @@ def _run(ctx: dict, plan: dict | None, base_cash: list[float] | None = None) -> 
                 d["payoff"] = None  # card refilled
         # A plan may not take cash below the buffer, nor lower than where current behaviour already leaves it
         # (a household that is already short is not made shorter; a plan cannot fix a negative monthly residual).
+        if i > H:
+            if sum(d["bal"] for d in debts.values() if d["high_cost"]) <= 0.01:
+                high_free = i
+            continue
         floor_i = min(floor, base_cash[i] - 1) if base_cash else floor
         if plan is not None and cash < floor_i and not cash_problem:
             problems.append(f"{_label(i)}: cash ${cash:,.0f} falls below the {ctx['keep_months']:g}-month buffer "

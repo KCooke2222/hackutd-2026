@@ -74,6 +74,9 @@ function brief(s?: string | null, max = 48): string {
   return c.length > max ? c.slice(0, max).replace(/\s+\S*$/, '') + '…' : c
 }
 
+/** High-cost $0 lands inside the charted months (green); a later date is plain text, null reads "Never". */
+const inHorizon = (sim: SimV2) => !!sim.high_cost_debt_free && sim.high_cost_debt_free <= (sim.months[sim.months.length - 1]?.month ?? '')
+
 function Kpis({ sim, base }: { sim: SimV2; base: SimV2 | null }) {
   const b = sim.budget
   const baseFree = sim.baseline_high_cost_debt_free ?? base?.high_cost_debt_free ?? null
@@ -81,7 +84,7 @@ function Kpis({ sim, base }: { sim: SimV2; base: SimV2 | null }) {
   const int = sim.interest_total - sim.baseline_interest_total
   return (
     <div className="kpis">
-      <div><span>High-cost debt $0</span><b className="good">{ym(sim.high_cost_debt_free)}</b><span>do nothing: {baseFree ? ym(baseFree) : 'not in 2 yrs'}</span></div>
+      <div><span>High-cost debt $0</span><b className={inHorizon(sim) ? 'good' : ''}>{ym(sim.high_cost_debt_free)}</b><span>do nothing: {baseFree ? ym(baseFree) : 'not in 5 yrs'}</span></div>
       <div><span>Net worth in 2 yrs</span><b>{money(sim.net_worth_24m)}</b><span className={nw >= 0 ? 'good' : 'bad'}>{signed(nw)} vs do nothing</span></div>
       <div><span>Interest, 2 yrs</span><b>{money(sim.interest_total)}</b><span className={int <= 0 ? 'good' : 'bad'}>{signed(int)} vs do nothing</span></div>
       {b?.net_paydown_per_month != null && (
@@ -176,7 +179,7 @@ function DebtChart({ sim, base }: { sim: SimV2; base: SimV2 | null }) {
           </div>
         )}
       </div>
-      <div className="small muted" style={{ margin: '0 0 6px' }}>High-cost $0 · <b className="good">{ym(sim.high_cost_debt_free)}</b></div>
+      <div className="small muted" style={{ margin: '0 0 6px' }}>High-cost $0 · <b className={inHorizon(sim) ? 'good' : ''}>{ym(sim.high_cost_debt_free)}</b></div>
       <ResponsiveContainer width="100%" height={240}>
         <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
           <CartesianGrid stroke={C.grid} vertical={false} />

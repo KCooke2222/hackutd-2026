@@ -444,7 +444,9 @@ def _explain_v3(p: dict, d: dict, under: dict | None = None) -> dict:
     b = sim.get("budget") or {}
     names = {x["account_id"]: x["name"] for x in sim.get("debts") or [] if "account_id" in x}
     gain = round(sim["net_worth_24m"] - sim["baseline_net_worth_24m"])
-    headline = f"High-cost debt $0 by {_month(sim.get('high_cost_debt_free'))}, {'+' if gain >= 0 else '-'}${abs(gain):,} net worth in 2 years"
+    free = sim.get("high_cost_debt_free")
+    lead = f"High-cost debt $0 by {_month(free)}" if free else "High-cost debt not paid off in 5 years"
+    headline = f"{lead}, {'+' if gain >= 0 else '-'}${abs(gain):,} net worth in 2 years"
     rc = sim.get("reality_check") or {}
     if rc.get("realistic") is False:  # underwater: the gap leads, alone (a payoff date would contradict it)
         runs = rc.get("cash_runs_out")
@@ -493,7 +495,7 @@ def build_graph(customer_id: str):
         snap = b["snapshot"]
         _phase(w, "gather", "", f"{len(snap['debts'])} debts · {len(snap['assets'])} assets")
         pl = b["plan"]
-        _phase(w, "build", "", f"$0 by {_month(pl.get('high_cost_debt_free'))} · {len([t for t in pl.get('spending_targets') or [] if t.get('source') == 'suggested'])} cuts suggested")
+        _phase(w, "build", "", (f"$0 by {_month(pl.get('high_cost_debt_free'))}" if pl.get('high_cost_debt_free') else "not $0 in 5 yrs") + f" · {len([t for t in pl.get('spending_targets') or [] if t.get('source') == 'suggested'])} cuts suggested")
         return {"snapshot": snap, "brief": b}
 
     def check(s: AgentState) -> dict:
