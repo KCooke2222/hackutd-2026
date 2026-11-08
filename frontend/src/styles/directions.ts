@@ -1,9 +1,14 @@
 /** Dev-only style directions: `?style=<slug>` sets html[data-direction] (tokens live in directions.css). */
-export type Direction = { slug: string; name: string; blurb: string; fonts?: string }
+export type Direction = { slug: string; name: string; blurb: string; fonts?: string; group?: 'mac' }
 
 const G = 'https://fonts.googleapis.com/css2?display=swap&family='
 
 export const DIRECTIONS: Direction[] = [
+  { slug: 'mac-light', name: 'Mac light', blurb: 'Settings-style grouped lists: inset white groups on light grey.', group: 'mac' },
+  { slug: 'mac-plain', name: 'Mac plain', blurb: 'White page, hairline rules, almost no cards.', group: 'mac' },
+  { slug: 'mac-sidebar-tone', name: 'Mac sidebar tone', blurb: 'Tinted window background with white content cards, like Finder or Notes.', group: 'mac' },
+  { slug: 'mac-dark', name: 'Mac dark', blurb: 'Dark-first macOS: translucent surfaces over a soft dark window.', group: 'mac' },
+  { slug: 'mac-graphite', name: 'Mac graphite', blurb: 'Graphite instead of blue, greyscale charts: maximum restraint.', group: 'mac' },
   { slug: 'warm', name: 'Paidway warm', blurb: 'The current restyle: warm neutrals, one vermilion accent, Fraunces numbers.' },
   { slug: 'swiss', name: 'Swiss mono', blurb: 'Black, white and one red. Square corners, hairline rules, Inter Tight caps.',
     fonts: G + 'Inter+Tight:wght@400;500;600;700;800' },
@@ -30,7 +35,7 @@ export function styleParam(): string | null {
 }
 
 export function applyDirection(slug: string) {
-  const d = DIRECTIONS.find((x) => x.slug === slug) ?? DIRECTIONS[0]
+  const d = DIRECTIONS.find((x) => x.slug === slug) ?? DIRECTIONS.find((x) => x.slug === 'warm')!
   document.documentElement.dataset.direction = d.slug
   let link = document.getElementById('direction-fonts') as HTMLLinkElement | null
   if (d.fonts) {
