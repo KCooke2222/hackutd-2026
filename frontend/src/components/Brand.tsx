@@ -1,15 +1,10 @@
 import { useEffect, useState } from 'react'
-import { LOGOS } from '../styles/logos'
+import { ALL_LOGOS, DEFAULT_LOGO, lockup } from '../styles/logos'
 
-/** Dev-only: ?logo=<slug> previews another mark; the switcher fires 'paidway-logo' to change it live. */
+/** Dev-only: ?logo=<slug> previews another lockup; the switcher fires 'paidway-logo' to change it live. */
 export function currentLogo() {
-  const slug = new URLSearchParams(location.search).get('logo')
-  return LOGOS.find((l) => l.slug === slug) ?? LOGOS[0]
-}
-
-export function Mark({ size = 22, slug }: { size?: number; slug?: string }) {
-  const l = LOGOS.find((x) => x.slug === slug) ?? LOGOS[0]
-  return <svg className="mark" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" dangerouslySetInnerHTML={{ __html: l.body }} />
+  const slug = new URLSearchParams(location.search).get('logo') ?? DEFAULT_LOGO
+  return ALL_LOGOS.find((l) => l.slug === slug) ?? ALL_LOGOS.find((l) => l.slug === DEFAULT_LOGO)!
 }
 
 export default function Brand() {
@@ -19,10 +14,5 @@ export default function Brand() {
     window.addEventListener('paidway-logo', on)
     return () => window.removeEventListener('paidway-logo', on)
   }, [])
-  return (
-    <a className="brand" href="/" aria-label="Paidway home">
-      <Mark slug={logo.slug} />
-      <span>{logo.lower ? 'paidway' : 'Paidway'}</span>
-    </a>
-  )
+  return <a className="brand" href="/" aria-label="Paidway home" dangerouslySetInnerHTML={{ __html: lockup(logo) }} />
 }
