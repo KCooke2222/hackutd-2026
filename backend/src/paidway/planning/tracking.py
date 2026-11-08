@@ -606,10 +606,7 @@ def build(cid: str, prop: dict, plan: dict, ctx: dict, contract: dict, hist: lis
                                   "high_cost": d.get("high_cost", False), "balance": d["balance"]}
                                  for d in pre if d["account_id"] not in live_ids and d["balance"] > 0.005]}
 
-    alerts = []
-    for i, h in enumerate(hist):
-        sub = build_alert(plan, ctx, contract, hist[: i + 1])
-        alerts.append(sub)
+    alerts = _collapse([build_alert(plan, ctx, contract, hist[: i + 1]) for i in range(len(hist))], actual, months)
     alerts.reverse()
 
     out = {
@@ -635,6 +632,37 @@ def build(cid: str, prop: dict, plan: dict, ctx: dict, contract: dict, hist: lis
         for x in o["options"]:
             x.pop("plan", None)
         out["switch"] = o
+    return out
+
+
+def _collapse(feed: list[dict], actual: list[dict], months: list[dict]) -> list[dict]:
+    """One entry per event, oldest first. A problem that repeats month after month shows once, plus one follow-up
+    at the latest month; a run of quiet "On plan" months becomes one entry spanning them (latest numbers)."""
+    out: list[dict] = []
+    run: list[dict] = []
+
+    def flush():
+        if not run:
+            return
+        first, last = run[0], run[-1]
+        if first["title"] == "On plan":
+            out.append({**last, "from_month": first["month"] if len(run) > 1 else None})
+        else:
+            out.append({**first, "from_month": None})
+            if len(run) > 1:
+                i = last["month_index"]
+                cur, exp = actual[i], months[i]
+                n = len(run) - 1
+                out.append({**last, "from_month": None,
+                            "text": f"Still, {n} month{'s' if n > 1 else ''} later: cash {_usd(cur['cash'])} vs plan {_usd(exp['cash'])}"})
+        run.clear()
+
+    for a in feed:
+        same = run and run[-1]["title"] == a["title"] and (a["title"] == "On plan" or run[-1]["text"] == a["text"])
+        if not same:
+            flush()
+        run.append(a)
+    flush()
     return out
 
 
