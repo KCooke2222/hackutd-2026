@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zeroday agent v2</title>
+<style>
+/* ---- Zeroday app stylesheet: frontend/src/index.css, verbatim ---- */
+:root {
+  --bg: #f6f7f9; --panel: #fff; --text: #111827; --muted: #6b7280; --line: #e5e7eb;
+  --accent: #ea580c; --good: #16a34a; --bad: #dc2626;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: var(--text); background: var(--bg); font-size: 14px; line-height: 1.45;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+.topbar { display: flex; align-items: center; gap: 24px; padding: 10px 24px; background: #111827; color: #fff; position: sticky; top: 0; z-index: 10; }
+.brand { font-weight: 700; letter-spacing: .02em; color: #fb923c; }
+.topbar nav a { color: #d1d5db; text-decoration: none; margin-right: 16px; padding: 4px 0; }
+.topbar nav a.active { color: #fff; border-bottom: 2px solid #fb923c; }
+.page { max-width: 1280px; margin: 0 auto; padding: 20px 24px 60px; }
+.page-head h1 { margin: 0 0 4px; font-size: 22px; }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.muted { color: var(--muted); } .small { font-size: 12px; } .mono { font-family: ui-monospace, monospace; font-size: 12px; } .nowrap { white-space: nowrap; }
+.tabs { display: flex; gap: 4px; margin: 16px 0; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: none; padding: 8px 14px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; font: inherit; }
+.tabs button.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 16px 0; }
+.card h2 { font-size: 15px; margin: 0 0 10px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid2 > .card { margin: 0; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin: 16px 0; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.stat-value { font-size: 18px; font-weight: 600; margin-top: 2px; }
+.stat-sub { font-size: 12px; color: var(--muted); }
+.stat.bad .stat-value, .bad { color: var(--bad); } .stat.good .stat-value, .good { color: var(--good); }
+.callout { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 16px; margin: 8px 0 0; }
+.notice { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 10px 14px; margin: 12px 0; }
+.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 10px; padding: 10px 14px; margin: 12px 0; }
+.table-wrap { overflow-x: auto; } .table-wrap.scroll { max-height: 360px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; background: #fafafa; position: sticky; top: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.neg { color: var(--bad); } td.pos { color: var(--good); }
+table.clickable tbody tr { cursor: pointer; } table.clickable tbody tr:hover { background: #fff7ed; }
+table.compact td { padding: 4px 6px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #f3f4f6; color: #374151; }
+.tag.good, .status-approved, .status-executed { background: #dcfce7; color: #166534; }
+.status-pending { background: #fef3c7; color: #92400e; } .status-rejected, .status-failed { background: #fee2e2; color: #991b1b; }
+.picker { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+select, input { font: inherit; padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; }
+input[type=number] { width: 120px; text-align: right; }
+button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.danger { color: var(--bad); border-color: #fecaca; }
+button.link { border: 0; background: none; color: #2563eb; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.pager { display: flex; gap: 12px; align-items: center; justify-content: flex-end; margin-top: 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chip { border-radius: 999px; padding: 2px 10px; font-size: 12px; border-width: 1px; }
+.chip.off { opacity: .4; }
+.stackbar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; margin: 8px 0 12px; background: #f3f4f6; }
+.compare { display: flex; gap: 24px; margin-top: 12px; padding: 10px; background: #f9fafb; border-radius: 8px; }
+.actions { display: flex; gap: 8px; margin-top: 12px; }
+.trace { border-top: 1px solid var(--line); padding: 6px 0; } .trace pre { white-space: pre-wrap; font-size: 12px; margin: 4px 0; }
+.markdown h2 { font-size: 18px; } .markdown h3 { font-size: 15px; margin-top: 20px; }
+.markdown code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+.markdown pre { background: #f3f4f6; padding: 10px; border-radius: 6px; overflow-x: auto; }
+.src { display: inline-block; font-size: 10px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.src-nessie { border-color: #93c5fd; color: #1d4ed8; background: #eff6ff; }
+.src-linked { border-color: #d8b4fe; color: #7e22ce; background: #faf5ff; }
+.src-pnc { border-color: #fdba74; color: #c2410c; background: #fff7ed; }
+tr.dim td { color: var(--muted); }
+.ladder-bar { display: flex; height: 10px; border-radius: 4px; overflow: hidden; background: #f3f4f6; min-width: 80px; }
+.tap { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; padding: 10px; background: #f9fafb; border-radius: 8px; }
+.section-head { font-size: 17px; margin: 28px 0 0; }
+
+/* ---- flow (from mockups/flow) ---- */
+.page.flow { max-width: 760px; }
+@media (max-width: 760px) { .page.flow { padding: 16px 16px 48px; } .ledger { grid-template-columns: 1fr !important; } }
+.num { font-variant-numeric: tabular-nums; }
+.k { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.dots { display: flex; gap: 6px; align-items: center; margin: 4px 0; flex-wrap: wrap; }
+.dots button { border: 0; background: none; font-size: 12px; color: var(--muted); padding: 4px 8px; border-radius: 999px; }
+.dots button.on { background: #111827; color: #fff; }
+.dots button.done { color: var(--text); }
+.flow-nav { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 16px; }
+.flow-nav button, .flow button.big { padding: 8px 16px; border-radius: 8px; }
+.ghost { border: 0 !important; background: none !important; color: var(--muted); font-size: 12px; padding: 2px 4px !important; }
+/* snapshot */
+.hero { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; align-items: center; }
+.hero .big { font-size: 34px; font-weight: 700; line-height: 1.1; }
+.hero .flowrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 15px; margin-top: 6px; }
+.hero .flowrow b { font-variant-numeric: tabular-nums; }
+.eq { color: var(--bad); font-weight: 700; }
+.ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ledger > .card { margin: 0; }
+.lrow { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; padding: 6px 4px; border-bottom: 1px solid var(--line); border-radius: 6px; }
+.lrow:last-child { border-bottom: 0; }
+.lrow.hl { background: #fff7ed; }
+.lrow .amt { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.lrow .sub { grid-column: 1 / 3; font-size: 12px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
+.lrow.dim .name, .lrow.dim .amt { color: var(--muted); font-weight: 400; }
+.group-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 10px 4px 2px; }
+.col-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.col-head .total { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tag.warn { background: #fef3c7; color: #92400e; } .tag.red { background: #fee2e2; color: #991b1b; }
+/* thinking */
+.step { display: grid; grid-template-columns: 22px 1fr auto; gap: 2px 8px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--line); animation: step-in .25s ease; }
+.step:last-child { border-bottom: 0; }
+.step .ic { width: 22px; height: 22px; border-radius: 6px; background: #f3f4f6; display: grid; place-items: center; font-size: 12px; }
+.step.run .ic { background: #fff7ed; }
+.step .res { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.step.run .res { color: var(--muted); font-weight: 400; }
+.step .why { grid-column: 2 / 4; font-size: 12px; color: var(--muted); white-space: pre-wrap; max-height: 220px; overflow-y: auto; }
+.step .tog { border: 0; background: none; color: var(--muted); font-size: 11px; padding: 0 0 0 6px; }
+.final-line { margin: 10px 0 0; font-size: 15px; font-weight: 600; }
+.spin { width: 12px; height: 12px; border: 2px solid #fed7aa; border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes step-in { from { opacity: 0; transform: translateY(4px); } }
+/* plan sliders */
+.why1 { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+.sl { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.sl .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.sl .val { font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+.sl .meta { font-size: 12px; color: var(--muted); }
+.track { position: relative; margin-top: 16px; }
+.track input { width: 100%; accent-color: var(--accent); margin: 0; padding: 0; border: 0; }
+.tick { position: absolute; top: -5px; width: 2px; height: 8px; background: #111827; transform: translateX(-1px); pointer-events: none; }
+.tick::after { content: 'AI'; position: absolute; top: -12px; left: -5px; font-size: 9px; color: var(--muted); }
+.more summary { cursor: pointer; font-size: 12px; color: var(--muted); padding: 8px 0 0; }
+.more .row { padding: 6px 0; }
+.ba { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.ba > div { background: #f9fafb; border-radius: 8px; padding: 8px 10px; }
+.ba .from { color: var(--muted); font-size: 12px; text-decoration: line-through; }
+.ba .to { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (max-width: 520px) { .ba { gap: 6px; } .ba > div { padding: 6px 8px; } .ba .to { font-size: 14px; } .ba .to .small { display: block; } }
+/* outcome */
+.legend { display: flex; gap: 12px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.legend i { display: inline-block; width: 14px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 4px; }
+.legend i.dash { border-top-style: dashed; border-top-width: 2px; }
+.outs { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 6px; }
+.outs .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.move { display: grid; grid-template-columns: 20px 1fr auto; gap: 2px 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.move:last-child { border-bottom: 0; }
+.move .ok { color: var(--good); font-weight: 700; }
+.move .sub { grid-column: 2 / 4; font-size: 12px; color: var(--muted); }
+.sl.autopay { display: block; cursor: pointer; } .sl.autopay input { margin-right: 6px; }
+
+/* ---- doc-only ---- */
+.page.doc { max-width: 1060px; }
+.doc h2.section-head { border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.doc pre.prompt { background: #111827; color: #e5e7eb; padding: 14px 16px; border-radius: 10px; font: 12px/1.55 ui-monospace, Menlo, monospace; white-space: pre-wrap; overflow-x: auto; margin: 8px 0 0; }
+.doc pre.json { background: #f9fafb; border: 1px solid var(--line); padding: 12px 14px; border-radius: 10px; font: 12px/1.5 ui-monospace, Menlo, monospace; white-space: pre; overflow-x: auto; margin: 0; }
+.doc .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.doc .grid3 > .card, .doc .grid2 > .card { margin: 0; }
+.doc .area .k { margin-bottom: 2px; } .doc .area .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.doc .area .src-line { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.doc .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+.doc .stats > div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.doc .stats .from { color: var(--muted); font-size: 12px; text-decoration: line-through; }
+.doc .stats .to { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.doc .t-new { background: #dcfce7; color: #166534; } .doc .t-chg { background: #fef3c7; color: #92400e; } .doc .t-keep { background: #f3f4f6; color: #374151; } .doc .t-drop { background: #fee2e2; color: #991b1b; }
+.doc td code, .doc li code { font: 12px ui-monospace, monospace; background: #f3f4f6; padding: 1px 4px; border-radius: 4px; }
+.doc td.sample { font: 11px/1.45 ui-monospace, monospace; color: #374151; max-width: 340px; }
+.doc ol.rules { margin: 0; padding-left: 22px; } .doc ol.rules li { padding: 3px 0; }
+.doc ol.rules li b { font-weight: 600; }
+.doc .svgwrap { overflow-x: auto; } .doc svg text { font-family: Inter, system-ui, sans-serif; }
+/* wireframe */
+.wf { border: 2px dashed #d1d5db; border-radius: 14px; padding: 4px 16px 16px; background: var(--bg); }
+.dstack .drow { display: grid; grid-template-columns: 170px 1fr 92px; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.dstack .drow:last-child { border-bottom: 0; }
+.dstack .name { font-weight: 600; } .dstack .name .sub { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+.tl { position: relative; height: 18px; background: #f3f4f6; border-radius: 4px; overflow: hidden; }
+.tl .fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 4px; }
+.tl .lab { position: absolute; right: 6px; top: 1px; font-size: 11px; color: var(--muted); }
+.tlaxis { display: grid; grid-template-columns: 170px 1fr 92px; gap: 10px; font-size: 11px; color: var(--muted); }
+.tlaxis .ticks { display: flex; justify-content: space-between; }
+.sbar { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.sbar:last-child { border-bottom: 0; }
+.sbar .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.sbar .bars { position: relative; height: 22px; margin-top: 6px; }
+.sbar .cur, .sbar .tgt { position: absolute; left: 0; height: 9px; border-radius: 3px; }
+.sbar .cur { top: 0; background: #d1d5db; } .sbar .tgt { top: 12px; background: var(--accent); }
+.sbar .proof { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #111827; }
+.sbar .how { font-size: 12px; color: var(--muted); margin-top: 4px; }
+@media (max-width: 760px) { .doc .grid3, .doc .stats { grid-template-columns: 1fr 1fr; } .dstack .drow, .tlaxis { grid-template-columns: 110px 1fr 70px; } }
+@media (max-width: 520px) { .doc .grid3, .doc .stats { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="topbar"><span class="brand">ZERODAY</span><nav><a class="active">Agent v2 design</a><a href="../zeroday-agent-flow/">v1 flow</a></nav></div>
+<main class="page doc">
+
+<div class="page-head"><h1>Agent v2: every debt, a plan that's possible</h1>
+<div class="muted">Design only. C001 numbers are real (computed from our data, 2026-10-31).</div></div>
+
+<div class="stats">
+  <div><div class="k">High-cost debt $0</div><div class="from">never</div><div class="to">Feb '27</div></div>
+  <div><div class="k">Interest, next 12 mo</div><div class="from">$1,906</div><div class="to good">$324</div></div>
+  <div><div class="k">Freed after payoff</div><div class="from">$0/mo</div><div class="to">$2,883/mo</div></div>
+  <div><div class="k">Assets sold</div><div class="from">$6,571 brokerage (v1)</div><div class="to">$0</div></div>
+</div>
+
+<!-- 1 GRAPH -->
+<h2 class="section-head">1 · Graph</h2>
+<div class="card svgwrap">
+<svg viewBox="0 0 1000 400" width="100%" style="min-width:860px" role="img" aria-label="Agent v2 graph">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6b7280"/></marker>
+    <marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ea580c"/></marker>
+  </defs>
+  <!-- loop validate -> plan -->
+  <path d="M690,78 C690,28 500,28 500,78" fill="none" stroke="#dc2626" stroke-width="1.5" marker-end="url(#ar)" stroke-dasharray="4 3"/>
+  <text x="595" y="34" text-anchor="middle" font-size="11" fill="#dc2626">rejected → error → retry (max 3)</text>
+
+  <!-- nodes -->
+  <g font-size="11">
+    <!-- gather -->
+    <rect x="10" y="80" width="176" height="150" rx="10" fill="#fff" stroke="#d1d5db"/>
+    <rect x="20" y="90" width="38" height="16" rx="8" fill="#f3f4f6"/><text x="39" y="102" text-anchor="middle" fill="#374151" font-weight="600">CODE</text>
+    <text x="20" y="128" font-size="15" font-weight="700" fill="#111827">gather</text>
+    <text x="20" y="150" fill="#6b7280">in: customer_id</text>
+    <text x="20" y="166" fill="#6b7280">out: context (6 areas)</text>
+    <text x="20" y="182" fill="#6b7280">SQLite + Nessie, read-only</text>
+    <text x="20" y="214" font-family="ui-monospace,monospace" fill="#166534">agent/context.py · new</text>
+
+    <!-- diagnose -->
+    <rect x="206" y="80" width="176" height="150" rx="10" fill="#fff" stroke="#ea580c" stroke-width="1.5"/>
+    <rect x="216" y="90" width="30" height="16" rx="8" fill="#fff7ed"/><text x="231" y="102" text-anchor="middle" fill="#c2410c" font-weight="600">LLM</text>
+    <text x="252" y="102" fill="#6b7280">1 call, JSON</text>
+    <text x="216" y="128" font-size="15" font-weight="700" fill="#111827">diagnose</text>
+    <text x="216" y="150" fill="#6b7280">in: context</text>
+    <text x="216" y="166" fill="#6b7280">out: top 3 causes $/mo</text>
+    <text x="216" y="182" fill="#6b7280">+ unknowns to ask</text>
+    <text x="216" y="214" font-family="ui-monospace,monospace" fill="#166534">agent/diagnose.py · new</text>
+
+    <!-- plan -->
+    <rect x="402" y="80" width="196" height="150" rx="10" fill="#fff" stroke="#ea580c" stroke-width="2.5"/>
+    <rect x="412" y="90" width="30" height="16" rx="8" fill="#fff7ed"/><text x="427" y="102" text-anchor="middle" fill="#c2410c" font-weight="600">LLM</text>
+    <text x="448" y="102" fill="#6b7280">ReAct loop + tools</text>
+    <text x="412" y="128" font-size="15" font-weight="700" fill="#111827">plan</text>
+    <text x="412" y="150" fill="#6b7280">in: context, causes, answers</text>
+    <text x="412" y="166" fill="#6b7280">tools: query · simulate_plan</text>
+    <text x="412" y="182" fill="#6b7280">out: plan v2 (propose_plan)</text>
+    <text x="412" y="214" font-family="ui-monospace,monospace" fill="#92400e">agent/graph.py · changed</text>
+
+    <!-- validate -->
+    <rect x="618" y="80" width="176" height="150" rx="10" fill="#fff" stroke="#d1d5db"/>
+    <rect x="628" y="90" width="38" height="16" rx="8" fill="#f3f4f6"/><text x="647" y="102" text-anchor="middle" fill="#374151" font-weight="600">CODE</text>
+    <text x="628" y="128" font-size="15" font-weight="700" fill="#111827">validate</text>
+    <text x="628" y="150" fill="#6b7280">in: plan v2</text>
+    <text x="628" y="166" fill="#6b7280">recompute every number</text>
+    <text x="628" y="182" fill="#6b7280">out: ok + sim | error</text>
+    <text x="628" y="214" font-family="ui-monospace,monospace" fill="#92400e">agent/validator.py · changed</text>
+
+    <!-- explain -->
+    <rect x="814" y="80" width="176" height="150" rx="10" fill="#fff" stroke="#ea580c" stroke-width="1.5"/>
+    <rect x="824" y="90" width="30" height="16" rx="8" fill="#fff7ed"/><text x="839" y="102" text-anchor="middle" fill="#c2410c" font-weight="600">LLM</text>
+    <text x="860" y="102" fill="#6b7280">1 call, JSON</text>
+    <text x="824" y="128" font-size="15" font-weight="700" fill="#111827">explain</text>
+    <text x="824" y="150" fill="#6b7280">in: plan + sim</text>
+    <text x="824" y="166" fill="#6b7280">out: UI labels per lever</text>
+    <text x="824" y="182" fill="#6b7280">≤ 6 words each</text>
+    <text x="824" y="214" font-family="ui-monospace,monospace" fill="#166534">agent/explain.py · new</text>
+  </g>
+
+  <!-- arrows -->
+  <line x1="186" y1="155" x2="204" y2="155" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ar)"/>
+  <line x1="382" y1="155" x2="400" y2="155" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ar)"/>
+  <line x1="598" y1="155" x2="616" y2="155" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ar)"/>
+  <line x1="794" y1="155" x2="812" y2="155" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ar)"/>
+
+  <!-- customer question -->
+  <path d="M294,230 L294,262 L450,262 L450,232" fill="none" stroke="#2563eb" stroke-width="1.5" marker-end="url(#ar)"/>
+  <rect x="300" y="250" width="144" height="24" rx="12" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="372" y="266" text-anchor="middle" font-size="11" fill="#1d4ed8">ask: "what is the $2,890/mo?"</text>
+
+  <!-- to UI -->
+  <path d="M902,230 L902,300" fill="none" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ar)"/>
+  <rect x="822" y="302" width="160" height="40" rx="10" fill="#111827"/>
+  <text x="902" y="320" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">UI: plan screen</text>
+  <text x="902" y="335" text-anchor="middle" font-size="10" fill="#d1d5db">sliders → simulate_plan (no LLM)</text>
+
+  <!-- monitor (later) -->
+  <rect x="402" y="300" width="196" height="78" rx="10" fill="#fff" stroke="#9ca3af" stroke-dasharray="5 4"/>
+  <rect x="412" y="310" width="38" height="16" rx="8" fill="#f3f4f6"/><text x="431" y="322" text-anchor="middle" font-size="11" fill="#374151" font-weight="600">CODE</text>
+  <text x="456" y="322" font-size="11" fill="#6b7280">later</text>
+  <text x="412" y="346" font-size="15" font-weight="700" fill="#111827">monitor</text>
+  <text x="412" y="366" font-size="11" fill="#6b7280">monthly, or off-path → re-plan</text>
+  <text x="590" y="346" font-size="10" text-anchor="end" font-family="ui-monospace,monospace" fill="#166534">monitor.py · new</text>
+  <path d="M822,330 L600,338" fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+  <text x="712" y="326" text-anchor="middle" font-size="10" fill="#6b7280">approved plan + new month</text>
+  <path d="M402,340 L98,340 L98,232" fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+  <text x="250" y="334" text-anchor="middle" font-size="10" fill="#6b7280">deviation → gather again</text>
+</svg>
+<div class="legend" style="margin-top:6px"><span><span class="tag">CODE</span> deterministic</span><span><span class="tag warn">LLM</span> Nemotron 3.5 Super</span><span><span class="tag t-new">new</span> file</span><span><span class="tag t-chg">changed</span> file</span><span>prompts move to <code>agent/prompts.py</code> (new)</span></div>
+</div>
+
+<!-- 2 DATA -->
+<h2 class="section-head">2 · What the agent can see (6 areas)</h2>
+<div class="grid3" style="margin-top:12px">
+  <div class="card area"><div class="k">1 · Income</div><div class="v">$9,570/mo</div><div class="src-line">paychecks, cadence · <span class="src src-pnc">PNC</span></div></div>
+  <div class="card area"><div class="k">2 · Cash flow out</div><div class="v">$7,932/mo</div><div class="src-line">bills, transfers, <b class="bad">$2,890 external, unlabeled</b> · <span class="src src-pnc">PNC</span></div></div>
+  <div class="card area"><div class="k">3 · Card spending</div><div class="v">$1,423/mo</div><div class="src-line">by category + month, min/max · <span class="src src-nessie">Nessie</span> <span class="src src-pnc">PNC</span></div></div>
+  <div class="card area"><div class="k">4 · All debts</div><div class="v">$27,262</div><div class="src-line">4 debts: balance, APR, min, consequence · <span class="src src-linked">linked</span></div></div>
+  <div class="card area"><div class="k">5 · Assets</div><div class="v">$47,316</div><div class="src-line">cash $19,021 · brokerage $9,800 · IRA · car · ladder</div></div>
+  <div class="card area"><div class="k">6 · Goals + limits</div><div class="v">3 mo buffer</div><div class="src-line">$19,080 · no-go sources · customer answers</div></div>
+</div>
+<div class="notice"><b>Access:</b> read-only, one customer. Tools are closures over <code>customer_id</code> (no id arg) · SQLite opened <code>mode=ro</code> · <code>query_transactions</code> for anything ad hoc (filter + group, ≤200 rows), no raw SQL · only <code>propose_plan</code> writes (a pending row) · Nessie writes only on customer approve.</div>
+
+<!-- 3 TOOLS -->
+<h2 class="section-head">3 · Tools</h2>
+<div class="card table-wrap"><table>
+<thead><tr><th>Tool</th><th></th><th>Args</th><th>Returns</th><th>C001 sample</th></tr></thead>
+<tbody>
+<tr><td><code>get_context</code></td><td><span class="tag t-new">new</span></td><td>—</td><td>6 areas, one object; replaces <code>get_accounts</code> + <code>get_balance_sheet</code></td><td class="sample">{income:9570, out:7932, card_spend:1423, debts:4, assets:47316, buffer:19080}</td></tr>
+<tr><td><code>cash_flow</code></td><td><span class="tag t-new">new</span></td><td>months=12</td><td>{inflows[], outflows[{category, flow_class, monthly_avg, known}], unlabeled_total}</td><td class="sample">outflows: housing 2268.70 · utilities 1008.31 · other 1008.33 · groceries 756.23 · <b>external_cash_management 2890.06 known:false</b></td></tr>
+<tr><td><code>spending_history</code></td><td><span class="tag t-new">new</span></td><td>months=12</td><td>per category {avg, low_month, low, high, essential, top_merchants[]}</td><td class="sample">dining {avg 355.69, low_month "2026-01", low 326.43, high 395.43, essential:false, top_merchants:[]}</td></tr>
+<tr><td><code>query_transactions</code></td><td><span class="tag t-new">new</span></td><td>account?, category?, flow_class?, from?, to?, group_by? (month|category|description)</td><td>rows or groups, ≤200</td><td class="sample">category=dining, group_by=month → 12 rows, 326.43…395.43</td></tr>
+<tr><td><code>debt_priority</code></td><td><span class="tag t-keep">kept</span></td><td>—</td><td>all debts: minimum_order, extra_rank, consequence, surplus</td><td class="sample">extra: store 27.24% → PNC 22.5% → personal 11% · student 4.99% min only · surplus 2888.81</td></tr>
+<tr><td><code>refill_breakdown</code></td><td><span class="tag t-keep">kept</span></td><td>months=12</td><td>why the PNC card is flat</td><td class="sample">payment 1541.12 vs spend 1422.79 + interest 122.55</td></tr>
+<tr><td><code>liquidity_ladder</code></td><td><span class="tag t-keep">kept</span></td><td>amount_needed, keep_emergency_months</td><td>tiers + cost of a draw</td><td class="sample">cash above buffer: 0 (19,021 vs 19,080)</td></tr>
+<tr><td><code>simulate_plan</code></td><td><span class="tag t-chg">replaces simulate_payoff</span></td><td>plan v2</td><td>{per_debt[{id, zero_month, interest}], freed_per_month, schedule[month][debt]}</td><td class="sample">store m1 · PNC m3 · personal m4 · interest 12m 324.47 · freed 2882.97</td></tr>
+<tr><td><code>propose_plan</code></td><td><span class="tag t-chg">changed</span></td><td>plan v2 + rationale</td><td>saved + id | error + hint</td><td class="sample">→ validator v2</td></tr>
+<tr><td><code>get_accounts</code>, <code>get_balance_sheet</code>, <code>get_card_activity</code></td><td><span class="tag t-drop">folded</span></td><td colspan="3" class="muted">into get_context / query_transactions</td></tr>
+</tbody></table></div>
+<div class="muted small">Code: <code>cash_flow</code>, <code>spending_history</code> in <code>finance.py</code>; <code>simulate_plan</code> = multi-debt <code>finance.simulate_payoff</code> with rollover; <code>get_context</code> on <code>balance_sheet.balance_sheet()</code>.</div>
+
+<!-- 4 PROMPTS -->
+<h2 class="section-head">4 · Prompts (draft, verbatim)</h2>
+<div class="k" style="margin-top:12px">diagnose · agent/prompts.py DIAGNOSE</div>
+<pre class="prompt">You are Zeroday's diagnostician. Input: one customer's context as JSON (income, cash flow, card spending,
+debts, assets, goals). Find why their debt is not going down. Output JSON only:
+{"causes":[{"label":"&lt;=6 words","usd_per_month":number,"evidence":"&lt;=12 words, name the field"}],
+ "unknowns":[{"flow":"&lt;category&gt;","usd_per_month":number,"question":"&lt;=12 words"}]}
+
+Rules:
+- At most 3 causes, largest $/mo first. Copy numbers from the input; never compute new ones.
+- A cause is money that could reach debt but doesn't: card spending that refills the balance, interest,
+  cash leaving to external or unlabeled accounts, high-APR debt paid at the minimum only.
+- Outflows with known=false are unknowns: ask about them, don't assume they are spare.
+- No advice, no plan.</pre>
+
+<div class="k" style="margin-top:16px">plan · agent/prompts.py PLAN (system for the ReAct node)</div>
+<pre class="prompt">You are Zeroday, a debt payoff agent for one PNC customer.
+Goal: ONE plan that gets every debt above 8% APR to $0 as fast as is realistic, without selling assets unless it clearly pays.
+You get the diagnosis and the customer's answers. Use tools for every number. Never do arithmetic yourself.
+
+Where the money comes from, cheapest first:
+1. Redirect cash flow the customer marked spare (cash_flow).
+2. Trim discretionary spending to a level the customer already hit (spending_history).
+3. Cash above the emergency buffer (liquidity_ladder).
+4. CD, then brokerage, only if the one-time cost is under a third of the interest it saves. Never IRA or property.
+
+Plan rules:
+- One monthly_debt_budget covers every debt. Every debt gets its minimum every month.
+- Extra goes in extra_order: highest APR first. When a debt hits $0, its payment rolls to the next one.
+- Debts under 8% (e.g. federal student loans) get minimums only.
+- spending_targets: discretionary categories only. Target at or above the customer's lowest month in the
+  last 12 (proof_month), cut at most 25%. Give 1-2 concrete "how" items from top_merchants.
+- autopay_full_cards: every card, once it is at $0.
+- Compare at least 2 plans with simulate_plan (e.g. redirect only vs redirect + trim).
+- Call propose_plan exactly once. If it is rejected, fix what the error names and call it again.
+- Then reply with ONE sentence of at most 12 words.
+This is not financial advice; describe tradeoffs, not orders.</pre>
+
+<div class="k" style="margin-top:16px">explain · agent/prompts.py EXPLAIN</div>
+<pre class="prompt">Turn this plan and its simulation into labels for the plan screen. Output JSON only:
+{"headline":"&lt;=8 words",
+ "levers":[{"id":"redirect|trim:&lt;category&gt;|lump:&lt;source&gt;|autopay","label":"&lt;=5 words","impact":"&lt;=6 words"}],
+ "debts":[{"account_id":"...","tag":"&lt;=4 words"}],
+ "after":"&lt;=10 words: what the freed money does"}
+Use only numbers in the input, rounded to whole dollars or months. Plain words: no "avalanche",
+no "you should". Say APR only when it is the reason for the order.</pre>
+<pre class="json" style="margin-top:8px">{"headline":"All cards paid off by January",
+ "levers":[{"id":"redirect","label":"Send $2,890/mo to debt","impact":"cards $0 in 3 months"},
+           {"id":"trim:dining","label":"Dining $356 → $330","impact":"you did $326 in Jan"},
+           {"id":"autopay","label":"Pay cards in full","impact":"keeps them at $0"}],
+ "debts":[{"account_id":"L-C001-CREDIT_CARD-2","tag":"First · 27% APR"},
+          {"account_id":"A-C001-CREDIT_CARD","tag":"Next · $0 Jan"},
+          {"account_id":"A-C001-PERSONAL_LOAN","tag":"Then · $0 Feb"},
+          {"account_id":"L-C001-STUDENT_LOAN-1","tag":"Minimum only · 5%"}],
+ "after":"$2,883/mo freed: refill buffer, then save"}</pre>
+
+<!-- 5 SCHEMA -->
+<h2 class="section-head">5 · Plan v2 (C001, as proposed)</h2>
+<div class="grid2" style="margin-top:12px">
+<pre class="json">{
+  "monthly_debt_budget": 4449.43,      // 1,559.37 paid to debt today + 2,890.06 redirect
+  "extra_order": ["L-C001-CREDIT_CARD-2",   // store 27.24%
+                  "A-C001-CREDIT_CARD",     // PNC 22.5%
+                  "A-C001-PERSONAL_LOAN"],  // 11%
+  "minimum_only": ["L-C001-STUDENT_LOAN-1"],  // 4.99% < 8% hurdle
+  "lump_sums": [],                     // cash 19,021 &lt; buffer 19,080
+  "redirects": [{"flow": "external_cash_management",
+                 "amount": 2890.06, "confirmed": true}],
+  "spending_targets": [
+    {"category": "dining",   "current": 355.69, "target": 330,
+     "proof_month": "2026-01", "proof": 326.43, "how": ["…top_merchants"]},
+    {"category": "shopping", "current": 355.71, "target": 330,
+     "proof_month": "2026-01", "proof": 326.43, "how": ["…top_merchants"]}],
+  "autopay_full_cards": true,
+  "keep_emergency_months": 3
+}</pre>
+<div class="card" style="margin:0">
+<h2>6 · Validator v2 <span class="muted small">(reject → error to plan node)</span></h2>
+<ol class="rules small">
+<li><b>Every debt ≥ minimum</b>, every month of the sim.</li>
+<li><b>Affordable:</b> budget + bills + spending targets ≤ income − unconfirmed outflows.</li>
+<li><b>Redirects</b> only from flows the customer confirmed; ≤ 12-mo avg.</li>
+<li><b>Order:</b> extra_order = APR desc above 8%; else needs a reason + its cost.</li>
+<li><b>Lumps:</b> cash/CD/brokerage only, ≤ tier; cash stays ≥ buffer.</li>
+<li><b>Spend ① proof:</b> target ≥ customer's lowest month in last 12.</li>
+<li><b>Spend ② size:</b> cut ≤ 25% per category.</li>
+<li><b>Spend ③ essentials:</b> groceries, transport, housing, utilities never cut.</li>
+<li><b>Autopay full</b> on every card at $0.</li>
+<li><b>Server numbers win:</b> all $ recomputed; LLM numbers ignored.</li>
+</ol></div>
+</div>
+
+<!-- 7 WORKED EXAMPLE -->
+<h2 class="section-head">7 · C001 month by month</h2>
+<div class="card table-wrap"><table class="compact">
+<thead><tr><th>Month</th><th class="num">Store 27%</th><th class="num">PNC card 22.5%</th><th class="num">Personal 11%</th><th class="num">Student 5%</th><th class="num">Freed</th><th></th></tr></thead>
+<tbody>
+<tr class="dim"><td>Now · Oct '26</td><td class="num">1,241</td><td class="num">6,571</td><td class="num">1,050</td><td class="num">18,400</td><td class="num">—</td><td></td></tr>
+<tr><td>Nov '26</td><td class="num good">0</td><td class="num">5,109</td><td class="num">1,031</td><td class="num">18,281</td><td class="num">0</td><td><span class="tag good">store $0</span></td></tr>
+<tr><td>Dec '26</td><td class="num good">0</td><td class="num">2,351</td><td class="num">1,011</td><td class="num">18,162</td><td class="num">0</td><td></td></tr>
+<tr><td>Jan '27</td><td class="num good">0</td><td class="num good">0</td><td class="num">533</td><td class="num">18,043</td><td class="num">0</td><td><span class="tag good">PNC $0 · autopay full</span></td></tr>
+<tr><td>Feb '27</td><td class="num good">0</td><td class="num good">0</td><td class="num good">0</td><td class="num">17,923</td><td class="num">2,346</td><td><span class="tag good">personal $0</span></td></tr>
+<tr><td>Mar '27 →</td><td class="num good">0</td><td class="num good">0</td><td class="num good">0</td><td class="num">min only</td><td class="num"><b>2,883/mo</b></td><td class="muted small">buffer, then save</td></tr>
+</tbody></table>
+<div class="compare small">
+<span>Budget <b>$4,449/mo</b> = $1,559 already to debt + $2,890 redirect</span>
+<span>Card spend $1,423 → <b>$1,371</b> (dining, shopping $356 → $330)</span>
+<span>Trim alone: same dates, +$51/mo freed after</span>
+</div></div>
+
+<!-- 8 WIREFRAME -->
+<h2 class="section-head">8 · Plan screen (wireframe, app styles)</h2>
+<div class="wf" style="margin-top:12px">
+<div class="page flow" style="padding:0;max-width:none">
+<div class="card">
+  <div class="row"><h2 style="margin:0">All cards paid off by January</h2><span class="tag good">$2,883/mo freed from Mar</span></div>
+  <div class="tlaxis" style="margin-top:12px"><span></span><div class="ticks"><span>Nov</span><span>Jan</span><span>Mar</span><span>May</span><span>Jul</span><span>Sep</span></div><span></span></div>
+  <div class="dstack">
+    <div class="drow"><div class="name">Store card<span class="sub">$1,241 · 27% · First</span></div><div class="tl"><div class="fill" style="width:8.3%;background:var(--accent)"></div></div><div class="num small">$0 <b>Nov</b></div></div>
+    <div class="drow"><div class="name">PNC card<span class="sub">$6,571 · 22.5% · Next</span></div><div class="tl"><div class="fill" style="width:25%;background:var(--accent);opacity:.8"></div></div><div class="num small">$0 <b>Jan</b></div></div>
+    <div class="drow"><div class="name">Personal loan<span class="sub">$1,050 · 11% · Then</span></div><div class="tl"><div class="fill" style="width:33.3%;background:var(--accent);opacity:.6"></div></div><div class="num small">$0 <b>Feb</b></div></div>
+    <div class="drow"><div class="name">Federal loan<span class="sub">$18,400 · 5% · <span class="tag">Minimum only</span></span></div><div class="tl"><div class="fill" style="width:100%;background:#d1d5db"></div><span class="lab">$195/mo</span></div><div class="num small muted">on schedule</div></div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card" style="margin:0">
+    <h2>Where the money comes from</h2>
+    <div class="sl"><div class="top"><span>$2,890/mo to external account</span><span class="val">$2,890</span></div><div class="meta">You said: spare <button class="ghost">change</button></div><div class="track"><input type="range" min="0" max="2890" value="2890"><span class="tick" style="left:100%"></span></div></div>
+    <div class="sbar"><div class="top"><span>Dining</span><span class="num"><span class="muted">$356 →</span> <b>$330</b></span></div>
+      <div class="bars"><div class="cur" style="width:89.9%"></div><div class="tgt" style="width:83.4%"></div><div class="proof" style="left:82.5%"></div></div>
+      <div class="how">▍ you spent $326 in Jan '26</div></div>
+    <div class="sbar"><div class="top"><span>Shopping</span><span class="num"><span class="muted">$356 →</span> <b>$330</b></span></div>
+      <div class="bars"><div class="cur" style="width:89.9%"></div><div class="tgt" style="width:83.4%"></div><div class="proof" style="left:82.5%"></div></div>
+      <div class="how">▍ you spent $326 in Jan '26</div></div>
+    <div class="sbar"><div class="top"><span class="muted">Groceries · Transport</span><span class="tag">essential · kept</span></div></div>
+    <label class="sl autopay"><input type="checkbox" checked>Pay cards in full once at $0</label>
+  </div>
+  <div class="card" style="margin:0">
+    <h2>High-cost debt over time</h2>
+    <div class="legend"><span><i style="border-color:#9ca3af" class="dash"></i>Today</span><span><i style="border-color:var(--accent)"></i>Plan</span></div>
+    <svg id="chart" viewBox="0 0 420 220" width="100%"></svg>
+    <div class="outs"><div><div class="k">$0</div><div class="v">Feb '27</div></div><div><div class="k">Interest 12 mo</div><div class="v good">$324</div><div class="small muted" style="text-decoration:line-through">$1,906</div></div><div><div class="k">Sold</div><div class="v">$0</div></div></div>
+  </div>
+</div>
+<div class="actions"><button class="primary big">Approve plan</button><button class="big">Try a scenario</button></div>
+</div></div>
+
+<!-- 9 BUILD -->
+<h2 class="section-head">9 · Build order</h2>
+<div class="grid2" style="margin-top:12px">
+<div class="card" style="margin:0"><ol class="rules">
+<li><b>Data + tools:</b> merchant names in seed · <code>context.py</code> · <code>cash_flow</code> · <code>spending_history</code> · <code>query_transactions</code>.</li>
+<li><b>Engine:</b> <code>simulate_plan</code> (all debts, rollover) · validator v2 · plan v2 in store.</li>
+<li><b>Graph:</b> diagnose → ask → plan → validate loop → explain · SSE per node.</li>
+<li><b>UI:</b> debt stack, spend bars, chart on <code>simulate_plan</code>; sliders re-sim, no LLM.</li>
+</ol></div>
+<div class="card" style="margin:0"><h2>Next feature</h2>
+<div class="small"><b>Scenarios:</b> income −20%, $2k car repair, skip redirect → <code>simulate_plan</code> with overrides, side by side.</div>
+<div class="small" style="margin-top:8px"><b>Monitor:</b> each month, or on deviation (spend &gt; target +10%, missed min, balance &gt; $200 off path) → re-plan from the new snapshot, propose the change.</div>
+</div>
+</div>
+
+</main>
+<script>
+(function(){
+  var today=[8861.83,8834.76,8807.31,8779.48,8751.29,8722.69,8693.71,8664.31,8634.52,8604.31,8573.66,8542.59,8511.08];
+  var plan=[8861.83,6139.86,3362.13,532.51,0,0,0,0,0,0,0,0,0];
+  var lab=["Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct"];
+  var W=420,H=220,L=44,R=10,T=10,B=26,max=10000;
+  var x=function(i){return L+i*(W-L-R)/12}, y=function(v){return T+(1-v/max)*(H-T-B)};
+  var s=document.getElementById('chart'), h='';
+  [0,2500,5000,7500,10000].forEach(function(v){h+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="#e5e7eb"/><text x="'+(L-6)+'" y="'+(y(v)+4)+'" font-size="10" text-anchor="end" fill="#6b7280">$'+(v/1000)+'k</text>'});
+  lab.forEach(function(l,i){if(i%2==0)h+='<text x="'+x(i)+'" y="'+(H-8)+'" font-size="10" text-anchor="middle" fill="#6b7280">'+l+'</text>'});
+  var p=function(a){return a.map(function(v,i){return (i?'L':'M')+x(i).toFixed(1)+','+y(v).toFixed(1)}).join(' ')};
+  h+='<path d="'+p(today)+'" fill="none" stroke="#9ca3af" stroke-width="2" stroke-dasharray="5 4"/>';
+  h+='<path d="'+p(plan)+'" fill="none" stroke="#ea580c" stroke-width="2.5"/>';
+  [[1,'store $0'],[3,'PNC $0'],[4,'all $0']].forEach(function(m){h+='<circle cx="'+x(m[0])+'" cy="'+y(plan[m[0]])+'" r="3.5" fill="#ea580c"/><text x="'+(x(m[0])+5)+'" y="'+(y(plan[m[0]])-6)+'" font-size="10" fill="#c2410c">'+m[1]+'</text>'});
+  s.innerHTML=h;
+})();
+</script>
+</body>
+</html>
