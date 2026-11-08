@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import sqlite3
+import threading
 from functools import lru_cache
 from typing import Any
 
@@ -119,8 +120,17 @@ def _import(c: sqlite3.Connection, table: str) -> int:
     return len(rows)
 
 
+_LOAD_LOCK = threading.Lock()
+
+
 def load_into_db(force: bool = False) -> dict[str, int]:
-    """Import the PNC CSVs into SQLite (drop and reload). Without force, only tables that are missing or stale."""
+    """Import the PNC CSVs into SQLite (drop and reload). Without force, only tables that are missing or stale.
+    Locked: concurrent first requests after a deploy would otherwise both drop/create the same tables."""
+    with _LOAD_LOCK:
+        return _load_into_db(force)
+
+
+def _load_into_db(force: bool) -> dict[str, int]:
     c = _connect()
     try:
         have = dict(c.execute("select table_name, source from pnc_import"))
