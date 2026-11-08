@@ -66,10 +66,43 @@ ul{padding-left:20px;margin:6px 0}li{margin:3px 0}
 <p class="sub">Orange = gate · blue = next (parallel after 0) · purple = after that.</p>
 </div>
 
+<div class="note"><b>Added after PR 0 landed:</b> PR 8 (unknown transfers) and PR 9 (demo replay) are high priority and can start now. PR 10 (plan over time) and PR 11 (faster runs) also depend only on PR 0.</div>
+
 <h2>PRs</h2>
 
 <div class="pr gate">
-<h3><span class="n">PR 0</span> Agent v2: a plan that isn't dumb <span class="tag t-now">building now</span><span class="tag t-gate">gate</span></h3>
+<h3><span class="n">PR 8</span> Fix the "unknown transfers" <span class="tag t-gate">high priority</span><span class="tag">decision needed</span></h3>
+<p>C001 sends ~$2,890/mo from checking to "an unlisted external account". PNC's README says these are <b>artificial calibration flows</b> the data generator added so balances hit the final snapshot, not real behavior. The plan leans on them: it redirects ~$2,650/mo, and without that, the high-cost debt never hits $0 within 24 months (net worth $30,986 vs $29,111 baseline).</p>
+<p>Options: <b>(a)</b> explain the flow with our linked-accounts layer: split it into labeled synthetic flows (linked debt minimums, other-bank card spending, rent or bills paid elsewhere, a real leftover), so the agent cuts named things. <b>(b)</b> Treat it as unknown: plan without it and have the agent ask "where does $2.9k/mo go?"</p>
+<dl class="meta"><dt>Touches</dt><dd><code>linked.py</code>, <code>insights.py</code>, <code>agent/prompts.py</code>, <code>scripts/eval_agent.py</code> (reference plan)</dd><dt>Depends</dt><dd>PR 0</dd><dt>Owner</dt><dd>Engine</dd><dt>Size</dt><dd>S–M</dd></dl>
+</div>
+
+<div class="pr gate">
+<h3><span class="n">PR 9</span> Demo replay: cached runs, sped up <span class="tag t-gate">high priority</span></h3>
+<p>For judging, don't wait 3 minutes live. Record a real run's events (each graph step, tool call and result, with timestamps) to a file, and play it back through the same "thinking" screen at N× speed, with a visible "sped up 8×" badge. Pre-record C001 and one or two others before judging; live runs still work.</p>
+<dl class="meta"><dt>Touches</dt><dd><code>agent/graph.py</code> (event log), <code>api.py</code> (replay stream), <code>components/flow/Thinking.tsx</code>, new <code>data/replays/</code></dd><dt>Depends</dt><dd>PR 0 (re-record after 8 and 11)</dd><dt>Owner</dt><dd>Kevin</dd><dt>Size</dt><dd>S–M</dd></dl>
+</div>
+
+<div class="pr p1">
+<h3><span class="n">PR 10</span> Plan over time: the home page, before vs after</h3>
+<p>The outcome screen mirrors the home page, but over time, so the user sees what changed:</p>
+<ul>
+<li><b>Before vs after, per account:</b> what you pay each debt now vs under the plan, plus savings, investing and the redirect.</li>
+<li><b>Each account over time:</b> the balance of every debt and asset by month, with a month scrubber.</li>
+<li><b>Income and expenses:</b> income now (and estimated ahead) and spending by bucket, before vs after.</li>
+<li><b>Every change, and every non-change:</b> "PNC card: $236 → $1,900/mo", "Federal loan: keep paying the $195 minimum", "Groceries: no change".</li>
+</ul>
+<dl class="meta"><dt>Touches</dt><dd><code>wealth.py</code> (per-account monthly series, baseline payments per account), <code>components/flow/Outcome.tsx</code>, new <code>BeforeAfter.tsx</code> + <code>Timeline.tsx</code>, reusing the home page's components</dd><dt>Depends</dt><dd>PR 0</dd><dt>Owner</dt><dd>Frontend</dd><dt>Size</dt><dd>M</dd></dl>
+</div>
+
+<div class="pr p1">
+<h3><span class="n">PR 11</span> Faster runs</h3>
+<p>A run takes ~3 min, which slows iteration. Put the facts every run needs (cash flow, debt priority, liquidity ladder) into the gather step so the model makes fewer tool calls. Cap the ReAct steps, and keep the explain step short. Target: under 90 s.</p>
+<dl class="meta"><dt>Touches</dt><dd><code>agent/graph.py</code>, <code>agent/prompts.py</code></dd><dt>Depends</dt><dd>PR 0</dd><dt>Owner</dt><dd>Kevin</dd><dt>Size</dt><dd>S</dd></dl>
+</div>
+
+<div class="pr gate">
+<h3><span class="n">PR 0</span> Agent v2: a plan that isn't dumb <span class="tag t-now">merged (#2)</span></h3>
 <p>Every debt in the plan, money sources compared by net worth, realistic cuts, read-only data access. Done when <code>scripts/eval_agent.py</code> passes on C001 a few runs in a row.</p>
 <dl class="meta"><dt>Touches</dt><dd><code>wealth.py</code>, <code>insights.py</code>, <code>assumptions.py</code>, <code>agent/*</code>, <code>components/flow/*</code>, <code>IncomeExpense.tsx</code></dd>
 <dt>Owner</dt><dd>Kevin (agent + integration)</dd><dt>Size</dt><dd>L, mostly done</dd></dl>
@@ -133,7 +166,8 @@ ul{padding-left:20px;margin:6px 0}li{margin:3px 0}
 
 <h2>Open questions</h2>
 <ul>
-<li>Where does C001's $2,890/mo go? The demo should have the agent ask instead of assume.</li>
+<li>PR 8: explain the $2,890/mo with labeled synthetic flows (a), or plan without it and ask (b)?</li>
+<li>PR 10 and PR 2 both edit <code>Outcome.tsx</code> and <code>wealth.py</code>: build 10 first, then fold the "bare minimum" plan into it.</li>
 <li>If Nemotron can't pass the eval soon, how long do we wait before switching to PR 1?</li>
 <li>Voice for PR 4: browser speech-to-text is enough for a demo.</li>
 </ul>
