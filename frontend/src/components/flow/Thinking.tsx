@@ -46,11 +46,16 @@ export default function Thinking({ cid, model, runKey, replay, attach, onRun, on
       es.addEventListener('run', (e) => {
         const d = JSON.parse((e as MessageEvent).data) as RunMeta
         runId = d.run_id; tries = 0
-        t0 = d.started_at * 1000
+        // Server time and this machine's clock can differ, which made the counter run backwards from a negative
+        // number. Only an attach to a run already going takes the server's start, and then as elapsed seconds.
+        const tick = () => setSecs(Math.max(0, Math.round((Date.now() - t0) / 1000)))
         setRun(fresh)
         clearInterval(timer)
-        if (d.ended_at) setSecs(Math.round(d.ended_at - d.started_at))
-        else { setSecs(Math.round((Date.now() - t0) / 1000)); timer = setInterval(() => setSecs(Math.round((Date.now() - t0) / 1000)), 1000) }
+        if (d.ended_at) setSecs(Math.max(0, Math.round(d.ended_at - d.started_at)))
+        else {
+          if (attach) t0 = Math.min(t0, Date.now() - Math.max(0, Date.now() / 1000 - d.started_at) * 1000)
+          tick(); timer = setInterval(tick, 1000)
+        }
         ran.current?.(d)
       })
       listenSteps(es, (f) => setRun((r) => ({ ...r, steps: f(r.steps) })))
