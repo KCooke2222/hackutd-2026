@@ -1856,6 +1856,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1874,6 +1875,7 @@ requires-dist = [
     { name = "langgraph", specifier = ">=1.2.20" },
     { name = "pydantic", specifier = ">=2.14.3" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
 

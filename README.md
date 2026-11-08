@@ -42,6 +42,23 @@ make test
 Without keys everything still runs on the local PNC CSVs: the snapshot and charts work,
 `/api/agent/run` returns 503 "NVIDIA_API_KEY is not set", and approvals are recorded locally only.
 
+## Customer data
+
+Every CSV in `backend/data/pnc/` is generated from one spec file, `backend/data/customers.yaml`: per
+customer, income, PNC and linked accounts (balances, APRs, payments, minimums), fixed bills,
+merchants, card mix, transfers out and lumpy spending (mix, annual bills, which months trips and
+repairs land in). To change a customer, edit their entry and regenerate:
+
+```bash
+make data                                              # writes backend/data/pnc, reloads linked accounts
+cd backend && uv run python scripts/gen_data.py --check   # regenerate to a temp dir, compare with data/pnc
+uv run pytest -q tests/test_gen_data.py                 # reconciliation, snapshot, spec == CSVs
+```
+
+Editing one customer leaves every other customer's history unchanged, except adding or removing a
+PNC account (it shifts PNC's shared random stream for later customers). Field reference: the header
+of `customers.yaml` and `backend/data/pnc/README.md`.
+
 ## Nessie seed
 
 ```bash
@@ -84,7 +101,7 @@ empty `PNC <id>` customers.
 
 Nessie only has Checking / Savings / Credit Card accounts (plus home/auto/small-business loans), and
 PNC's data has no student loans, brokerage or property. Those are **linked external accounts**:
-deterministic synthetic rows (`zeroday/linked.py`, `backend/scripts/extend_data.py`) stored in the
+deterministic synthetic rows (each customer's `linked:` list in `backend/data/customers.yaml`, read by `zeroday/linked.py`) stored in the
 SQLite `linked_accounts` table. `balance_sheet.py` merges PNC (with live Nessie balances where seeded)
 and linked accounts, then computes:
 

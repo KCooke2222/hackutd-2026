@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: install backend frontend test seed reseed linked record
+.PHONY: install backend frontend test seed reseed linked data record
 
 install:
 	cd backend && $(UV) sync
@@ -23,9 +23,13 @@ seed:
 reseed:
 	cd backend && $(UV) run python -m zeroday.seed reseed
 
-# Regenerate the linked external accounts (student loans, brokerage, property, other cards) in SQLite.
+# Regenerate every CSV in backend/data/pnc from backend/data/customers.yaml and load the linked accounts.
+data:
+	cd backend && $(UV) run python scripts/gen_data.py
+
+# Reload just the linked external accounts (student loans, brokerage, property, other cards) into SQLite.
 linked:
-	cd backend && $(UV) run python scripts/extend_data.py
+	cd backend && $(UV) run python -m zeroday.linked
 
 # Record live agent runs as replay fixtures (backend/data/replays/). Re-run after the data or agent changes.
 CUSTOMER ?= C001

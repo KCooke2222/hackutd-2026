@@ -61,7 +61,7 @@ Opening balances and the irregular spending are calibrated to the original final
 
 ## Changes vs PNC
 
-`backend/scripts/gen_history.py` is derived from PNC's `Lab_Package/generate_history.py`
+`backend/scripts/gen_data.py` is derived from PNC's `Lab_Package/generate_history.py`
 ([pnc-utd-hackathon-2026](https://github.com/devfulcrum/pnc-utd-hackathon-2026)), licensed under the
 [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0). PNC's original files are kept unchanged in
 `backend/data/pnc_original/`. Same seed (20261108) and the same PNC random stream, so incomes, total
@@ -78,9 +78,28 @@ spending, asset/loan flows and final checking balances match PNC; Zeroday's choi
 
 ## Reproduce
 
+Everything here is generated from `backend/data/customers.yaml`, one entry per customer:
+
+| Spec key | What it drives |
+| --- | --- |
+| `income`, `spending`, `credit_limit` | PNC's monthly income and non-debt spending base (income grows 4% over the history, ±2% noise; spending +12% in Nov/Dec, ±6%); profiles.csv |
+| `accounts` | PNC accounts and their as-of balances, payments and APRs; every account ends exactly there |
+| `linked` | Student loans, store cards, brokerage, home/car value (`zeroday.linked`); debt minimums are paid from checking monthly |
+| `bills` | Housing, insurance, phone/internet, subscriptions (name, amount, day); utilities share of spending and names |
+| `merchants`, `card_mix` | Where the household shops; how card spending (22% of spending) splits |
+| `transfers` | Brokerage auto-invest, childcare, Zelle to family |
+| `lumpy` | Irregular spending: `total` (`auto` = the leftover, or dollars, or `per_month`), category `mix`, `annual_bills`, and the `calendar` of trip/repair/medical months per year |
+
+A knob the spec leaves out gets its seeded default. Each knob's default is drawn even when the spec gives
+the value, so editing one knob doesn't reshuffle that customer's other transactions; customers never share
+Zeroday's random stream. `customers.yaml` itself was written by `--init-spec` (pnc_original + the seeded
+draws), and regenerating from it reproduces the previous data byte for byte.
+
 ```bash
-cd backend && uv run python scripts/gen_history.py     # reads data/pnc_original, writes data/pnc
-uv run pytest -q tests/test_gen_history.py              # reconciliation, snapshot, determinism
+make data                                                 # = cd backend && uv run python scripts/gen_data.py
+cd backend && uv run python scripts/gen_data.py --check   # regenerate to a temp dir; compare monthly aggregates and ids
+uv run python scripts/gen_data.py --init-spec             # rebuild customers.yaml from pnc_original + seeded draws
+uv run pytest -q tests/test_gen_data.py                   # reconciliation, snapshot, spec == CSVs
 ```
 
 PNC's original instructions (for `pnc_original/`):
