@@ -10,6 +10,7 @@ import type { RunMeta } from '../components/flow/Thinking'
 import Outcome from '../components/flow/Outcome'
 import PlanReport from '../components/flow/PlanReport'
 import AgentActions, { callsFor } from '../components/flow/AgentActions'
+import NessieChip from '../components/NessieChip'
 import ChatDrawer from '../components/flow/ChatDrawer'
 import RealityCheck from '../components/flow/RealityCheck'
 import UnderwaterOptions from '../components/flow/UnderwaterOptions'
@@ -306,8 +307,13 @@ export default function Home() {
               <h2 style={{ margin: '0 0 4px' }}>Built on what you'll do</h2>
               <ol className="pr-steps">
                 {applied.map((o) => (
+                  /^pause/i.test(o.title) ? (  // a paused contribution is a Nessie bill change, not a call the user makes
+                    <li key={o.key}><span><b>{o.title}</b></span><span className="runs"><NessieChip label="Nessie bill paused" /></span>
+                      <span className="sub">Paidway stops the deposit; that money goes to your debt bills</span></li>
+                  ) : (
                   <li key={o.key}><span><b>{o.title}</b></span><span className="runs"><span className="tag warn">You do it</span></span>
                     <span className="sub">{o.how}{o.link && <> · <a href={o.link} target="_blank" rel="noreferrer">where</a></>}</span></li>
+                  )
                 ))}
               </ol>
             </div>
