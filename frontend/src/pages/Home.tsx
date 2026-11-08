@@ -139,6 +139,12 @@ export default function Home() {
     api<Proposal[]>(`/proposals?customer_id=${cid}`).then((ps) => {
       const v2 = ps.filter((p) => isV2(p)).sort((a, b) => b.created_at.localeCompare(a.created_at))
       setPast(v2)
+      // Approved plan: load it behind the dashboard so Plan and Done stay clickable in the stepper.
+      tracked.then((on) => {
+        const ex = on && v2.find((p) => p.id === on.proposal?.id)
+        if (!ex || n !== epoch.current || urlPlan.current) return
+        setAi(ex); setKnobs(knobsFrom(ex)); setApproved(ex); setReached(3)
+      })
       // ?plan=<id> or ?plan=last opens a saved run straight away (for UI checks without a model run)
       const want = urlPlan.current
       if (want) {
