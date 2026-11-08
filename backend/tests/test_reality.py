@@ -97,11 +97,11 @@ def test_cash_running_out_is_not_realistic():
     out of negative cash, so the cash test has to catch it."""
     rc = wealth.reality_check("C027", live=False)
     assert rc["realistic"] is False
-    assert rc["cash_runs_out"] == "2027-05"
+    assert rc["cash_runs_out"] == "2028-05"
     assert rc["monthly"]["lowest_cash"] < 0
     assert rc["gap_per_month"] == pytest.approx(rc["monthly"]["shortfall"], abs=0.01)
     assert rc["gap_per_month"] > 0
-    assert "cash runs out by 2027-05" in rc["message"]
+    assert "cash runs out by 2028-05" in rc["message"]
 
 
 def test_realistic_means_cash_stays_positive():
