@@ -8,6 +8,14 @@ type Row = { id: string; name: string; bal: number; tags: [string, string?][]; d
 const inNessie = (a: SheetAccount | undefined) => !!a && (!!a.nessie_id || a.source === 'nessie')
 const display = (a: SheetAccount | undefined, name: string) => (a && inNessie(a) && a.account_type === 'brokerage' ? 'Brokerage' : name)
 
+/** What an asset earns: the Brokerage at the planner's expected stock return, cash and CDs at their yield. */
+const STOCK_RETURN_PCT = 7 // wealth.STOCK_MU_PCT
+function earns(a: SheetAccount | undefined): [string, string?][] {
+  if (!a || a.side !== 'asset') return []
+  if (a.account_type === 'brokerage') return [[`est. ${STOCK_RETURN_PCT}%/yr`]]
+  return a.annual_yield_pct > 0 ? [[`${+a.annual_yield_pct.toFixed(2)}%/yr`]] : []
+}
+
 function Col({ title, total, rows, byId }: { title: string; total: number; rows: Row[]; byId: Map<string, SheetAccount> }) {
   // One Nessie chip per column; rows that aren't in Nessie say so instead.
   const live = rows.some((r) => 'id' in r && inNessie(byId.get(r.id)))
@@ -51,12 +59,12 @@ export default function Snapshot({ sheet }: { sheet: BalanceSheet }) {
   const tiers = sheet.ladder.tiers
   for (const t of tiers.filter((t) => t.proposable)) {
     for (const a of t.accounts) {
-      have.push({ id: a.account_id, name: a.name, bal: a.balance, tags: [] })
+      have.push({ id: a.account_id, name: a.name, bal: a.balance, tags: earns(byId.get(a.account_id)) })
     }
   }
   const untapped = tiers.filter((t) => !t.proposable).flatMap((t) => t.accounts)
-  if (untapped.length) have.push({ group: 'Not tapped' }, ...untapped.map((a) => ({ id: a.account_id, name: a.name, bal: a.balance, tags: [], dim: true })))
-  for (const a of sheet.accounts) if (a.side === 'asset' && !have.some((h) => 'id' in h && h.id === a.account_id)) have.push({ id: a.account_id, name: a.name, bal: a.balance, tags: [], dim: true })
+  if (untapped.length) have.push({ group: 'Not tapped' }, ...untapped.map((a) => ({ id: a.account_id, name: a.name, bal: a.balance, tags: earns(byId.get(a.account_id)), dim: true })))
+  for (const a of sheet.accounts) if (a.side === 'asset' && !have.some((h) => 'id' in h && h.id === a.account_id)) have.push({ id: a.account_id, name: a.name, bal: a.balance, tags: earns(a), dim: true })
 
   // Owe: avalanche order for extra money, then minimum-only debts.
   const debts = sheet.priority.debts
